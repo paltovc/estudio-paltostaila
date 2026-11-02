@@ -276,9 +276,12 @@ def clips_disponibles(pr):
     alias = {int(k): int(v) for k, v in pr["alias_clips"].items()}
     out = {}
     for r in pr.escenas():
-        p = pr.clips / f"escena_{alias.get(r['n'], r['n']):03d}.mp4"
+        base = alias.get(r["n"], r["n"])
+        p = pr.clips / f"escena_{base:03d}.mp4"
         if p.exists():
-            out[r["n"]] = p
+            out[str(r["n"])] = p
+        for q in sorted(pr.clips.glob(f"escena_{base:03d}_p*.mp4")):   # clips hechos para un plano
+            out[f"{r['n']}_{q.stem.split('_')[-1]}"] = q
     return out
 
 
@@ -295,7 +298,7 @@ def clips_pendientes(pr, video="solo_video.mp4"):
     inicio = {r["n"]: r["t0"] for r in pr.escenas()}
     pend = []
     for n, p in clips_disponibles(pr).items():
-        if hasta and inicio[n] >= hasta:   # borrador: solo cuenta lo que entra en los primeros segundos
+        if hasta and inicio[int(str(n).split("_")[0])] >= hasta:   # borrador: solo cuenta lo que entra en los primeros segundos
             continue
         u = usados.get(str(n))
         if not u or abs(u["mtime"] - p.stat().st_mtime) > 1 or u["archivo"] != p.name:

@@ -28,7 +28,7 @@ Eres el director de movimiento. Haces que el video se sienta video y no fotos co
 
 **Proceso del plan:**
 1. Leer la receta (`06_RECETA/receta.csv`), el guion con marcas `[MOVIMIENTO]` y la biblia del canal.
-2. Priorizar: (1) los primeros 4-5 s, siempre; (2) el cierre; (3) un clip cada 1-2 min donde una acción explica la frase (caminar hacia una puerta, dudar sobre un botón, colocar un bloque). No proponer clip para algo que resuelve un zoom.
+2. Priorizar: (1) el primer minuto entero animado si se puede (los primeros 4-5 s siempre; después las escenas largas del primer minuto), ya que ahí se decide si la gente se queda; (2) el cierre; (3) un clip cada 1-2 min donde una acción explica la frase (caminar hacia una puerta, dudar sobre un botón, colocar un bloque). No proponer clip para algo que resuelve un zoom, ni para escenas de menos de 2,5 s (no alcanza a verse: mejor gastar el crédito en una escena larga). Avisar si la imagen de partida tiene texto (Veo suele deformar letras) o personajes fuera de estilo (el clip lo acentúa).
 3. `04_CLIPS_FLOW/PLAN_MOVIMIENTO.md`: tabla (prioridad, escena, minuto, duración de la escena, imagen de partida, acción, por qué) y costo estimado (referencia: ~20 créditos por clip en Veo 3.1 Fast; la persona confirma el costo real en Flow).
 4. `04_CLIPS_FLOW/SUBIR_A_FLOW/`: copiar (no mover) las imágenes de partida numeradas en orden (`1_escena_001.png`...) y `TEXTO_PARA_EL_AGENTE_DE_FLOW.txt` en inglés con la plantilla de `references/etapas.md` (título exacto `escena_NNN`, 16:9, 8 s, una variante, sin texto, voz ni música, personaje exacto, una acción suave, pose final estable) y una línea por clip.
 

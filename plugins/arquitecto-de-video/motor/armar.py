@@ -46,16 +46,23 @@ def tomas():
                 pb = min(round(cortes[i + 1][0] * FPS) if i + 1 < len(cortes) else b, b)
                 if pa >= pb:
                     continue
+                propio = pr.clips / f"escena_{ALIAS.get(n, n):03d}_p{i + 1}.mp4"   # clip hecho para este plano
+                t_p = t_escena if i == 0 else TR["plano"]
                 if i == 0 and clip.exists():
-                    lista.append(dict(n=n, tipo="clip", src=clip, a=pa, b=pb, cam=None, t=t_escena))
+                    lista.append(dict(n=n, tipo="clip", src=clip, a=pa, b=pb, cam=None, t=t_p, c0=pa, clave=str(n)))
+                elif i > 0 and propio.exists():
+                    lista.append(dict(n=n, tipo="clip", src=propio, a=pa, b=pb, cam=None, t=t_p, c0=pa, clave=f"{n}_p{i + 1}"))
+                elif i > 0 and clip.exists() and pr.cfg.get("planos_sobre_clip", True):
+                    # el clip sigue corriendo y el plano cerrado se hace sobre el clip (no sobre la imagen quieta)
+                    lista.append(dict(n=n, tipo="clipcam", src=clip, a=pa, b=pb, cam=(c0, c1), t=t_p, c0=a, clave=str(n)))
                 else:
                     lista.append(dict(n=n, tipo="img", src=img, a=pa, b=pb, cam=(c0, c1), t=t_escena if i == 0 else TR["plano"]))
         elif clip.exists():
             cf = int(duracion_medio(clip) * FPS) - 4
             if cf >= (b - a) - 45:   # si falta 1,5 s o menos, se sostiene el ultimo cuadro del clip
-                lista.append(dict(n=n, tipo="clip", src=clip, a=a, b=b, cam=None, t=t_escena))
+                lista.append(dict(n=n, tipo="clip", src=clip, a=a, b=b, cam=None, t=t_escena, c0=a, clave=str(n)))
             else:   # el clip no alcanza: clip y despues la imagen con movimiento
-                lista.append(dict(n=n, tipo="clip", src=clip, a=a, b=a + cf, cam=None, t=t_escena))
+                lista.append(dict(n=n, tipo="clip", src=clip, a=a, b=a + cf, cam=None, t=t_escena, c0=a, clave=str(n)))
                 lista.append(dict(n=n, tipo="img", src=img, a=a + cf, b=b,
                                   cam=escalar(MOVS[k % len(MOVS)], (b - a - cf) / FPS), t=TR["normal"]))
         else:
@@ -79,10 +86,19 @@ COVER = f"scale={CW}:{CH}:force_original_aspect_ratio=increase,crop={CW}:{CH},se
 
 
 def flujo(s, idx, ini, cant, lab):
-    if s["tipo"] == "clip":
-        return (f"[{idx}:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"
-                f"tpad=stop_mode=clone:stop_duration=60,trim=start_frame={ini}:end_frame={ini + cant},"
-                f"setpts=PTS-STARTPTS,format=yuv420p[{lab}]")
+    if s["tipo"] in ("clip", "clipcam"):
+        desde = ini + max(0, s["ea"] - s.get("c0", s["ea"]))   # cuadro del clip que corresponde a este momento
+        base = (f"[{idx}:v]scale={W if s['tipo'] == 'clip' else CW}:{H if s['tipo'] == 'clip' else CH}:force_original_aspect_ratio=increase,"
+                f"crop={W if s['tipo'] == 'clip' else CW}:{H if s['tipo'] == 'clip' else CH},setsar=1,fps={FPS},"
+                f"tpad=stop_mode=clone:stop_duration=60,trim=start_frame={desde}:end_frame={desde + cant},setpts=PTS-STARTPTS")
+        if s["tipo"] == "clip":
+            return base + f",format=yuv420p[{lab}]"
+        (z0, x0, y0), (z1, x1, y1) = s["cam"]
+        e = f"(1-cos(PI*(on+{ini})/{max(s['ne'] - 1, 1)}))/2"
+        z = f"{z0}+({z1 - z0})*{e}"
+        x = f"max(0,min(iw-iw/zoom,({x0}+({x1 - x0})*{e})*iw-iw/zoom/2))"
+        y = f"max(0,min(ih-ih/zoom,({y0}+({y1 - y0})*{e})*ih-ih/zoom/2))"
+        return base + f",zoompan=z='{z}':x='{x}':y='{y}':d=1:s={W}x{H}:fps={FPS},format=yuv420p,setsar=1[{lab}]"
     (z0, x0, y0), (z1, x1, y1) = s["cam"]
     e = f"(1-cos(PI*(on+{ini})/{max(s['ne'] - 1, 1)}))/2"
     z = f"{z0}+({z1 - z0})*{e}"
@@ -128,7 +144,7 @@ def main():
         if i + 1 < len(lista):
             trabajos.append(("trans", (s, lista[i + 1]), PZ / f"p{len(trabajos):04d}.mp4"))
     total = lista[-1]["b"] - lista[0]["a"]
-    clips = sorted({s["src"].name for s in lista if s["tipo"] == "clip"})
+    clips = sorted({s["src"].name for s in lista if s["tipo"] in ("clip", "clipcam")})
     print(f"{len(lista)} tomas, {len(trabajos)} piezas, {total / FPS:.2f} s; clips de Flow: {', '.join(clips) or 'ninguno'}", flush=True)
     with ThreadPoolExecutor(max_workers=3) as ex:
         archivos = list(ex.map(pieza, trabajos))
@@ -140,8 +156,8 @@ def main():
     print(f"cuadros: {n} (esperados {total}) {'OK' if n == total else 'REVISAR'}", flush=True)
     clips = {}
     for s in lista:
-        if s["tipo"] == "clip":
-            clips[str(s["n"])] = {"archivo": s["src"].name, "mtime": s["src"].stat().st_mtime, "inicio_s": round(s["a"] / FPS, 3),
+        if s["tipo"] == "clip" and s["clave"] not in clips:
+            clips[s["clave"]] = {"archivo": s["src"].name, "mtime": s["src"].stat().st_mtime, "inicio_s": round(s["a"] / FPS, 3),
                                   "dura_s": round((s["b"] - s["a"]) / FPS, 3)}
     (salida.with_suffix(".json")).write_text(json.dumps(
         {"video": salida.name, "fecha": datetime.now().isoformat(timespec="seconds"), "hasta": HASTA,

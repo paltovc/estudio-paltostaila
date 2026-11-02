@@ -66,6 +66,7 @@ Notas:
 - Transiciones posibles (xfade de ffmpeg): fade, smoothleft, smoothright, slideleft, wipeleft, circleopen, dissolve, fadeblack, entre otras. La duración va en cuadros (12 = 0,4 s a 30 fps).
 - `planos`: el segundo es del video completo (no de la escena). El primer plano empieza siempre con la escena.
 - `\\N` en un título es salto de línea.
+- `planos_sobre_clip` (por defecto true): en escenas con planos, el clip sigue corriendo bajo los planos cerrados.
 - `clips_plan`: escenas que deberían llevar clip de Flow según el plan de movimiento; la revisión avisa las que todavía no tienen clip.
 - `video.calidad`: "720p", "1080p", "1440p" o "4k" (reemplaza ancho y alto; si el video es vertical, los da vuelta).
 - `vertical`: `desde`/`hasta` por frase o `desde_s`/`hasta_s` por segundo (los escribe `cortos.py`); `modo` "marco" o "recorte" con `centro_x` de 0 a 1.

@@ -45,16 +45,17 @@ def revisar_clips(principal, lineas):
     if m is None:   # video armado con un motor anterior: se comprueban los clips que hay en la carpeta
         lineas.append("   (sin registro del armado: se comparan los clips de la carpeta con el video)")
         esc = {r["n"]: r for r in pr.escenas()}
-        m = {"clips": {str(n): {"archivo": p.name, "inicio_s": esc[n]["t0"], "dura_s": esc[n]["t1"] - esc[n]["t0"]}
-                       for n, p in clips_disponibles(pr).items()}}
+        m = {"clips": {k: {"archivo": p.name, "inicio_s": esc[int(k.split("_")[0])]["t0"],
+                           "dura_s": esc[int(k.split("_")[0])]["t1"] - esc[int(k.split("_")[0])]["t0"]}
+                       for k, p in clips_disponibles(pr).items() if "_p" not in k}}
         pend = []
     for n, a, e in pend:
         lineas.append(f"   REVISAR escena {n}: {a} está en la carpeta pero no en el video armado ({e}) -> volver a armar")
         problemas += 1
     usados = (m or {}).get("clips", {})
     with tempfile.TemporaryDirectory() as tmp:
-        for k, u in sorted(usados.items(), key=lambda x: int(x[0])):
-            n = int(k)
+        for k, u in sorted(usados.items(), key=lambda x: (int(x[0].split("_")[0]), x[0])):
+            n = int(k.split("_")[0])
             t0 = u["inicio_s"]
             off = min(2.0, u["dura_s"] / 2)
             a = huella(principal, t0 + off, tmp, f"v{n}")
@@ -66,10 +67,11 @@ def revisar_clips(principal, lineas):
             problemas += not ok
             lineas.append(f"   {'OK     ' if ok else 'REVISAR'} escena {n:03d} en {mmss(t0)} ({u['dura_s']:.1f} s): {u['archivo']}"
                           f" (parecido {d_clip:.1f}{'' if ok else '; no se ve el movimiento del clip'})")
-    plan = [int(x) for x in pr.cfg.get("clips_plan", [])]
-    faltan = [n for n in plan if str(n) not in usados and n not in [p[0] for p in pend]]
+    plan = [str(x) for x in pr.cfg.get("clips_plan", [])]
+    faltan = [n for n in plan if n not in usados and n not in [str(p[0]) for p in pend]]
+    etiqueta = lambda k: "escena_" + (f"{int(k):03d}" if k.isdigit() else f"{int(k.split('_')[0]):03d}_{k.split('_')[1]}")
     if faltan:
-        lineas.append(f"   aviso: clips del plan que todavía no existen: {', '.join(f'escena_{n:03d}' for n in faltan)}")
+        lineas.append(f"   aviso: clips del plan que todavía no existen: {', '.join(etiqueta(n) for n in faltan)}")
     return problemas
 
 
