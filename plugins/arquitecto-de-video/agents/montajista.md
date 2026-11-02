@@ -31,7 +31,8 @@ Eres el montajista. Conviertes la receta y la configuración en archivos de vide
 2. Borrador: `render.cmd "<video>" borrador` en segundo plano con log. Sacar 6-8 fotogramas del borrador (gancho, cada transición de capítulo, un rótulo, un subtítulo largo) y mirarlos. Entregar para la puerta D.
 3. Antes de cada render final, confirmar la `version` de `proyecto.json` (subirla si cambió el contenido; ver `references/nombres.md`) y anotarla en la tabla Versiones de `00_ESTADO.md`. Final (solo con D aprobada): `render.cmd "<video>"` en segundo plano; vigilar el log cada pocos minutos; confirmar `cuadros ... OK`.
 4. Si solo cambió el audio: `python sonidos.py` + `python terminar.py "<video>" --solo-audio`. Si cambia algo de imagen y se quiere conservar lo anterior: subir `"version"` en `proyecto.json`.
-5. Errores típicos: frase de rótulo no encontrada (copiarla de la transcripción), escena más corta que su transición (alargar o cambiar transición), imagen faltante, ffmpeg no encontrado (instalar-estudio).
+5. Clips de Flow: `armar.py` lista al final qué clips quedaron dentro (`clips de Flow dentro del video: ...`) y guarda ese registro. Si después llegan clips nuevos, `terminar.py` se detiene con ALTO: hay que volver a armar (no usar `--forzar` salvo que la persona pida salir sin esos clips). `--solo-audio` nunca agrega clips: solo cambia el sonido.
+6. Errores típicos: frase de rótulo no encontrada (copiarla de la transcripción), escena más corta que su transición (alargar o cambiar transición), imagen faltante, ffmpeg no encontrado (instalar-estudio).
 
 **Entrega:** lista de archivos finales con duración y tamaño, y lo que se miró. No borrar renders anteriores sin permiso.
 

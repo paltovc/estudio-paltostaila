@@ -6,7 +6,7 @@
 #   python terminar.py "C:\ruta\video" --solo-audio     rehace el audio y lo cambia sin recodificar la imagen
 import json, os, re, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes
 
 pr = Proyecto()
 ARG = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
@@ -113,7 +113,20 @@ def preparar():
         print(f"  rotulo {mmss(t0)}  {chico}: {grande}")
 
 
+def revisar_clips(video):
+    m, pend = clips_pendientes(pr, video)
+    if m is None:
+        print(f"AVISO: {video} no tiene registro de clips (se armó con un motor anterior); no se puede comprobar.")
+        return
+    if pend and "--forzar" not in sys.argv:
+        sys.exit("ALTO: hay clips de Flow en la carpeta que NO están en el video armado:\n" +
+                 "\n".join(f"   escena {n}: {a} ({e})" for n, a, e in pend) +
+                 "\nVuelve a correr armar.py (y sube la versión en proyecto.json). Para seguir igual: --forzar")
+
+
 def main():
+    if not ARG("--muestras"):
+        revisar_clips(f"solo_video_borrador_{int(float(ARG('--borrador')))}s.mp4" if ARG("--borrador") else "solo_video.mp4")
     preparar()
     dur = pr.duracion()
     solo = "tmp/solo_video.mp4"

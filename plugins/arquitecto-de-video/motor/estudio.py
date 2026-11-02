@@ -267,3 +267,37 @@ def momento(pr, pals, escenas, d):
     else:
         t = float(d["segundo"])
     return t + float(d.get("desfase", 0))
+
+
+# ---------- clips de Flow: que hay en la carpeta y que quedo dentro del video armado ----------
+
+def clips_disponibles(pr):
+    """{escena: ruta} de las escenas de la receta que tienen clip escena_NNN.mp4 (o alias) en la carpeta de clips."""
+    alias = {int(k): int(v) for k, v in pr["alias_clips"].items()}
+    out = {}
+    for r in pr.escenas():
+        p = pr.clips / f"escena_{alias.get(r['n'], r['n']):03d}.mp4"
+        if p.exists():
+            out[r["n"]] = p
+    return out
+
+
+def manifiesto(pr, video="solo_video.mp4"):
+    p = pr.tmp / (Path(video).stem + ".json")
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+
+
+def clips_pendientes(pr, video="solo_video.mp4"):
+    """Clips que estan en la carpeta pero NO en el video armado (o que cambiaron despues de armarlo)."""
+    m = manifiesto(pr, video)
+    usados = (m or {}).get("clips", {})
+    hasta = (m or {}).get("hasta")
+    inicio = {r["n"]: r["t0"] for r in pr.escenas()}
+    pend = []
+    for n, p in clips_disponibles(pr).items():
+        if hasta and inicio[n] >= hasta:   # borrador: solo cuenta lo que entra en los primeros segundos
+            continue
+        u = usados.get(str(n))
+        if not u or abs(u["mtime"] - p.stat().st_mtime) > 1 or u["archivo"] != p.name:
+            pend.append((n, p.name, "nuevo" if not u else "cambió"))
+    return m, pend

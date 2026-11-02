@@ -19,6 +19,7 @@ Vive en la carpeta del video. Todo campo que falte toma el valor por defecto del
           [4.10, [1.65, 0.27, 0.44], [1.75, 0.25, 0.40]]]
   },
   "alias_clips": {"77": 23},
+  "clips_plan": [1, 3, 78, 38, 28, 23, 51, 70],
 
   "correcciones": [["¿Cuánto pararía en comisiones?", "¿Cuánto pagaría en comisiones?"]],
   "subtitulos": {"max_caracteres": 80, "fuente": "Arial", "tamano": 54},
@@ -65,6 +66,7 @@ Notas:
 - Transiciones posibles (xfade de ffmpeg): fade, smoothleft, smoothright, slideleft, wipeleft, circleopen, dissolve, fadeblack, entre otras. La duración va en cuadros (12 = 0,4 s a 30 fps).
 - `planos`: el segundo es del video completo (no de la escena). El primer plano empieza siempre con la escena.
 - `\\N` en un título es salto de línea.
+- `clips_plan`: escenas que deberían llevar clip de Flow según el plan de movimiento; la revisión avisa las que todavía no tienen clip.
 - `video.calidad`: "720p", "1080p", "1440p" o "4k" (reemplaza ancho y alto; si el video es vertical, los da vuelta).
 - `vertical`: `desde`/`hasta` por frase o `desde_s`/`hasta_s` por segundo (los escribe `cortos.py`); `modo` "marco" o "recorte" con `centro_x` de 0 a 1.
 - `estilo` de un rótulo: sin estilo = caja azul arriba a la izquierda; `"pregunta"` = arriba al centro (también si el texto chico empieza con PREGUNTA); `"definicion"` = caja clara arriba a la derecha.

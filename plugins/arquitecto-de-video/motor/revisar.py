@@ -2,7 +2,10 @@
 # hoja de contacto y fotogramas en los momentos con mas texto. Deja todo en 07_RENDER/revision.
 #   python revisar.py "C:\ruta\video"
 import re
-from estudio import Proyecto, FFMPEG, FFPROBE, run, palabras, cues, buscar, mmss
+import tempfile
+from pathlib import Path
+from PIL import Image, ImageChops, ImageStat
+from estudio import Proyecto, FFMPEG, FFPROBE, run, palabras, cues, buscar, mmss, clips_pendientes, manifiesto
 
 pr = Proyecto()
 REV = pr.salida / "revision"
@@ -24,6 +27,50 @@ def lufs(p):
 def negros(p):
     s = run([FFMPEG, "-hide_banner", "-i", p, "-vf", "blackdetect=d=0.1:pix_th=0.06", "-an", "-f", "null", "-"])
     return re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", s)
+
+
+def huella(video, t, tmp, nombre):
+    out = Path(tmp) / f"{nombre}.png"
+    run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", video, "-frames:v", "1", "-vf",
+         f"scale={pr.ancho}:{pr.alto}:force_original_aspect_ratio=increase,crop={pr.ancho}:{pr.alto}", out])
+    return Image.open(out).convert("L").resize((64, 36))
+
+
+def revisar_clips(principal, lineas):
+    """Comprueba que cada clip de Flow este de verdad dentro del video final, en su escena."""
+    from estudio import clips_disponibles
+    m, pend = clips_pendientes(pr)
+    problemas = 0
+    lineas.append("\nClips de Flow:")
+    if m is None:   # video armado con un motor anterior: se comprueban los clips que hay en la carpeta
+        lineas.append("   (sin registro del armado: se comparan los clips de la carpeta con el video)")
+        esc = {r["n"]: r for r in pr.escenas()}
+        m = {"clips": {str(n): {"archivo": p.name, "inicio_s": esc[n]["t0"], "dura_s": esc[n]["t1"] - esc[n]["t0"]}
+                       for n, p in clips_disponibles(pr).items()}}
+        pend = []
+    for n, a, e in pend:
+        lineas.append(f"   REVISAR escena {n}: {a} está en la carpeta pero no en el video armado ({e}) -> volver a armar")
+        problemas += 1
+    usados = (m or {}).get("clips", {})
+    with tempfile.TemporaryDirectory() as tmp:
+        for k, u in sorted(usados.items(), key=lambda x: int(x[0])):
+            n = int(k)
+            t0 = u["inicio_s"]
+            off = min(2.0, u["dura_s"] / 2)
+            a = huella(principal, t0 + off, tmp, f"v{n}")
+            b = huella(pr.clips / u["archivo"], off, tmp, f"c{n}")
+            c = huella(pr.clips / u["archivo"], 0.05, tmp, f"p{n}")
+            d_clip = ImageStat.Stat(ImageChops.difference(a, b)).mean[0]
+            d_foto = ImageStat.Stat(ImageChops.difference(a, c)).mean[0]
+            ok = d_clip < 15 and d_clip <= d_foto + 1
+            problemas += not ok
+            lineas.append(f"   {'OK     ' if ok else 'REVISAR'} escena {n:03d} en {mmss(t0)} ({u['dura_s']:.1f} s): {u['archivo']}"
+                          f" (parecido {d_clip:.1f}{'' if ok else '; no se ve el movimiento del clip'})")
+    plan = [int(x) for x in pr.cfg.get("clips_plan", [])]
+    faltan = [n for n in plan if str(n) not in usados and n not in [p[0] for p in pend]]
+    if faltan:
+        lineas.append(f"   aviso: clips del plan que todavía no existen: {', '.join(f'escena_{n:03d}' for n in faltan)}")
+    return problemas
 
 
 def main():
@@ -60,6 +107,8 @@ def main():
             nombre = f"fotograma_{int(t // 60)}m{int(t % 60):02d}s.jpg"
             run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", principal, "-frames:v", "1", "-q:v", "3", REV / nombre])
             lineas.append(f"   {nombre}: {motivo}")
+    if principal and not "_9x16" in principal.name:
+        problemas += revisar_clips(principal, lineas)
     lineas.append(f"\n{len(finales)} archivos revisados, {problemas} puntos a revisar."
                   "\nFalta siempre: escuchar el video completo (voz, efectos y el audio que trae cada clip de Flow).")
     (REV / "informe.txt").write_text("\n".join(lineas), encoding="utf-8")

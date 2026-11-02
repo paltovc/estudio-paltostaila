@@ -4,6 +4,8 @@
 #   python armar.py "C:\ruta\video" --hasta 60  borrador de los primeros 60 s
 import sys
 from concurrent.futures import ThreadPoolExecutor
+import json
+from datetime import datetime
 from estudio import Proyecto, FFMPEG, FFPROBE, run, duracion_medio
 
 pr = Proyecto()
@@ -136,6 +138,15 @@ def main():
     n = int(run([FFPROBE, "-v", "error", "-count_packets", "-select_streams", "v", "-show_entries",
                  "stream=nb_read_packets", "-of", "csv=p=0", salida]).strip())
     print(f"cuadros: {n} (esperados {total}) {'OK' if n == total else 'REVISAR'}", flush=True)
+    clips = {}
+    for s in lista:
+        if s["tipo"] == "clip":
+            clips[str(s["n"])] = {"archivo": s["src"].name, "mtime": s["src"].stat().st_mtime, "inicio_s": round(s["a"] / FPS, 3),
+                                  "dura_s": round((s["b"] - s["a"]) / FPS, 3)}
+    (salida.with_suffix(".json")).write_text(json.dumps(
+        {"video": salida.name, "fecha": datetime.now().isoformat(timespec="seconds"), "hasta": HASTA,
+         "receta": pr.receta.name, "clips": clips}, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"clips de Flow dentro del video: {len(clips)} -> " + (", ".join(f"escena {k}" for k in clips) or "ninguno"), flush=True)
     print("LISTO", salida, flush=True)
 
 

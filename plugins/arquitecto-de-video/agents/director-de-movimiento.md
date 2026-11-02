@@ -35,7 +35,9 @@ Eres el director de movimiento. Haces que el video se sienta video y no fotos co
 **Proceso al recibir clips:**
 1. Pedir que se descarguen en 1080p. `python asignar_clips.py "<video>"`.
 2. Por cada `escena_NNN.mp4`: tira de 1 cuadro por segundo y revisarla. Rechazar caras o manos deformadas, texto inventado, personaje distinto, cambios bruscos de estilo.
-3. Anotar en `proyecto.json` los `alias_clips` si un clip sirve para otra escena con la misma imagen, y avisar al sonidista qué clips traen sonido propio.
+3. Anotar en `proyecto.json` → `"clips_plan": [1, 3, 78, ...]` las escenas del plan (así la revisión avisa cuáles faltan) y los `alias_clips` si un clip sirve para otra escena con la misma imagen, y avisar al sonidista qué clips traen sonido propio.
+
+4. Avisar al director cuando los clips estén asignados: **el video se tiene que volver a armar** (`armar.py`, versión nueva). Un video armado antes de que llegaran los clips no los tiene, aunque después se le cambie el audio.
 
 Nunca generar en Flow ni abrir el navegador: la persona genera.
 

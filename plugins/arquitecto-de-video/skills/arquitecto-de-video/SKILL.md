@@ -43,6 +43,8 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 | 10 | Publicación | `publicador` | `08_PUBLICAR/<plataforma>/` (3 variantes para "Probar y comparar", descripción, capítulos, 3 Shorts, comentario fijado) | **F: publicar** (lo hace la persona) |
 | 11 | Después de publicar | `analista` | `08_PUBLICAR/aprendizajes.md` (48 h y 7 días) + minería de comentarios mensual | — |
 
+Regla de clips: si llegan clips de Flow después de un armado, volver a armar (versión nueva) antes de entregar; nunca entregar un final cuyo informe de revisión no diga OK en todos los clips.
+
 Puertas: mostrar un resumen corto de lo que se aprueba (no el archivo entero) y esperar un sí. Si la persona no está, dejar la pregunta en `00_ESTADO.md` y avanzar solo con trabajo que no dependa de esa respuesta.
 
 ## Trabajo en paralelo
