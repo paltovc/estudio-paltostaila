@@ -4,7 +4,7 @@
 #   python terminar.py "C:\ruta\video" --borrador 60    borrador con todo, sobre el armado de 60 s
 #   python terminar.py "C:\ruta\video" --muestras 16,80 fotogramas con subtitulos en esos segundos
 #   python terminar.py "C:\ruta\video" --solo-audio     rehace el audio y lo cambia sin recodificar la imagen
-import json, os, sys
+import json, os, re, sys
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss
 
@@ -54,11 +54,23 @@ def audio(dur):
     L = pr["volumen_lufs"]
     medida = run([FFMPEG, "-hide_banner", *ins, "-filter_complex", f"{base},loudnorm=I={L}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"])
     m = json.loads(medida[medida.rindex("{"):medida.rindex("}") + 1])
-    ln = (f"loudnorm=I={L}:TP=-1.5:LRA=11:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
-          f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
+    # ganancia hasta el objetivo + limitador; se repite porque el limitador baja un poco el volumen en voces
+    # con picos altos (loudnorm lineal se quedaba corto: -15,7 en vez de -14)
+    ganancia = L - float(m["input_i"])
+    lim = "alimiter=limit=0.89:attack=5:release=80:level=0"
     run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex",
-         f"{base},{ln},aresample=48000,aformat=channel_layouts=stereo,afade=t=in:d=0.3,afade=t=out:st={dur - 1.2:.3f}:d=1.2",
-         "-t", f"{dur:.3f}", pr.tmp / "voz.wav"])
+         f"{base},volume={ganancia:.2f}dB,{lim},aresample=48000,aformat=channel_layouts=stereo",
+         "-t", f"{dur:.3f}", pr.tmp / "voz_paso.wav"])
+    for _ in range(3):
+        med = run([FFMPEG, "-hide_banner", "-i", pr.tmp / "voz_paso.wav", "-af", "ebur128", "-f", "null", "-"])
+        actual = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", med)[-1])
+        if abs(actual - L) <= 0.3:
+            break
+        run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af", f"volume={L - actual:.2f}dB,{lim}",
+             pr.tmp / "voz_paso2.wav"])
+        (pr.tmp / "voz_paso2.wav").replace(pr.tmp / "voz_paso.wav")
+    run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af",
+         f"afade=t=in:d=0.3,afade=t=out:st={dur - 1.2:.3f}:d=1.2", pr.tmp / "voz.wav"])
     efectos = pr.tmp / "efectos.wav"
     if efectos.exists() and pr["sonidos"]["activar"] and os.environ.get("SIN_EFECTOS") != "1":
         run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz.wav", "-i", efectos, "-filter_complex",
