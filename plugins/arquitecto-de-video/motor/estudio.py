@@ -89,7 +89,9 @@ class Proyecto:
             lado = CALIDADES[str(v["calidad"]).lower()]
             self.ancho, self.alto = (lado[1], lado[0]) if v["alto"] > v["ancho"] else lado
         ver = self.cfg["version"]
-        self.base_nombre = self.cfg["nombre"] + (f"_{ver}" if ver else "")
+        self.id = self.cfg.get("id") or self.cfg["nombre"]     # por ejemplo FIN-003
+        self.version = ver or "v1"
+        self.base_nombre = f"{self.id}_{self.version}"         # todo lo que sale del estudio empieza asi
 
     def ruta(self, p):
         p = Path(os.path.expandvars(os.path.expanduser(str(p))))
@@ -170,6 +172,13 @@ def mmss(t):
 
 
 # ---------- transcripcion por palabra ----------
+
+def slug(s, n=40):
+    """texto -> nombre de archivo legible: minusculas, sin tildes ni espacios ("Dos personas" -> dos-personas)."""
+    import unicodedata
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:n].strip("-") or "x"
+
 
 def norm(s):
     return re.sub(r"[^\wáéíóúñü ]", "", s.lower()).split()

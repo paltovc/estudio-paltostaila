@@ -102,11 +102,11 @@ def preparar():
     escribir_ass(pr.tmp / "rotulos.ass", rotulos, [])
     escribir_ass(pr.tmp / "todo.ass", rotulos, subs)
     srt = "".join(f"{i}\n{ts(a, False)} --> {ts(b, False)}\n{t}\n\n" for i, (a, b, t) in enumerate(subs, 1))
-    (pr.salida / f"{pr.base_nombre}_subtitulos_para_YouTube.srt").write_text(srt, encoding="utf-8")
+    (pr.salida / f"{pr.base_nombre}_subtitulos.srt").write_text(srt, encoding="utf-8")
     if pr["capitulos"]:
         caps = [(0.0 if i == 0 else buscar(pals, c["frase"]), c["titulo"]) for i, c in enumerate(pr["capitulos"])]
         txt = "\n".join(f"{int(t // 60)}:{int(t % 60):02d} {titulo}" for t, titulo in caps)
-        (pr.salida / f"{pr.base_nombre}_capitulos_YouTube.txt").write_text(txt + "\n", encoding="utf-8")
+        (pr.salida / f"{pr.base_nombre}_capitulos.txt").write_text(txt + "\n", encoding="utf-8")
         print(txt, flush=True)
     print(f"{len(subs)} subtitulos, {len(rotulos)} rotulos", flush=True)
     for t0, _, chico, grande, _ in rotulos:
@@ -126,14 +126,14 @@ def main():
     audio(dur)
     if ARG("--borrador"):
         n = int(float(ARG("--borrador")))
-        nombre = f"Borrador_{pr.base_nombre}_{n}s.mp4"
+        nombre = f"{pr.base_nombre}_borrador-{n}s.mp4"
         run([FFMPEG, "-v", "error", "-y", "-i", f"tmp/solo_video_borrador_{n}s.mp4", "-i", "tmp/narracion.m4a",
              "-map", "0:v", "-map", "1:a", "-vf", "ass=tmp/todo.ass,fade=t=in:d=0.5", *ENCODE, "-c:a", "aac",
              "-shortest", "-movflags", "+faststart", nombre], cwd=pr.salida)
         print("LISTO", pr.salida / nombre, flush=True)
         return
-    finales = ((f"{pr.base_nombre}_YouTube_sin_subtitulos.mp4", "tmp/rotulos.ass"),
-               (f"{pr.base_nombre}_con_subtitulos.mp4", "tmp/todo.ass"))
+    finales = ((f"{pr.base_nombre}_youtube.mp4", "tmp/rotulos.ass"),                # sin subtitulos (el .srt se sube aparte)
+               (f"{pr.base_nombre}_con-subtitulos.mp4", "tmp/todo.ass"))
     if "--solo-audio" in sys.argv:
         for nombre, _ in finales:
             parcial = nombre.replace(".mp4", ".parcial.mp4")

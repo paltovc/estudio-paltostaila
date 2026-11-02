@@ -1,6 +1,8 @@
 # Crea (o completa) la carpeta de un video con su estructura y un proyecto.json de partida.
 # Nunca mueve, renombra ni borra lo que ya existe: si la carpeta ya tiene imagenes o audios, se apunta a ellos.
-#   python nuevo_proyecto.py "C:\Videos\Finanzas\Video03" --nombre Video03 --canal finanzas
+#   python nuevo_proyecto.py "C:\...\FIN-003_fondo-de-emergencia" --id FIN-003 --nombre "Fondo de emergencia" --canal finanzas
+#     --id: codigo del video (prefijo del canal + numero). Todo lo que sale del estudio se llama <ID>_<version>_...
+#     --codigo FIN --numero 3   arma el ID solo (FIN-003) si no se da --id
 #   opciones:
 #     --formato vertical            video principal 9:16 (TikTok, Reels, Shorts); por defecto horizontal 16:9
 #     --imagenes "C:\ruta\imagenes"  usar una carpeta de imagenes que ya existe (no se copia)
@@ -21,13 +23,14 @@ carpeta = Path(args[0]).resolve()
 opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
 nombre = opt("--nombre", carpeta.name)
 canal = opt("--canal", "")
+vid = opt("--id") or (f"{opt('--codigo', canal[:3]).upper()}-{int(opt('--numero')):03d}" if opt("--numero") else None)
 vertical = (opt("--formato", "horizontal") or "").lower().startswith("vert")
 imagenes_ext, voz_ext = opt("--imagenes"), opt("--voz")
 
 LEEME = {
     "01_GUION": "Guion final en .txt o .md (sirve para corregir los subtitulos). Tambien investigacion, empaque y referentes.",
     "02_VOZ": "Audios de voz (.mp3/.wav). Si son 2 o 3 partes, nombrarlas en orden: parte1, parte2...",
-    "03_IMAGENES": "Imagenes de ChatGPT u otras. Aqui tambien queda prompts_imagenes.md con lo que hay que generar.",
+    "03_IMAGENES": "Imagenes en orden: <ID>_img-001_tema.png ... Las descargas sueltas van a _entrantes y ordenar_imagenes.py las numera.",
     "04_CLIPS_FLOW": "Clips descargados de Flow, sin renombrar. asignar_clips.py los reconoce y crea escena_NNN.mp4.",
     "05_SONIDOS": "Sonidos propios de este video (opcional). El banco general esta en EstudioPaltostaila\\sonidos.",
     "06_RECETA": "transcripcion.json, receta.csv (que imagen va en cada momento) y diferencias con el guion.",
@@ -45,6 +48,8 @@ for sub, texto in LEEME.items():
     if sub == "02_VOZ" and voz_ext:
         continue
     (carpeta / sub).mkdir(parents=True, exist_ok=True)
+    if sub == "03_IMAGENES":
+        (carpeta / sub / "_entrantes").mkdir(exist_ok=True)
     leeme = carpeta / sub / "LEEME.txt"
     if not leeme.exists():
         leeme.write_text(texto + "\n", encoding="utf-8")
@@ -75,7 +80,7 @@ if pj.exists():
     print("ya existe", pj, "- no se toca")
 else:
     cfg = {
-        "nombre": nombre, "canal": canal, "version": "",
+        "id": vid or nombre, "nombre": nombre, "canal": canal, "version": "v1",
         "audios": (str(Path(voz_ext) / "*") if voz_ext else "02_VOZ/*"),
         "carpetas": {k: v for k, v in {"imagenes": imagenes_ext}.items() if v},
         "escenas_capitulo": [], "planos": {}, "alias_clips": {}, "correcciones": [],
@@ -91,7 +96,7 @@ else:
 
 brief = carpeta / "00_BRIEF.md"
 if not brief.exists():
-    brief.write_text(f"""# Brief — {nombre}
+    brief.write_text(f"""# Brief — {vid + ' · ' if vid else ''}{nombre}
 Fecha: {date.today():%d-%m-%Y} · Canal: {canal or '(sin canal)'}
 
 - Objetivo:

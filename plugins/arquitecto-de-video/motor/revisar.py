@@ -29,8 +29,8 @@ def negros(p):
 def main():
     dur = pr.duracion()
     lineas = [f"Revision de {pr.base_nombre} - voz: {mmss(dur)} ({dur:.2f} s)\n"]
-    finales = [f for f in sorted(pr.salida.glob(f"{pr.base_nombre}_*.mp4")) + sorted(pr.salida.glob("*_9x16*.mp4"))
-               if ".parcial" not in f.name]
+    finales = [f for f in sorted(set(pr.salida.glob(f"{pr.base_nombre}_*.mp4")))
+               if ".parcial" not in f.name and "_borrador" not in f.name]
     problemas = 0
     for f in finales:
         st = info(f)
@@ -47,7 +47,7 @@ def main():
         lineas.append(f"{f.name}\n   {res}, video {dv:.2f} s, audio {da:.2f} s {'OK' if ok_dur else 'REVISAR DURACION'}"
                       f"\n   volumen {i} LUFS, pico {tp} dBFS {'OK' if ok_vol else 'REVISAR VOLUMEN'}"
                       f"\n   tramos negros: {len(ng)} {'OK' if ok_neg else 'REVISAR: ' + str(ng[:5])}")
-    principal = next((f for f in finales if f.name.endswith("_con_subtitulos.mp4")), finales[0] if finales else None)
+    principal = next((f for f in finales if f.name.endswith("_con-subtitulos.mp4")), finales[0] if finales else None)
     if principal:
         run([FFMPEG, "-v", "error", "-y", "-i", principal, "-vf", "fps=1/5,scale=480:-1,tile=4x3", "-q:v", "4",
              REV / "hoja_%02d.jpg"])

@@ -118,7 +118,7 @@ for k, (s, tramo) in enumerate(elegidos, 1):
     a, b = tramo[0]["t0"], tramo[-1]["t1"]
     chico, titulo = titulo_para(a, b, tramo)
     siguiente = next((f["texto"] for f in frases if f["t0"] >= b - 0.05), None)
-    v = {"nombre": f"Short{k}_{pr['nombre']}", "desde": " ".join(tramo[0]["texto"].split()[:6]),
+    v = {"nombre": f"short-{k}", "desde": " ".join(tramo[0]["texto"].split()[:6]),
          "desde_s": round(max(a - 0.15, 0), 2), "hasta_s": round(min(b + 0.35, fin_video), 2),
          "chico": chico, "titulo": titulo.replace("\\N", " "), "modo": MODO}
     if siguiente:

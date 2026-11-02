@@ -29,7 +29,7 @@ def hacer(m, n):
         d.text((x, y), t, font=f, fill=VERDE if i == len(m["lineas"]) - 1 else BLANCO, stroke_width=12, stroke_fill=OSCURO)
         y += 122
     pr.publicar.mkdir(parents=True, exist_ok=True)
-    ruta = pr.publicar / f"Miniatura_{pr.base_nombre}_{n}.jpg"
+    ruta = pr.publicar / f"{pr.base_nombre}_miniatura-{n}.jpg"
     im.save(ruta, quality=92)
     print(ruta)
 

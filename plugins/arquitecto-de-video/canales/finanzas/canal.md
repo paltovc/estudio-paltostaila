@@ -1,5 +1,6 @@
 # Biblia del canal: finanzas para principiantes
 
+Código de los videos: `FIN` (FIN-002 = Video 2 "creencias antes de invertir").
 Nombre: "Dinero con Sentido" es **provisional**. No ponerlo en los materiales sin confirmación.
 Fuente: reglas del proyecto del canal (AGENTS.md y guía de voz del 01-10-2026) y lo aprendido en el Video 2 (noviembre de 2026). Si existe la carpeta del proyecto del canal en el PC (`Documents\Codex\Canal-Finanzas-Principiantes`), sus `AGENTS.md` y `.claude\brand-voice-guidelines.md` mandan sobre esta copia.
 

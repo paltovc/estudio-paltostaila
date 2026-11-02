@@ -15,7 +15,8 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 4. **Carpeta de trabajo** (reglas en `references/entrevista.md`, sección Carpetas):
    - Si la persona nombra una carpeta, trabajar ahí. Si esa carpeta ya tiene material (imágenes, audios, guion, subcarpetas), no moverlo ni renombrarlo: `proyecto.json` apunta a lo que ya existe y solo se crean las subcarpetas que faltan.
    - Si no la nombra, proponer una ruta (por defecto `%USERPROFILE%\EstudioPaltostaila\proyectos\<canal>\<VideoNN_tema>`) y crearla solo con su sí.
-   - Crear con `python nuevo_proyecto.py "<carpeta>" --nombre VideoNN --canal <canal> [--formato vertical] [--imagenes "<ruta existente>"] [--voz "<ruta existente>"] [--personaje "<carpeta o imágenes separadas por ;>"]` desde la carpeta del motor.
+   - Asignar el código del video (`references/nombres.md`): prefijo del canal + siguiente número libre, por ejemplo `FIN-003`; carpeta `FIN-003_tema-corto`.
+   - Crear con `python nuevo_proyecto.py "<carpeta>" --id FIN-003 --nombre "<tema>" --canal <canal> [--formato vertical] [--imagenes "<ruta existente>"] [--voz "<ruta existente>"] [--personaje "<carpeta o imágenes separadas por ;>"]` desde la carpeta del motor.
 5. **Personaje.** Si la persona entrega 2-3 imágenes o una carpeta y dice "este es el personaje", usar la skill **ficha-personaje**: copiar esas imágenes (sin tocar las originales) a `canales\<canal>\personaje\referencias\`, escribir su descripción exacta y usarla en todos los prompts de imágenes y de Flow desde ese momento. Imágenes adjuntas en el chat: guardarlas primero en el PC (copia en `personaje\referencias`).
 6. Leer la biblia del canal en `%USERPROFILE%\EstudioPaltostaila\canales\<canal>\canal.md` (si no existe, crearla con **nuevo-canal** a partir de la entrevista; para el canal de finanzas hay una base en `${CLAUDE_PLUGIN_ROOT}/canales/finanzas/canal.md`).
 7. Abrir o crear `00_ESTADO.md` en la carpeta del video con la plantilla de `references/tablero.md`. Al retomar un video, leer `00_ESTADO.md` y `00_BRIEF.md` y seguir desde la primera etapa sin terminar, sin repetir la entrevista.
@@ -70,6 +71,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/etapas.md`: cómo se hace cada etapa con el motor (comandos, criterios, errores conocidos).
 - `references/proyecto-json.md`: todos los campos de `proyecto.json` con ejemplos.
 - `references/plataformas.md`: formatos y reglas de YouTube, TikTok e Instagram.
+- `references/nombres.md`: código del video (`FIN-003`), nombres de imágenes en orden (`FIN-003_img-001_tema.png`), clips, voz, archivos finales y versiones. Aplicarlo siempre.
 - `references/entrevista.md`: preguntas de la entrevista inicial, plantilla de `00_BRIEF.md` y reglas de carpetas.
 - `references/tablero.md`: plantilla de `00_ESTADO.md`.
 - `references/viralidad.md`: los principios que usan guionista, revisor, editor y publicador (gancho, ritmo, empaque, series).

@@ -3,7 +3,7 @@
 Los límites cambian seguido. Antes de entregar un paquete, el `publicador` confirma con una búsqueda web los límites que use (largo de texto, duración, hashtags) y anota la fecha y la fuente al final del paquete. Lo de abajo es la base revisada en noviembre de 2026.
 
 ## YouTube (video largo)
-- Archivo: `..._YouTube_sin_subtitulos.mp4` + `.srt` corregido subido aparte (YouTube lo usa como subtítulos editables y para búsqueda). Si la persona prefiere subtítulos grabados, `..._con_subtitulos.mp4`.
+- Archivo: `<ID>_<v>_youtube.mp4` + `<ID>_<v>_subtitulos.srt` subido aparte (YouTube lo usa como subtítulos editables y para búsqueda). Si la persona prefiere subtítulos grabados, `<ID>_<v>_con-subtitulos.mp4`.
 - Título: hasta 100 caracteres; lo importante en los primeros ~60 (se corta en móvil). 3 opciones finales.
 - Descripción: hasta 5.000 caracteres. Las dos primeras líneas dicen qué gana quien mira, con las palabras que buscaría. Después: capítulos, fuentes de los datos, aviso si es contenido educativo ("no es asesoría financiera" en el canal de finanzas).
 - Capítulos: el primero en 0:00, al menos 3, cada uno de 10 s o más.

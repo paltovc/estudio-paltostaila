@@ -3,7 +3,7 @@
 Copiar en la carpeta del video al empezar y mantenerlo al día. Es lo primero que se lee al retomar, y lo que ve la otra persona del equipo para saber en qué va el video.
 
 ```markdown
-# <Nombre del video> — estado
+# <ID> · <Nombre del video> — estado
 
 Canal: <canal> · Plataforma principal: <YouTube / TikTok> · Largo objetivo: <min>
 Última actualización: <fecha> por <quién>
@@ -33,6 +33,11 @@ Canal: <canal> · Plataforma principal: <YouTube / TikTok> · Largo objetivo: <m
 - [ ] F ✋ Publicado (la persona) — enlaces: ___
 - [ ] 11a Revisión a las 48 h (clics en miniatura, duración media) — analista
 - [ ] 11b Revisión a los 7 días + comentarios — analista
+
+## Versiones
+| versión | fecha | qué cambió | aprobada por | estado |
+|---|---|---|---|---|
+| v1 | | primer render completo | | |
 
 ## Decisiones tomadas
 - <fecha> <decisión> (quién)

@@ -48,6 +48,10 @@ Puertas en las que te pide aprobación: empaque y guion · receta de escenas · 
 
 vidIQ (tendencias y palabras clave), Google Drive (compartir carpetas), Notion o Google Sheets (calendario de videos), Google Calendar (fechas y revisiones), Canva (miniaturas), Metricool (estadísticas de todas las redes). Sin ninguno, el estudio igual lee videos públicos de YouTube y TikTok desde el computador.
 
+## Nombres y orden
+
+Cada video tiene un código (`FIN-003`) y todo lo que sale lleva código y versión: `FIN-003_v2_youtube.mp4`, `FIN-003_v2_short-1_9x16.mp4`, `FIN-003_v2_miniatura-1.jpg`. Las imágenes van en el orden del guion: `FIN-003_img-001_tema.png`. Si descargas de ChatGPT con nombres al azar, déjalas en `03_IMAGENES\_entrantes` y el estudio las numera en orden (sin tocar los originales).
+
 ## Dónde queda cada cosa
 
 En el computador: `Documentos o donde elijas\<Video>` con carpetas numeradas (`01_GUION` … `08_PUBLICAR`) y `00_ESTADO.md`, el tablero del video. El motor y los sonidos quedan en `%USERPROFILE%\EstudioPaltostaila`.

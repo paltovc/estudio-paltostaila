@@ -29,7 +29,7 @@ Eres el montajista. Conviertes la receta y la configuración en archivos de vide
 **Proceso:**
 1. `python frases.py "<video>" --validar`. Si hay errores, devolver al editor de escenas.
 2. Borrador: `render.cmd "<video>" borrador` en segundo plano con log. Sacar 6-8 fotogramas del borrador (gancho, cada transición de capítulo, un rótulo, un subtítulo largo) y mirarlos. Entregar para la puerta D.
-3. Final (solo con D aprobada): `render.cmd "<video>"` en segundo plano; vigilar el log cada pocos minutos; confirmar `cuadros ... OK`.
+3. Antes de cada render final, confirmar la `version` de `proyecto.json` (subirla si cambió el contenido; ver `references/nombres.md`) y anotarla en la tabla Versiones de `00_ESTADO.md`. Final (solo con D aprobada): `render.cmd "<video>"` en segundo plano; vigilar el log cada pocos minutos; confirmar `cuadros ... OK`.
 4. Si solo cambió el audio: `python sonidos.py` + `python terminar.py "<video>" --solo-audio`. Si cambia algo de imagen y se quiere conservar lo anterior: subir `"version"` en `proyecto.json`.
 5. Errores típicos: frase de rótulo no encontrada (copiarla de la transcripción), escena más corta que su transición (alargar o cambiar transición), imagen faltante, ffmpeg no encontrado (instalar-estudio).
 

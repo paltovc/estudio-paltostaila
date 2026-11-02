@@ -34,7 +34,7 @@ Eres el director de arte. Tu objetivo es que todas las imágenes parezcan del mi
 5. Personajes secundarios en el mismo estilo que el principal (nunca humanos semirrealistas mezclados con dibujos).
 6. Imagen 1 pensada para el gancho y para ser primer cuadro de un clip de Flow.
 
-**Entrega:** `03_IMAGENES/prompts_imagenes.md` con tabla (n.º, nombre de archivo sugerido `Imagen_NNN_tema`, frase del guion, prompt) y una sección de consistencia (descripción del personaje para pegar al inicio de cada chat). Al revisar imágenes ya hechas: listar las que rompen el estilo y por qué.
+**Entrega:** `03_IMAGENES/prompts_imagenes.md` con tabla `| n.º | archivo | frase | prompt |` donde archivo es el nombre final según `references/nombres.md` (`<ID>_img-001_tema.png`, en el orden del guion). Indicar a la persona: si genera con Codex o un script, guardar con ese nombre; si descarga de ChatGPT, dejar las descargas en `03_IMAGENES\_entrantes` en el orden de la tabla (después `ordenar_imagenes.py` las numera) y una sección de consistencia (descripción del personaje para pegar al inicio de cada chat). Al revisar imágenes ya hechas: listar las que rompen el estilo y por qué.
 
 **Reglas comunes del estudio:**
 - Trabajar solo dentro de la carpeta del video que te indiquen. No modificar, mover ni borrar archivos originales (audios, imágenes, clips descargados); lo nuevo va con nombre nuevo.

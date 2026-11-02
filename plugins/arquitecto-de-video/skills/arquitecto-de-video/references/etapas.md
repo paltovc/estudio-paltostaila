@@ -36,7 +36,9 @@ Antes del guion: `01_GUION/empaque.md` con 3 títulos (frase de búsqueda + bene
 - Si el texto es largo para la página de voz, partirlo en 2-3 partes en cortes de bloque; nombrar `parte1`, `parte2`...
 
 ## 3. Imágenes (`director-de-arte`)
-Un prompt por imagen en `03_IMAGENES/prompts_imagenes.md`: número, frase del guion, prompt completo (personaje exacto de la biblia del canal, estilo, encuadre 16:9 o 3:2 horizontal, fondo, sin texto o con texto en español solamente). Una imagen por idea, no por frase; se pueden repetir imágenes cuando vuelve la idea. Dejar aire en los bordes para el movimiento de cámara y para los rótulos (arriba a la izquierda) y subtítulos (abajo).
+Un prompt por imagen en `03_IMAGENES/prompts_imagenes.md` (tabla `| n.º | archivo | frase | prompt |`, con el nombre final de cada imagen según `nombres.md`: `FIN-003_img-001_tema.png`): número, frase del guion, prompt completo (personaje exacto de la biblia del canal, estilo, encuadre 16:9 o 3:2 horizontal, fondo, sin texto o con texto en español solamente). Una imagen por idea, no por frase; se pueden repetir imágenes cuando vuelve la idea. Dejar aire en los bordes para el movimiento de cámara y para los rótulos (arriba a la izquierda) y subtítulos (abajo).
+
+Imágenes recibidas: si vienen con su nombre, copiarlas a `03_IMAGENES`; si vienen con nombres al azar, a `03_IMAGENES\_entrantes` y `python ordenar_imagenes.py "<video>"` (plan + hoja de control) → revisar → `--aplicar`.
 
 ## 4. Voz
 La genera la persona. Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
@@ -69,7 +71,7 @@ Niveles probados: `vol_efectos` -19, `vol_clips` -16, `whoosh_db` -25, `limite_c
 Para comparar con y sin efectos: `SIN_EFECTOS=1` antes de `terminar.py`.
 
 ## 9. Montaje y render (`montajista`)
-1. `render.cmd "<video>" borrador` → `07_RENDER/Borrador_<nombre>_60s.mp4`. Sacar 6-8 fotogramas (`ffmpeg -ss T -i ... -frames:v 1`) y mirarlos. Puerta D.
+1. `render.cmd "<video>" borrador` → `07_RENDER/<ID>_<v>_borrador-60s.mp4`. Sacar 6-8 fotogramas (`ffmpeg -ss T -i ... -frames:v 1`) y mirarlos. Puerta D.
 2. `render.cmd "<video>"` → armado, sonidos, terminación, verticales, miniaturas y revisión automática.
 3. Verificar `cuadros: N (esperados N) OK` en el log.
 Solo cambió el audio: `python sonidos.py` + `python terminar.py "<video>" --solo-audio` (no recodifica la imagen). Una versión nueva sin pisar la anterior: cambiar `"version"` en `proyecto.json` (v2, v3...).

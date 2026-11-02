@@ -3,7 +3,7 @@
 #                                 "chico": "CREENCIA 1", "titulo": "¿Invertir es solo\\Npara ricos?"}]
 #   python vertical.py "C:\ruta\video"
 import sys
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, slug
 
 pr = Proyecto()
 F = pr["subtitulos"]["fuente"]
@@ -51,7 +51,7 @@ def corte(segs, pals, v):
         vf = ("[0:v]split[a][b];[a]scale=-2:1920,crop=1080:1920,boxblur=30:2,eq=brightness=-0.18[fondo];"
               "[b]scale=1080:-2[frente];[fondo][frente]overlay=0:(H-h)/2,"
               f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
-    nombre = f"{v['nombre']}_9x16{('_' + pr['version']) if pr['version'] else ''}.mp4"
+    nombre = f"{pr.base_nombre}_{slug(v['nombre'])}_9x16.mp4"
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/solo_video.mp4",
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,
          "-map", "[v]", "-map", "1:a", "-af", f"afade=t=in:d=0.2,afade=t=out:st={dur - 0.6:.3f}:d=0.6",
