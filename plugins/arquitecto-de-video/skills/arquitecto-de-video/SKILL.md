@@ -11,9 +11,15 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 
 1. Ver si hay un computador vinculado (herramientas del computador presentes y una llamada que responda). Sin computador se pueden hacer las etapas 1-3 y 10 (investigación, guion, prompts, paquete de publicación); el render necesita el PC. Decirlo una vez y seguir con lo que se puede.
 2. Confirmar que el motor está instalado en `%USERPROFILE%\EstudioPaltostaila\motor` y que su `VERSION` es la de `${CLAUDE_PLUGIN_ROOT}/motor/VERSION`. Si falta o es más viejo, usar la skill **instalar-estudio** antes de seguir.
-3. Ubicar o crear la carpeta del video. Video nuevo: `python nuevo_proyecto.py "<carpeta>" --nombre VideoNN --canal <canal>` desde la carpeta del motor. Leer la biblia del canal en `%USERPROFILE%\EstudioPaltostaila\canales\<canal>\canal.md` (si no existe, ofrecer **nuevo-canal**; para el canal de finanzas hay una base en `${CLAUDE_PLUGIN_ROOT}/canales/finanzas/canal.md`).
-4. Abrir o crear `00_ESTADO.md` en la carpeta del video con la plantilla de `references/tablero.md`. Al retomar un video, leerlo primero y seguir desde la primera etapa sin terminar.
-5. Preguntar solo lo que cambia el trabajo: plataforma principal, largo aproximado, si ya hay guion, voz o imágenes. Lo demás sale de la biblia del canal.
+3. **Entender antes de producir.** Antes de cualquier guion, imagen o carpeta nueva, hacer la entrevista de `references/entrevista.md`: qué quiere construir la persona, para quién, en qué plataforma, con qué materiales (guion, voz, imágenes, personaje) y cómo quiere trabajar. Saltar lo que ya respondió en su mensaje, lo que dice la biblia del canal o el `00_BRIEF.md` de un video anterior del mismo canal. Dejar las respuestas en `00_BRIEF.md` de la carpeta del video y mostrar un resumen de 4-6 líneas para confirmar.
+4. **Carpeta de trabajo** (reglas en `references/entrevista.md`, sección Carpetas):
+   - Si la persona nombra una carpeta, trabajar ahí. Si esa carpeta ya tiene material (imágenes, audios, guion, subcarpetas), no moverlo ni renombrarlo: `proyecto.json` apunta a lo que ya existe y solo se crean las subcarpetas que faltan.
+   - Si no la nombra, proponer una ruta (por defecto `%USERPROFILE%\EstudioPaltostaila\proyectos\<canal>\<VideoNN_tema>`) y crearla solo con su sí.
+   - Crear con `python nuevo_proyecto.py "<carpeta>" --nombre VideoNN --canal <canal> [--formato vertical] [--imagenes "<ruta existente>"] [--voz "<ruta existente>"] [--personaje "<carpeta o imágenes separadas por ;>"]` desde la carpeta del motor.
+5. **Personaje.** Si la persona entrega 2-3 imágenes o una carpeta y dice "este es el personaje", usar la skill **ficha-personaje**: copiar esas imágenes (sin tocar las originales) a `canales\<canal>\personaje\referencias\`, escribir su descripción exacta y usarla en todos los prompts de imágenes y de Flow desde ese momento. Imágenes adjuntas en el chat: guardarlas primero en el PC (copia en `personaje\referencias`).
+6. Leer la biblia del canal en `%USERPROFILE%\EstudioPaltostaila\canales\<canal>\canal.md` (si no existe, crearla con **nuevo-canal** a partir de la entrevista; para el canal de finanzas hay una base en `${CLAUDE_PLUGIN_ROOT}/canales/finanzas/canal.md`).
+7. Abrir o crear `00_ESTADO.md` en la carpeta del video con la plantilla de `references/tablero.md`. Al retomar un video, leer `00_ESTADO.md` y `00_BRIEF.md` y seguir desde la primera etapa sin terminar, sin repetir la entrevista.
+8. **Guion:** si la persona trae su texto, el `guionista` lo adapta (gancho, ritmo para la voz, marcas de imagen y definiciones) sin cambiar su contenido ni su voz, y muestra los cambios; si no trae, lo escribe desde la entrevista y la investigación. En ambos casos pasa por el `revisor-de-guion` y la puerta A.
 
 ## Etapas, agentes y puertas
 
@@ -64,6 +70,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/etapas.md`: cómo se hace cada etapa con el motor (comandos, criterios, errores conocidos).
 - `references/proyecto-json.md`: todos los campos de `proyecto.json` con ejemplos.
 - `references/plataformas.md`: formatos y reglas de YouTube, TikTok e Instagram.
+- `references/entrevista.md`: preguntas de la entrevista inicial, plantilla de `00_BRIEF.md` y reglas de carpetas.
 - `references/tablero.md`: plantilla de `00_ESTADO.md`.
 - `references/viralidad.md`: los principios que usan guionista, revisor, editor y publicador (gancho, ritmo, empaque, series).
 - `references/conectores.md`: qué conectores sirven y para qué (vidIQ, Notion, Drive, Sheets, Canva, Metricool, YouTube).

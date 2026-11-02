@@ -1,52 +1,113 @@
-# Crea la carpeta de un video nuevo con su estructura y un proyecto.json de partida.
+# Crea (o completa) la carpeta de un video con su estructura y un proyecto.json de partida.
+# Nunca mueve, renombra ni borra lo que ya existe: si la carpeta ya tiene imagenes o audios, se apunta a ellos.
 #   python nuevo_proyecto.py "C:\Videos\Finanzas\Video03" --nombre Video03 --canal finanzas
-import json, sys
+#   opciones:
+#     --formato vertical            video principal 9:16 (TikTok, Reels, Shorts); por defecto horizontal 16:9
+#     --imagenes "C:\ruta\imagenes"  usar una carpeta de imagenes que ya existe (no se copia)
+#     --voz "C:\ruta\audios"         usar una carpeta de audios que ya existe (no se copia)
+#     --personaje "C:\a.png;C:\b.png" o "C:\carpeta"   copia las imagenes del personaje a la carpeta del canal
+import json, shutil, sys
+from datetime import date
 from pathlib import Path
-from estudio import DEFAULTS
+
+ESTUDIO = Path.home() / "EstudioPaltostaila"
+EXT_IMG = (".png", ".jpg", ".jpeg", ".webp")
 
 args = [a for a in sys.argv[1:]]
 if not args or args[0].startswith("-"):
-    sys.exit('Uso: python nuevo_proyecto.py "C:\\ruta\\del\\video" --nombre Video03 [--canal finanzas]')
+    sys.exit('Uso: python nuevo_proyecto.py "C:\\ruta\\del\\video" --nombre Video03 [--canal finanzas] [--formato vertical] '
+             '[--imagenes ruta] [--voz ruta] [--personaje "img1;img2" o carpeta]')
 carpeta = Path(args[0]).resolve()
 opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
 nombre = opt("--nombre", carpeta.name)
 canal = opt("--canal", "")
+vertical = (opt("--formato", "horizontal") or "").lower().startswith("vert")
+imagenes_ext, voz_ext = opt("--imagenes"), opt("--voz")
 
 LEEME = {
-    "01_GUION": "Guion final en .txt o .md (sirve para corregir los subtitulos). Tambien notas de investigacion y fuentes.",
+    "01_GUION": "Guion final en .txt o .md (sirve para corregir los subtitulos). Tambien investigacion, empaque y referentes.",
     "02_VOZ": "Audios de voz (.mp3/.wav). Si son 2 o 3 partes, nombrarlas en orden: parte1, parte2...",
     "03_IMAGENES": "Imagenes de ChatGPT u otras. Aqui tambien queda prompts_imagenes.md con lo que hay que generar.",
     "04_CLIPS_FLOW": "Clips descargados de Flow, sin renombrar. asignar_clips.py los reconoce y crea escena_NNN.mp4.",
     "05_SONIDOS": "Sonidos propios de este video (opcional). El banco general esta en EstudioPaltostaila\\sonidos.",
     "06_RECETA": "transcripcion.json, receta.csv (que imagen va en cada momento) y diferencias con el guion.",
-    "07_RENDER": "Videos finales, borradores y revision. Se puede borrar 07_RENDER\\tmp cuando el video ya se publico.",
+    "07_RENDER": "Videos finales, borradores y revision. Se puede vaciar 07_RENDER\\tmp cuando el video ya se publico.",
     "08_PUBLICAR": "Paquete por plataforma: titulos, descripcion, etiquetas, miniaturas, capitulos.",
 }
+existia = carpeta.exists() and any(carpeta.iterdir())
+if existia:
+    print("La carpeta ya tiene contenido; no se mueve ni se renombra nada:")
+    for p in sorted(carpeta.iterdir())[:30]:
+        print("   ", ("[carpeta] " if p.is_dir() else "") + p.name)
 for sub, texto in LEEME.items():
+    if sub == "03_IMAGENES" and imagenes_ext:
+        continue
+    if sub == "02_VOZ" and voz_ext:
+        continue
     (carpeta / sub).mkdir(parents=True, exist_ok=True)
     leeme = carpeta / sub / "LEEME.txt"
     if not leeme.exists():
         leeme.write_text(texto + "\n", encoding="utf-8")
+
+# Personaje: copia de las referencias (los originales quedan donde estaban)
+refs_destino = None
+if opt("--personaje"):
+    fuentes = []
+    for parte in opt("--personaje").split(";"):
+        p = Path(parte.strip().strip('"'))
+        if p.is_dir():
+            fuentes += sorted(x for x in p.iterdir() if x.suffix.lower() in EXT_IMG)
+        elif p.is_file():
+            fuentes.append(p)
+        else:
+            print("AVISO no encuentro", p)
+    refs_destino = (ESTUDIO / "canales" / canal / "personaje" / "referencias") if canal else (carpeta / "00_PERSONAJE" / "referencias")
+    refs_destino.mkdir(parents=True, exist_ok=True)
+    for f in fuentes:
+        destino = refs_destino / f.name
+        if destino.exists():
+            destino = refs_destino / f"{f.stem}_{date.today():%Y%m%d}{f.suffix}"
+        shutil.copy2(f, destino)
+    print(f"{len(fuentes)} imagenes del personaje copiadas a {refs_destino}")
 
 pj = carpeta / "proyecto.json"
 if pj.exists():
     print("ya existe", pj, "- no se toca")
 else:
     cfg = {
-        "nombre": nombre,
-        "canal": canal,
-        "version": "",
-        "audios": "02_VOZ/*",
-        "escenas_capitulo": [],
-        "planos": {},
-        "alias_clips": {},
-        "correcciones": [],
-        "rotulos": [],
-        "capitulos": [],
+        "nombre": nombre, "canal": canal, "version": "",
+        "audios": (str(Path(voz_ext) / "*") if voz_ext else "02_VOZ/*"),
+        "carpetas": {k: v for k, v in {"imagenes": imagenes_ext}.items() if v},
+        "escenas_capitulo": [], "planos": {}, "alias_clips": {}, "correcciones": [],
+        "rotulos": [], "capitulos": [],
         "sonidos": {"efectos": [], "lapiz": [], "clips_con_sonido": [], "recorte_clip": {}},
-        "vertical": [],
-        "miniaturas": [],
+        "vertical": [], "miniaturas": [],
     }
+    if vertical:
+        cfg["video"] = {"fps": 30, "ancho": 1080, "alto": 1920, "crf": 20}
+        cfg["subtitulos"] = {"max_caracteres": 42, "fuente": "Arial", "tamano": 38}
     pj.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-    print("creado", pj)
+    print("creado", pj, "(formato vertical 9:16)" if vertical else "(formato horizontal 16:9)")
+
+brief = carpeta / "00_BRIEF.md"
+if not brief.exists():
+    brief.write_text(f"""# Brief — {nombre}
+Fecha: {date.today():%d-%m-%Y} · Canal: {canal or '(sin canal)'}
+
+- Objetivo:
+- Plataforma principal y formato: {'vertical 9:16' if vertical else 'horizontal 16:9'}
+- Otras plataformas (cortes):
+- Duracion objetivo:
+- Publico:
+- Tono:
+- Idea que debe llevarse quien mira:
+- Llamado a la accion:
+- Guion: trae el suyo / escribir desde cero / adaptar
+- Voz:
+- Personaje: {('referencias en ' + str(refs_destino)) if refs_destino else 'sí/no'}
+- Imagenes y clips: {('carpeta existente ' + imagenes_ext) if imagenes_ext else 'quién los genera'}
+- Referentes:
+- Carpeta de trabajo: {carpeta}
+- Supuestos tomados (si no hubo respuesta):
+""", encoding="utf-8")
 print("carpeta lista:", carpeta)

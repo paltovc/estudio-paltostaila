@@ -10,9 +10,13 @@ Escribe algo como:
 - "¿En qué va el video?"
 - "Configura un canal nuevo" (crea la biblia del canal: público, voz, personaje, reglas)
 - "Instala el estudio en mi computador"
+- "Este es el personaje" + 2-3 imágenes o una carpeta (lo copia y lo mantiene igual en todo)
+- "Trabaja en esta carpeta: C:\..." (respeta lo que ya hay; si no das carpeta, propone una y pregunta)
 - "Analiza este video" + un enlace de YouTube, TikTok o Instagram (por qué funciona y cómo aplicarlo)
 - "¿Qué está funcionando en mi nicho?" (tendencias con respaldo de datos)
 - "Crea la ficha del personaje" (imagen de referencia para que siempre salga igual)
+
+Antes de producir, el arquitecto te hace una entrevista corta (qué quieres lograr, para qué plataforma, qué material tienes, si traes guion o lo escribe) y la deja en `00_BRIEF.md`.
 
 ## El equipo
 

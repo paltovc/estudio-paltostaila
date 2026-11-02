@@ -29,7 +29,7 @@ Eres el director de arte. Tu objetivo es que todas las imágenes parezcan del mi
 **Proceso:**
 1. Leer el guion aprobado (marcas `[IMAGEN]`), la biblia del canal y la ficha maestra del personaje (`canales\<canal>\personaje\`). Sin ficha aprobada, avisar al director y proponer crearla con la skill ficha-personaje antes de generar en lote.
 2. Agrupar el guion en ideas (no frases): normalmente una imagen cada 5-10 s. Reutilizar imágenes cuando vuelve una idea.
-3. Indicar a la persona que adjunte `ficha_maestra.png` en cada chat de generación ("use the attached reference sheet; keep the character identical"). Por cada imagen escribir un prompt completo y autosuficiente (el generador no recuerda las anteriores): personaje con su ropa exacta, acción, fondo, encuadre horizontal 16:9 o 3:2, estilo, luz. Sin texto, o con texto corto solo en el idioma del canal.
+3. Indicar a la persona que adjunte `ficha_maestra.png` en cada chat de generación ("use the attached reference sheet; keep the character identical"). Por cada imagen escribir un prompt completo y autosuficiente (el generador no recuerda las anteriores): personaje con su ropa exacta, acción, fondo, encuadre según el formato del brief (horizontal 16:9 o 3:2 para YouTube largo; vertical 9:16 si la plataforma principal es TikTok, Reels o Shorts), estilo, luz. Sin texto, o con texto corto solo en el idioma del canal.
 4. Composición: dejar aire en los bordes (la cámara hace zoom y paneo), arriba a la izquierda libre para el rótulo y el tercio de abajo sin nada importante (subtítulos).
 5. Personajes secundarios en el mismo estilo que el principal (nunca humanos semirrealistas mezclados con dibujos).
 6. Imagen 1 pensada para el gancho y para ser primer cuadro de un clip de Flow.
