@@ -14,8 +14,11 @@ Los límites cambian seguido. Antes de entregar un paquete, el `publicador` conf
 - Marcar "contenido alterado o sintético" cuando haya clips o imágenes realistas generadas con IA que puedan confundirse con algo real (para dibujos claramente animados normalmente no hace falta; revisar la regla vigente).
 
 ## YouTube Shorts
-- 9:16, hasta 3 minutos. Lo que funciona mejor: 45-90 s, autocontenido, que parta en una frase con gancho.
-- Título corto con la pregunta del corte; 1-3 hashtags.
+- 9:16 (1080×1920), hasta 3 minutos (`vertical.py` no deja pasar más). Lo que funciona mejor: 40-80 s, autocontenido, que parta en una frase con gancho.
+- Se sacan solos del video largo: `cortos.py` elige los mejores tramos (empiezan con pregunta o gancho, no cortan una idea, no se pisan) y `vertical.py` los arma. `render.cmd` lo hace de una vez si no hay cortos definidos.
+- Dos modos: `"marco"` (el 16:9 completo al centro sobre fondo desenfocado; nunca corta nada) y `"recorte"` (pantalla completa recortando una franja vertical; más inmersivo, pero puede cortar personajes en los bordes: elegir `centro_x` mirando la imagen).
+- Al subir: título corto con la pregunta del corte; 1-3 hashtags; en "Video relacionado" enlazar el video largo para llevar gente de un formato al otro. Mismo archivo sirve para TikTok y Reels.
+- Calidad del video largo: 1080p recomendada; 1440p se ve más nítida en YouTube (procesa con mejor compresión) a costa de un render ~2 veces más lento.
 
 ## TikTok
 - 9:16, 1080×1920. Subtítulos grabados (`vertical.py` ya los pone) y dejar libre la franja de abajo y la derecha (botones de la app).

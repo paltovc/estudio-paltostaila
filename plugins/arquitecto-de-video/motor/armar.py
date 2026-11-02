@@ -71,7 +71,9 @@ def tomas():
     return lista
 
 
-COVER = f"scale={W * 2}:{H * 2}:force_original_aspect_ratio=increase,crop={W * 2}:{H * 2},setsar=1"
+SUB = 2 if W * H <= 1920 * 1080 else 1.5   # en 1440p/4K se trabaja a 1,5x para no hacerlo eterno
+CW, CH = int(W * SUB) // 2 * 2, int(H * SUB) // 2 * 2
+COVER = f"scale={CW}:{CH}:force_original_aspect_ratio=increase,crop={CW}:{CH},setsar=1"
 
 
 def flujo(s, idx, ini, cant, lab):

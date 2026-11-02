@@ -54,6 +54,10 @@ DEFAULTS = {
 }
 
 
+CALIDADES = {"720p": (1280, 720), "1080p": (1920, 1080), "1440p": (2560, 1440), "2k": (2560, 1440),
+             "4k": (3840, 2160), "2160p": (3840, 2160)}
+
+
 def _mezclar(base, extra):
     out = dict(base)
     for k, v in (extra or {}).items():
@@ -81,6 +85,9 @@ class Proyecto:
         self.tmp.mkdir(parents=True, exist_ok=True)
         v = self.cfg["video"]
         self.fps, self.ancho, self.alto = v["fps"], v["ancho"], v["alto"]
+        if v.get("calidad"):   # "720p", "1080p", "1440p" o "4k"; respeta si el video es vertical
+            lado = CALIDADES[str(v["calidad"]).lower()]
+            self.ancho, self.alto = (lado[1], lado[0]) if v["alto"] > v["ancho"] else lado
         ver = self.cfg["version"]
         self.base_nombre = self.cfg["nombre"] + (f"_{ver}" if ver else "")
 

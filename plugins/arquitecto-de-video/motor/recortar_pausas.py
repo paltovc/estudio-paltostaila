@@ -118,6 +118,10 @@ def main():
     for e in cfg.get("sonidos", {}).get("efectos", []) + cfg.get("sonidos", {}).get("lapiz", []):
         if "segundo" in e:
             e["segundo"] = f(e["segundo"])
+    for v in cfg.get("vertical", []):
+        for k in ("desde_s", "hasta_s"):
+            if k in v:
+                v[k] = f(float(v[k]))
     rc = cfg.get("sonidos", {}).get("recorte_clip", {})
     for n, d in list(rc.items()):   # sonido de un clip recortado a mano: se reajusta igual que la escena
         t0 = inicio_viejo.get(str(n), 0.0)

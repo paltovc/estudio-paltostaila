@@ -17,6 +17,7 @@ if /i "%~2"=="borrador" (
 python armar.py "%VIDEO%" || exit /b 1
 python sonidos.py "%VIDEO%" || exit /b 1
 python terminar.py "%VIDEO%" || exit /b 1
+python cortos.py "%VIDEO%" --si-faltan || exit /b 1
 python vertical.py "%VIDEO%" || exit /b 1
 python miniatura.py "%VIDEO%" || exit /b 1
 python revisar.py "%VIDEO%"

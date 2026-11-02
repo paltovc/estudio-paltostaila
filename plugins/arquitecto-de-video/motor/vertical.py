@@ -2,6 +2,7 @@
 # En proyecto.json: "vertical": [{"nombre": "Short_Creencia1", "desde": "frase inicial", "hasta": "frase donde termina",
 #                                 "chico": "CREENCIA 1", "titulo": "¿Invertir es solo\\Npara ricos?"}]
 #   python vertical.py "C:\ruta\video"
+import sys
 from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts
 
 pr = Proyecto()
@@ -24,8 +25,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def corte(segs, pals, v):
-    t0 = buscar(pals, v["desde"]) - 0.15
-    t1 = buscar(pals, v["hasta"]) - 0.3 if v.get("hasta") else pr.duracion()
+    t0 = float(v["desde_s"]) if "desde_s" in v else buscar(pals, v["desde"]) - 0.15
+    if "hasta_s" in v:
+        t1 = float(v["hasta_s"])
+    else:
+        t1 = buscar(pals, v["hasta"]) - 0.3 if v.get("hasta") else pr.duracion()
     dur = t1 - t0
     if not 15 <= dur <= 180:
         print(f"AVISO {v['nombre']}: dura {dur:.1f} s (lo ideal para vertical es 45-90 s)")
@@ -37,9 +41,16 @@ def corte(segs, pals, v):
             lineas.append(f"Dialogue: 0,{ts(max(a - t0, 0))},{ts(min(b, t1) - t0)},Sub,,0,0,0,,{txt}\n")
     ass = f"tmp/vertical_{v['nombre']}.ass"
     (pr.salida / ass).write_text("".join(lineas), encoding="utf-8-sig")
-    vf = ("[0:v]split[a][b];[a]scale=-2:1920,crop=1080:1920,boxblur=30:2,eq=brightness=-0.18[fondo];"
-          "[b]scale=1080:-2[frente];[fondo][frente]overlay=0:(H-h)/2,"
-          f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+    if dur > 180:
+        sys.exit(f"{v['nombre']}: dura {dur:.0f} s; un Short de YouTube puede durar como maximo 3 minutos")
+    if v.get("modo") == "recorte":   # pantalla completa: recorta del 16:9 una franja vertical (cuidado con personajes en los bordes)
+        cx = float(v.get("centro_x", 0.5))
+        vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='max(0,min(iw-1080,iw*{cx}-540))':y=0,"
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+    else:   # marco: el video completo al centro sobre una copia desenfocada (no corta nada)
+        vf = ("[0:v]split[a][b];[a]scale=-2:1920,crop=1080:1920,boxblur=30:2,eq=brightness=-0.18[fondo];"
+              "[b]scale=1080:-2[frente];[fondo][frente]overlay=0:(H-h)/2,"
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
     nombre = f"{v['nombre']}_9x16{('_' + pr['version']) if pr['version'] else ''}.mp4"
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/solo_video.mp4",
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,

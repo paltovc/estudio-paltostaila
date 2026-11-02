@@ -6,6 +6,7 @@ El objetivo es entender qué quiere construir la persona y cómo quiere hacerlo,
 1. **Qué quiere lograr con este video** — enseñar algo, contar una historia, mostrar un producto o servicio, entretener, crecer el canal. (Por defecto: lo que diga la biblia del canal.)
 2. **Plataforma principal** — YouTube video largo / YouTube Shorts / TikTok / Instagram Reels / varias. Define el formato: largo horizontal 16:9 o vertical 9:16. (Por defecto: YouTube largo + 3 cortes verticales.)
 3. **Duración aproximada** — menos de 1 min / 1-3 min / 5-10 min / más de 10 min.
+   Si es YouTube largo, preguntar también la **calidad**: 1080p (recomendada: es la resolución real de las imágenes de ChatGPT) / 1440p (YouTube la procesa con mejor compresión, se ve más nítida en pantallas grandes; render ~2 veces más lento) / 4K (solo si las imágenes y clips son 4K; render muy lento) / 720p (borradores). Va en `proyecto.json` → `"video": {"calidad": "1440p"}`. Y cuántos **cortos verticales** sacar del video largo (por defecto 3, para Shorts, TikTok y Reels).
 4. **Qué material ya tiene** (selección múltiple) — guion escrito / audio de voz / imágenes / imágenes del personaje / clips de video / nada todavía.
 
 ## Ronda 2: según lo que respondió
@@ -24,6 +25,8 @@ Fecha: <fecha> · Quién pidió: <nombre> · Canal: <canal>
 
 - Objetivo: 
 - Plataforma principal y formato: 
+- Calidad: 
+- Cortos verticales a sacar del largo (cuántos, para qué redes): 
 - Otras plataformas (cortes): 
 - Duración objetivo: 
 - Público: 

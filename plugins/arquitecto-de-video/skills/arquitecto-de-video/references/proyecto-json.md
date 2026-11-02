@@ -9,7 +9,7 @@ Vive en la carpeta del video. Todo campo que falte toma el valor por defecto del
   "version": "",
   "audios": "02_VOZ/*",
   "carpetas": {"imagenes": "03_IMAGENES", "receta": "06_RECETA/receta.csv", "transcripcion": "06_RECETA/transcripcion.json"},
-  "video": {"fps": 30, "ancho": 1920, "alto": 1080, "crf": 20},
+  "video": {"fps": 30, "ancho": 1920, "alto": 1080, "crf": 20, "calidad": "1080p"},
   "volumen_lufs": -14,
 
   "escenas_capitulo": [10, 24, 37],
@@ -47,7 +47,8 @@ Vive en la carpeta del video. Todo campo que falte toma el valor por defecto del
 
   "vertical": [
     {"nombre": "Short_Creencia1", "desde": "Invertir es para ricos", "hasta": "La segunda creencia",
-     "chico": "CREENCIA 1", "titulo": "¿Invertir es solo\\Npara ricos?"}
+     "chico": "CREENCIA 1", "titulo": "¿Invertir es solo\\Npara ricos?", "modo": "marco"},
+    {"nombre": "Short2_Video02", "desde_s": 312.4, "hasta_s": 371.0, "titulo": "¿Te pasa esto?", "modo": "recorte", "centro_x": 0.35}
   ],
   "miniaturas": [
     {"imagen": "Imagen_010.jpeg", "lineas": ["¿SOLO PARA", "RICOS?"], "lado": "derecha"}
@@ -64,5 +65,7 @@ Notas:
 - Transiciones posibles (xfade de ffmpeg): fade, smoothleft, smoothright, slideleft, wipeleft, circleopen, dissolve, fadeblack, entre otras. La duración va en cuadros (12 = 0,4 s a 30 fps).
 - `planos`: el segundo es del video completo (no de la escena). El primer plano empieza siempre con la escena.
 - `\\N` en un título es salto de línea.
+- `video.calidad`: "720p", "1080p", "1440p" o "4k" (reemplaza ancho y alto; si el video es vertical, los da vuelta).
+- `vertical`: `desde`/`hasta` por frase o `desde_s`/`hasta_s` por segundo (los escribe `cortos.py`); `modo` "marco" o "recorte" con `centro_x` de 0 a 1.
 - `estilo` de un rótulo: sin estilo = caja azul arriba a la izquierda; `"pregunta"` = arriba al centro (también si el texto chico empieza con PREGUNTA); `"definicion"` = caja clara arriba a la derecha.
 - Video vertical como formato principal: `"video": {"ancho": 1080, "alto": 1920}`; subtítulos y rótulos se escalan solos, pero revisar los encuadres de los planos.
