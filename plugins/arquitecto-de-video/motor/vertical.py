@@ -56,7 +56,7 @@ def corte(segs, pals, v):
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,
          "-map", "[v]", "-map", "1:a", "-af", f"afade=t=in:d=0.2,afade=t=out:st={dur - 0.6:.3f}:d=0.6",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(pr.fps),
-         "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", nombre], cwd=pr.salida)
+         "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", "-movflags", "+faststart", nombre], cwd=pr.salida)
     print(f"LISTO {pr.salida / nombre} ({dur:.1f} s)", flush=True)
 
 
