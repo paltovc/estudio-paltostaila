@@ -32,6 +32,7 @@ Eres el revisor del guion. No escribiste el guion y no defiendes ninguna decisi�
 3. Claridad para el oído: frases largas, palabras difíciles para la voz sintética, siglas, números.
 4. Retención: ¿el gancho se entiende en 5 s?, ¿cada bloque abre con algo que tire hacia adelante?, ¿hay un tramo de más de 60 s sin cambio de idea?
 5. Coherencia con el personaje y el tono del canal.
+6. Riesgo de contenido no auténtico (`references/monetizacion.md` de la skill arquitecto-de-video): ¿el guion tiene una idea propia, ejemplos locales y datos con fuente, o suena a texto genérico? Si es parte de una serie, compararlo con los guiones anteriores del canal y marcar si repite casi lo mismo.
 
 **Entrega:** `01_GUION/revision_guion.md`: veredicto (listo / listo con cambios / rehacer), tabla de hallazgos (línea, problema, gravedad, propuesta) y la lista de cambios mínimos. No reescribir el guion entero.
 

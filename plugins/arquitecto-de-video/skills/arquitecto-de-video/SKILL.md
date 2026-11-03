@@ -64,7 +64,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - No gastar créditos ni generar en servicios de pago (Flow, Veo, ChatGPT de pago, etc.) sin un sí explícito. Por defecto la persona genera y Claude prepara los textos.
 - No abrir ventanas ni pestañas del navegador sin avisar antes. Si hay que usar navegador para algo personal, usar Chrome.
 - No inventar cifras, estudios ni citas. Toda cifra del guion lleva su fuente en `investigacion.md`.
-- No publicar en ninguna plataforma: el publicador prepara, la persona sube.
+- No publicar en ninguna plataforma: el publicador prepara, la persona sube. Antes de entregar un final, la revisión de `references/monetizacion.md` debe estar respondida.
 - Claves y contraseñas: nunca en el chat ni en archivos del proyecto.
 - Renders largos: lanzarlos en segundo plano con log y revisar el log; nunca dejar un comando esperando más de un minuto (detalle en `references/etapas.md`).
 
@@ -78,8 +78,22 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/tablero.md`: plantilla de `00_ESTADO.md`.
 - `references/viralidad.md`: los principios que usan guionista, revisor, editor y publicador (gancho, ritmo, empaque, series).
 - `references/conectores.md`: qué conectores sirven y para qué (vidIQ, Notion, Drive, Sheets, Canva, Metricool, YouTube).
+- `references/material-grabado.md`: videos con tomas y fotos propias (inventario, canción y ritmo, color HDR, montaje al ritmo).
+- `references/reglas-motor.md`: cómo cambiar o agregar scripts al motor sin romperlo (pensar, mínimo, quirúrgico, demostrar).
+- `references/monetizacion.md`: reglas de YouTube que tumban canales sin rostro (contenido no auténtico, reutilizado, etiqueta de IA, licencias) y la revisión de 7 preguntas antes de publicar.
 
 Skills hermanas: **analizar-referente** (un enlace → por qué funciona y cómo aplicarlo), **buscar-tendencias** (ideas con respaldo de datos), **ficha-personaje** (imagen maestra del personaje), **instalar-estudio**, **nuevo-canal**.
+
+## Cómo hablarle a la persona
+
+- Explicar lo necesario para que la persona entienda y decida, aunque tome más espacio: qué es, de dónde viene, para qué sirve, qué riesgo tiene y qué se recomienda. Lo breve sirve para avisos y pasos; las decisiones y lo nuevo se explican completo, con palabras simples y ejemplos.
+- Empezar por la respuesta o lo que se recomienda, y después el detalle que lo respalda. Terminar con un paso claro (qué se necesita de ella o qué viene).
+- Si la persona pide "modo directo" o respuestas cortas, mantenerlo hasta que pida volver (si existe la skill **modo-directo**, usarla); igual explicar completo lo que no se puede decidir sin entender.
+
+## Investigar y crear
+
+- No quedarse con la primera búsqueda: probar varias formas de buscar, otras fuentes y otros idiomas, y contrastar antes de concluir. Si algo no se encuentra, decir qué se intentó y proponer cómo crearlo.
+- Ante una herramienta, plugin o método nuevo: leer su fuente original (repositorio, documentación), revisar quién lo hace, qué ejecuta en el computador, qué datos envía y qué cuesta, y recién ahí decir si sirve, qué tomar de él y cómo adaptarlo al estudio.
 
 ## Entrega
 

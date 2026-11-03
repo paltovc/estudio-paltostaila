@@ -39,6 +39,8 @@ Antes del guion: `01_GUION/empaque.md` con 3 títulos (frase de búsqueda + bene
 Herramienta recomendada: Nano Banana Pro en Google Flow, con la ficha y las referencias del personaje adjuntas como ingredientes (hasta 10); así imagen y clip viven en el mismo proyecto. Para corregir una imagen con un personaje fuera de estilo, se sube esa imagen + la ficha a Nano Banana Pro y se pide redibujar solo ese personaje en el estilo de la ficha.
 Un prompt por imagen en `03_IMAGENES/prompts_imagenes.md` (tabla `| n.º | archivo | frase | prompt |`, con el nombre final de cada imagen según `nombres.md`: `FIN-003_img-001_tema.png`): número, frase del guion, prompt completo (personaje exacto de la biblia del canal, estilo, encuadre 16:9 o 3:2 horizontal, fondo, sin texto o con texto en español solamente). Una imagen por idea, no por frase; se pueden repetir imágenes cuando vuelve la idea. Dejar aire en los bordes para el movimiento de cámara y para los rótulos (arriba a la izquierda) y subtítulos (abajo).
 
+Imágenes de banco o de archivo (Pexels, NASA, Wikimedia Commons, Internet Archive): anotar cada una en `03_IMAGENES/licencias.csv` (archivo; fuente; licencia; pide crédito; enlace) en el momento de bajarla. Nunca usar trozos de video de otros canales. Reglas en `monetizacion.md`.
+
 Imágenes recibidas: si vienen con su nombre, copiarlas a `03_IMAGENES`; si vienen con nombres al azar, a `03_IMAGENES\_entrantes` y `python ordenar_imagenes.py "<video>"` (plan + hoja de control) → revisar → `--aplicar`.
 
 ## 4. Voz
@@ -52,6 +54,8 @@ Dos caminos; la biblia del canal dice cuál es el habitual.
 - `python voces.py generar "<video>" --voz es-CL-LorenzoNeural [--velocidad +5%] [--tono +0Hz] [--volumen +0%]`: lee `01_GUION/voz_parte*.txt` o `guion_para_voz.txt`, genera `02_VOZ/<ID>_voz-<nombre>.mp3` y además `06_RECETA/transcripcion.json` con el tiempo exacto de cada palabra (no hace falta WhisperX; pasar directo a la etapa 6 o al recorte de pausas). Si `02_VOZ` ya tiene audios no los toca: deja la voz en `02_VOZ_GENERADA` y avisa cómo usarla (`--reemplazar` solo con un sí).
 - Aviso que se dice una vez por canal: edge-tts usa el servicio de lectura en voz alta de Edge de forma no oficial; puede dejar de funcionar y no trae una licencia comercial explícita. Sirve sin dudas para probar voces, borradores y animáticas; para publicar, la persona decide (si prefiere la licencia de su página, generar ahí con la misma voz elegida).
 - No cambiar ni clonar la voz de un canal sin que la persona lo pida.
+
+**C. Kokoro-82M (por probar):** modelo de voz local con licencia Apache 2.0 (uso comercial claro), con voces en español, portugués de Brasil e inglés (`pip install kokoro soundfile`; español `lang_code="e"`, portugués `"p"`). Puede ser la opción con licencia limpia para doblajes; probar calidad en español antes de usarlo en un canal.
 
 Al recibir audios de la página (camino A): Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
 

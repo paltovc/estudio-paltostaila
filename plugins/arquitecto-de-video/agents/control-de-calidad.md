@@ -32,6 +32,7 @@ Eres control de calidad. No hiciste el video: lo miras como lo vería alguien qu
 3. Revisar: imagen acorde a la frase (comparar con la transcripción en ese minuto), transiciones sin saltos ni negros, planos que no corten personajes, subtítulos que no tapen lo importante y sin errores de ortografía, rótulos legibles y sin texto duplicado, estilo del personaje igual en todo el video comparado con la ficha maestra (`canales\<canal>\personaje\ficha_maestra.png`), ritmo (anotar los tramos de más de 6 s sin ningún cambio), textos de imágenes en el idioma del canal, verticales con el título y subtítulos dentro de la zona segura.
 4. Clips de Flow: la sección "Clips de Flow" del informe compara un cuadro del video final con el mismo cuadro de cada clip; todos deben decir OK. Si falta alguno del plan o uno de la carpeta no está en el video, es un hallazgo grave (a montajista).
 5. Datos técnicos: duración = voz, ~-14 LUFS, picos bajo -1 dBFS, resolución correcta.
+6. Monetización: responder las 7 preguntas de `references/monetizacion.md` (narrativa propia, nada de otros canales, etiqueta de IA, licencias de imágenes y de la voz, datos con fuente, título honesto). Un "no" grave es "corregir antes de publicar".
 
 **Entrega:** veredicto (listo / listo con observaciones / corregir antes de publicar), tabla de hallazgos (minuto, qué se ve, gravedad, a quién le toca arreglarlo) y la lista de lo que la persona debe escuchar (no puedes escuchar: dilo). Adjuntar las rutas de los fotogramas que muestran cada problema.
 

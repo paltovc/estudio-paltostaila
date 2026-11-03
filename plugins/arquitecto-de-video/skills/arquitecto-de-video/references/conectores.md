@@ -11,7 +11,8 @@ Cada persona conecta sus propias cuentas en la configuración de Claude (Conecto
 | Canva | Miniaturas editables y adaptar piezas a cada red | publicador |
 | HyperFrames | Gráficos animados (rótulos, listas, cifras) como clips para insertar | director-de-movimiento |
 | Metricool | Estadísticas de YouTube, TikTok e Instagram en un lugar y programación de publicaciones (solo con un sí explícito) | analista, publicador |
-| YouTube (clave gratuita de Google o la cuenta del canal) | Vistas, likes y comentarios de cualquier video público; con la cuenta del canal, la curva de retención propia | analista, analista-de-referentes |
+| YouTube Data API (clave gratuita de Google Cloud, sin facturación) | `scanner_youtube.py`: búsqueda de nichos con nota = vistas / mediana del canal, con la cuota contada (100 búsquedas al día) | cazador-de-tendencias |
+| Cuenta del canal en YouTube (OAuth) | Solo para leer la curva de retención propia; no hace falta para nada más, mejor no conectarla si no se usa | analista |
 
 Sin conectores, `tendencias.py` y `referente.py` (yt-dlp en el PC) ya leen vistas, likes, comentarios, subtítulos y el video de enlaces públicos de YouTube y TikTok. Instagram suele pedir sesión: en ese caso pedir a la persona el video y capturas de los comentarios. Nunca usar contraseñas ni cookies de la persona.
 

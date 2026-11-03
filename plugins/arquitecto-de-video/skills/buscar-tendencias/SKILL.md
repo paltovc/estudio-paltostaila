@@ -6,7 +6,7 @@ description: Busca qué videos de un tema o nicho están superando por mucho a s
 # Buscar tendencias
 
 1. Lanzar al agente **cazador-de-tendencias** con el canal (biblia) y, si hay, el calendario de videos.
-2. El agente corre `tendencias.py "<búsqueda>"` (y `--shorts`, `--recientes`) en el PC con 3-5 búsquedas escritas como las escribiría el público. Si el conector de vidIQ está disponible, lo usa para complementar.
+2. El agente corre en el PC `scanner_youtube.py` (API oficial de YouTube, si hay clave en `claves\youtube.env`) con 10-16 búsquedas escritas como las escribiría el público; sin clave, `tendencias.py` con 3-5. La nota de cada video es vistas / mediana de los últimos 10 videos de su canal. Si el conector de vidIQ está disponible, lo usa para complementar.
 3. Revisar las ideas propuestas: cada una con título tentativo, ángulo propio fiel a la biblia, referente que la respalda ("x canal" y enlace), formato y prioridad.
 4. Ofrecer: analizar a fondo los 2-3 mejores referentes (skill **analizar-referente**) y, con un sí, sumar las ideas al calendario en Notion o Google Sheets.
 

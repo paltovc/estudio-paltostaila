@@ -15,6 +15,8 @@ Escribe algo como:
 - "Analiza este video" + un enlace de YouTube, TikTok o Instagram (por qué funciona y cómo aplicarlo)
 - "¿Qué está funcionando en mi nicho?" (tendencias con respaldo de datos)
 - "Crea la ficha del personaje" (imagen de referencia para que siempre salga igual)
+- "Tengo estas tomas y fotos en tal carpeta, arma un video con esta canción" (inventario, color, montaje al ritmo)
+- "Busca nichos que estén funcionando" (escáner con la API oficial de YouTube, si creas la clave gratuita)
 - "¿Qué voces hay?" o "Dame opciones de voz para este guion" (muestras de las voces de Microsoft para escucharlas aquí, y la voz completa con tiempos por palabra con `voces.py generar`)
 
 Antes de producir, el arquitecto te hace una entrevista corta (qué quieres lograr, para qué plataforma, qué material tienes, si traes guion o lo escribe) y la deja en `00_BRIEF.md`.

@@ -17,7 +17,7 @@ where python >nul 2>nul || winget install -e --id Python.Python.3.12 --accept-so
 echo === 2/4 ffmpeg
 where ffmpeg >nul 2>nul || (dir /s /b "%LOCALAPPDATA%\Microsoft\WinGet\Packages\Gyan.FFmpeg*\ffmpeg.exe" >nul 2>nul) || winget install -e --id Gyan.FFmpeg --accept-source-agreements --accept-package-agreements
 echo === 3/4 Pillow (imagenes), edge-tts (voces) y yt-dlp (lectura de videos de referencia)
-python -m pip install --user --quiet pillow edge-tts
+python -m pip install --user --quiet pillow edge-tts librosa
 where yt-dlp >nul 2>nul || winget install -e --id yt-dlp.yt-dlp --accept-source-agreements --accept-package-agreements
 echo === 4/4 Sonidos CC0 de Kenney (opengameart.org, uso libre sin atribucion)
 if not exist "%ESTUDIO%\sonidos\RPG" (

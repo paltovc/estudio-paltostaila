@@ -15,7 +15,13 @@ Destino en el PC: `%USERPROFILE%\EstudioPaltostaila\` con `motor\`, `sonidos\`, 
 4. **Herramientas.** Revisar qué falta antes de instalar: `python --version`, `where ffmpeg` (o la carpeta de WinGet `Gyan.FFmpeg`), `python -c "import PIL, edge_tts"`, `where yt-dlp`, y si existe `sonidos\RPG` y `sonidos\Interfaz`. Decir en una línea qué se va a instalar y pedir un sí (instala programas con winget y descarga ~2 MB de sonidos CC0 de opengameart.org).
 5. Con el sí, ejecutar `instalar.cmd` del motor **en una ventana visible** (`Start-Process cmd -ArgumentList '/c', '"%USERPROFILE%\EstudioPaltostaila\motor\instalar.cmd"'`), porque winget puede pedir confirmación y el paso de WhisperX pregunta. Explicar que WhisperX es opcional (transcribe local, ~3 GB, 10-20 min); sin él, la transcripción se puede hacer de otra forma pero menos precisa.
 6. **Verificación.** Desde la carpeta del motor, `python prueba.py` (arma un video de 12 s con datos inventados en una carpeta temporal y la borra si todo sale bien; tarda ~1 min, lanzarlo en segundo plano con log si la herramienta corta antes). Debe terminar con `PRUEBA SUPERADA`. Si falla, el mensaje dice en qué paso.
-7. Informar: qué quedó instalado, qué versión del motor, y si falta WhisperX.
+7. **Clave de YouTube (opcional, gratis, recomendada para tendencias).** Solo si la persona quiere el escáner con la API oficial. Lo hace ella, en su navegador (no abrir ventanas por ella):
+   1. En https://console.cloud.google.com crear un proyecto (por ejemplo `estudio-tendencias`). No hace falta activar facturación.
+   2. En la biblioteca de APIs activar **YouTube Data API v3**.
+   3. Credenciales → Crear credenciales → Clave de API. Editar la clave y en Restricciones de API dejar **solo YouTube Data API v3**.
+   4. Crear `%USERPROFILE%\EstudioPaltostaila\claves\youtube.env` con una línea `YT_API_KEY=<la clave>` (abrir el Bloc de notas: `notepad "%USERPROFILE%\EstudioPaltostaila\claves\youtube.env"`). La clave nunca se pega en el chat; si llega a aparecer en el chat o en un archivo compartido, borrarla en la consola de Google y crear otra.
+   Basta con datos públicos: no conectar la cuenta del canal (OAuth) para esto. Probar con `python scanner_youtube.py "ahorrar dinero" --paginas 1`.
+8. Informar: qué quedó instalado, qué versión del motor, si falta WhisperX y si hay clave de YouTube.
 
 ## Notas
 
