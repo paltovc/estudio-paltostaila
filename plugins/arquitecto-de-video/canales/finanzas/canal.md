@@ -33,7 +33,7 @@ Fuente: reglas del proyecto del canal (AGENTS.md y guía de voz del 01-10-2026) 
 - Movimiento: acercamientos y paneos suaves; clips animados solo cuando una acción explica la frase. Muchas transiciones no es claridad.
 
 ## Producción
-- Imágenes: ChatGPT. Clips: Google Flow (Veo 3.1 Fast, plan PLUS, ~20 créditos por clip; la persona genera y confirma el costo).
+- Imágenes: Nano Banana Pro en Google Flow (recomendado desde 02-11-2026, con las referencias del personaje adjuntas) o ChatGPT. Clips: Google Flow (Veo 3.1 Fast, plan PLUS, ~20 créditos por clip; la persona genera y confirma el costo).
 - Rótulos: caja azul oscuro arriba a la izquierda, línea chica verde ("CREENCIA 1") y texto blanco debajo. Preguntas destacadas arriba al centro.
 - Sonido: sin música de fondo (decisión del equipo; pendiente de revisar). Efectos suaves cuando aparece algo que suena.
 - Descripción de YouTube: incluir que es contenido educativo y no asesoría financiera personal.
