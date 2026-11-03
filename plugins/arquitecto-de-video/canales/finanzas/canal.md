@@ -13,7 +13,7 @@ Fuente: reglas del proyecto del canal (AGENTS.md y guía de voz del 01-10-2026) 
 - Un educador cercano que explica con dibujos. No es un gurú, no presume de dinero y no regaña.
 - Emoción: claridad, seguridad y confianza. Seguridad quiere decir criterio y tranquilidad, nunca rentabilidad garantizada.
 - Narración: situación reconocible → duda o error → explicación → ejemplo → siguiente paso. Una idea principal por escena. Explicar cada término técnico la primera vez.
-- Voz: TTS de voicertool, voz "Lorenzo". No cambiar ni clonar la voz sin que se pida. Deja ~1 s de pausa tras cada frase.
+- Voz: voicertool.com (gratis, sin registro, MP3; licencia comercial según el sitio), voz "Lorenzo" (español de Chile, parece ser la voz neuronal es-CL-LorenzoNeural de Microsoft). Límite: **5.000 caracteres por conversión** → el guion se parte en trozos de máximo 4.800 caracteres en cambios de bloque. Ajustes de la página: tono, velocidad y volumen (dejar los mismos en todas las partes). Deja ~1 s de pausa tras cada frase (el estudio las recorta). No cambiar ni clonar la voz sin que se pida.
 
 ## Reglas de contenido (no negociables)
 - Educación general: no diagnosticar la situación de quien mira ni dar instrucciones personales de compra o venta.

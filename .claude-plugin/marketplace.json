@@ -7,7 +7,7 @@
       "name": "arquitecto-de-video",
       "source": "./plugins/arquitecto-de-video",
       "description": "Estudio de video y audio con 14 agentes: tendencias y análisis de videos exitosos, guion, imágenes con personaje constante, clips de Flow, voz sin pausas muertas, subtítulos, efectos, render y paquete para YouTube, TikTok e Instagram.",
-      "version": "0.4.3",
+      "version": "0.4.4",
       "license": "MIT"
     }
   ]

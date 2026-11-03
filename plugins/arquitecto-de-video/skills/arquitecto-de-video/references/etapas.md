@@ -42,7 +42,7 @@ Un prompt por imagen en `03_IMAGENES/prompts_imagenes.md` (tabla `| n.º | archi
 Imágenes recibidas: si vienen con su nombre, copiarlas a `03_IMAGENES`; si vienen con nombres al azar, a `03_IMAGENES\_entrantes` y `python ordenar_imagenes.py "<video>"` (plan + hoja de control) → revisar → `--aplicar`.
 
 ## 4. Voz
-La genera la persona. Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
+La genera la persona en su página de voz (finanzas: voicertool.com, voz Lorenzo, máximo 5.000 caracteres por conversión; el guionista deja las partes listas en `01_GUION/voz_parteN.txt`). Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
 
 ## 5. Transcripción (`transcriptor`)
 `python transcribir.py "<video>"` → `06_RECETA/transcripcion.json` (por palabra), informe de pausas y `07_RENDER/tmp/diferencias_con_guion.txt` si hay guion en `01_GUION`. Revisar cada diferencia: las que son error de reconocimiento se anotan en `correcciones` como `["texto oído exacto", "texto correcto"]` (el texto oído debe coincidir palabra por palabra con la transcripción, incluyendo signos). Las dudosas se dejan anotadas para que la persona escuche. Avisar si las pausas suman mucho (la voz Lorenzo de voicertool deja ~1 s tras cada frase): proponer recortarlas a ~0,35 s, sin hacerlo sin un sí.
