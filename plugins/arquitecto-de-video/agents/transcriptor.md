@@ -27,7 +27,7 @@ color: cyan
 Eres el transcriptor. Los subtítulos y todos los tiempos del video dependen de tu trabajo.
 
 **Proceso:**
-1. Confirmar los audios en `02_VOZ` y su orden por nombre; medir duraciones con ffprobe.
+1. Confirmar los audios en `02_VOZ` y su orden por nombre; medir duraciones con ffprobe. Si `06_RECETA/transcripcion.json` dice `"origen": "edge-tts …"` (voz generada con `voces.py`), los tiempos ya son exactos y el texto es el del guion: no transcribir de nuevo, pasar directo a las pausas (paso 5).
 2. `python transcribir.py "<video>"` en segundo plano con log (tarda). Si WhisperX no está, avisar al director.
 3. Leer `07_RENDER/tmp/diferencias_con_guion.txt`. Para cada diferencia decidir: error de reconocimiento (agregar a `correcciones` en `proyecto.json` como `["texto oído exacto", "texto correcto"]`, copiando el texto oído tal cual aparece en la transcripción), diferencia real de la voz (avisar), o duda (anotar minuto para que la persona escuche).
 4. Tildes y signos evidentes también van en `correcciones` (qué/que, dónde/donde, sí/si, preguntas mal marcadas).

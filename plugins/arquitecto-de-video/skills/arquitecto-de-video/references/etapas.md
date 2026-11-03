@@ -42,9 +42,21 @@ Un prompt por imagen en `03_IMAGENES/prompts_imagenes.md` (tabla `| n.º | archi
 Imágenes recibidas: si vienen con su nombre, copiarlas a `03_IMAGENES`; si vienen con nombres al azar, a `03_IMAGENES\_entrantes` y `python ordenar_imagenes.py "<video>"` (plan + hoja de control) → revisar → `--aplicar`.
 
 ## 4. Voz
-La genera la persona en su página de voz (finanzas: voicertool.com, voz Lorenzo, máximo 5.000 caracteres por conversión; el guionista deja las partes listas en `01_GUION/voz_parteN.txt`). Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
+Dos caminos; la biblia del canal dice cuál es el habitual.
+
+**A. Página de voz de la persona** (finanzas: voicertool.com, voz Lorenzo, máximo 5.000 caracteres por conversión; el guionista deja las partes listas en `01_GUION/voz_parteN.txt`). Es el camino por defecto para videos que se publican, porque la página declara licencia de uso.
+
+**B. Voz directo desde el estudio** con `voces.py` (mismas voces neuronales de Microsoft que usan voicertool y páginas parecidas, vía edge-tts):
+- `python voces.py listar --idioma es [--multilingues]`: las voces disponibles (45 en español de 22 países + 12 multilingües).
+- `python voces.py muestras "frase del guion" [--voces id1,id2] [--velocidad +5%] [--tono +0Hz]`: una muestra por voz en `EstudioPaltostaila\voces\muestras_<fecha>\` con `escuchar.html`. Para que la persona elija sin entrar a ninguna página, publicar esas muestras como página para escuchar (audio incrustado, filtros por país y género, botón para copiar el comando).
+- `python voces.py generar "<video>" --voz es-CL-LorenzoNeural [--velocidad +5%] [--tono +0Hz] [--volumen +0%]`: lee `01_GUION/voz_parte*.txt` o `guion_para_voz.txt`, genera `02_VOZ/<ID>_voz-<nombre>.mp3` y además `06_RECETA/transcripcion.json` con el tiempo exacto de cada palabra (no hace falta WhisperX; pasar directo a la etapa 6 o al recorte de pausas). Si `02_VOZ` ya tiene audios no los toca: deja la voz en `02_VOZ_GENERADA` y avisa cómo usarla (`--reemplazar` solo con un sí).
+- Aviso que se dice una vez por canal: edge-tts usa el servicio de lectura en voz alta de Edge de forma no oficial; puede dejar de funcionar y no trae una licencia comercial explícita. Sirve sin dudas para probar voces, borradores y animáticas; para publicar, la persona decide (si prefiere la licencia de su página, generar ahí con la misma voz elegida).
+- No cambiar ni clonar la voz de un canal sin que la persona lo pida.
+
+Al recibir audios de la página (camino A): Al recibir los audios: medir duraciones (`ffprobe`), confirmar el orden por nombre y que no haya cortes ni repeticiones en las uniones (escuchar o revisar la transcripción en ese segundo).
 
 ## 5. Transcripción (`transcriptor`)
+Si la voz salió de `voces.py generar`, la transcripción ya existe con tiempos exactos y el texto del guion: saltar WhisperX y revisar solo las pausas.
 `python transcribir.py "<video>"` → `06_RECETA/transcripcion.json` (por palabra), informe de pausas y `07_RENDER/tmp/diferencias_con_guion.txt` si hay guion en `01_GUION`. Revisar cada diferencia: las que son error de reconocimiento se anotan en `correcciones` como `["texto oído exacto", "texto correcto"]` (el texto oído debe coincidir palabra por palabra con la transcripción, incluyendo signos). Las dudosas se dejan anotadas para que la persona escuche. Avisar si las pausas suman mucho (la voz Lorenzo de voicertool deja ~1 s tras cada frase): proponer recortarlas a ~0,35 s, sin hacerlo sin un sí.
 Sin WhisperX instalado: avisar y ofrecer instalarlo (instalar.cmd, opción de transcripción).
 
