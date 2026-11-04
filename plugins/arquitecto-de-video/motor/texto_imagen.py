@@ -122,6 +122,8 @@ def colores_texto(im, caja):
     letras (se separa con una erosión) cuando su color es claramente otro."""
     import cv2
     x0, y0, x1, y1 = caja
+    p = max(3, (y1 - y0) // 4)                 # el lector suele cortar el contorno: se mira un poco más grande
+    x0, y0, x1, y1 = max(0, x0 - p), max(0, y0 - p), min(im.width, x1 + p), min(im.height, y1 + p)
     a = np.array(im.crop((x0, y0, x1, y1)).convert("RGB")).astype(np.int32)
     if a.shape[0] < 6 or a.shape[1] < 6:
         return (255, 255, 255), None
@@ -131,7 +133,7 @@ def colores_texto(im, caja):
     letras = (dist > 60).astype(np.uint8)
     if letras.sum() < 20:
         return tuple(int(v) for v in a.reshape(-1, 3).mean(0)), None
-    r = max(1, (y1 - y0) // 22)
+    r = max(1, (caja[3] - caja[1]) // 22)
     interior = cv2.erode(letras, np.ones((2 * r + 1, 2 * r + 1), np.uint8)).astype(bool)
     anillo = letras.astype(bool) & ~interior
     if interior.sum() < 10:
