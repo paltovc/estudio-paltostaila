@@ -10,7 +10,7 @@ Para cuando la persona trae tomas y fotos propias en vez de imágenes generadas.
 
 Avisos: grabaciones a 30 cuadros no dan cámara lenta real (solo suave); videos que pasaron por WhatsApp pierden mucha calidad (pedir el original). Si aparecen menores, la persona decide si van en un video público.
 
-Extras aprendidos de CapCut para `montaje_tomas.py` (por tramo): `"rampa": [1.0, 0.35]` hace una curva de velocidad (la toma pasa a cámara lenta de a poco, ideal en el golpe de la música) y `"estabilizar": true` quita el temblor de la mano (filtro deshake). En `color.py` y en `"look"` se puede usar una LUT propia: `"look": "lut:C:\\ruta\\mi_look.cube"`. Transiciones entre tramos (giro, golpe, barrido, glitch… las 68 de `transiciones.md`): `"transicion": ["golpe", 8]` en un tramo o `"variar_transiciones"` en la raíz; el tramo nuevo sigue entrando en su golpe.
+Extras aprendidos de CapCut para `montaje_tomas.py` (por tramo): `"rampa": [1.0, 0.35]` hace una curva de velocidad (la toma pasa a cámara lenta de a poco, ideal en el golpe de la música) y `"estabilizar": true` quita el temblor de la mano (filtro deshake). En `color.py` y en `"look"` se puede usar una LUT propia: `"look": "lut:C:\\ruta\\mi_look.cube"`. Efectos por tramo (`efectos.py`): `"efectos": ["brillo"]`, `"congelar": {"en": 1.2, "dura": 0.8}`, `"fluido": true`; voz más limpia en `grabado.py` con `"limpiar_voz": "media"` (o suave, fuerte, radio). Transiciones entre tramos (giro, golpe, barrido, glitch… las 68 de `transiciones.md`): `"transicion": ["golpe", 8]` en un tramo o `"variar_transiciones"` en la raíz; el tramo nuevo sigue entrando en su golpe.
 
 # Personas hablando a cámara (cursos, clases, tutoriales, testimonios): grabado.py
 

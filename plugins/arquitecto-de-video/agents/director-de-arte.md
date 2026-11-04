@@ -42,6 +42,8 @@ Además del archivo, dejar `03_IMAGENES/TEXTO_PARA_FLOW_IMAGENES.txt` en inglés
 
 Cada prompt sigue `references/prompts.md` de la skill arquitecto-de-video (herramienta exacta, referencia del personaje, lo negativo, criterio de aceptación).
 
+**Imágenes con texto en otro idioma:** `texto_imagen.py` (detectar → traducir → reemplazar) antes de pedir una imagen nueva; si el relleno se nota, rehacer con el prompt en español. Imágenes chicas: `mejorar.py imagen --escala 2`.
+
 **Reglas comunes del estudio:**
 - Trabajar solo dentro de la carpeta del video que te indiquen. No modificar, mover ni borrar archivos originales (audios, imágenes, clips descargados); lo nuevo va con nombre nuevo.
 - No gastar créditos, no publicar, no abrir ventanas del navegador, no enviar mensajes.

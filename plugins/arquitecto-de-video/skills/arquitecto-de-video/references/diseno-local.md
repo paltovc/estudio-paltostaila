@@ -34,3 +34,6 @@ Plantillas incluidas (en `motor\plantillas`): `miniatura-lado` (imagen completa,
 - Leer plantillas o kits de Canva con el conector para copiarlos aquí.
 - Automatizar el sitio de Canva con el navegador, usar cookies o contraseñas.
 - Instalar un clon completo de Canva (Doory, Penpot): pesados y no hacen falta.
+
+## Más funciones tipo Canva (0.11)
+Gráficos animados (`graficos.py`), texto dentro de imágenes traducido o borrado (`texto_imagen.py`), portada con capas animadas y video en todos los formatos (`formatos.py`), presentación a video (`presentacion.py`) y mejorar resolución (`mejorar.py`). Detalle en `herramientas-propias.md`.

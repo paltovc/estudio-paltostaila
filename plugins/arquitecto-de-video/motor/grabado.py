@@ -259,7 +259,12 @@ def armar():
     nombre_v = "solo_video_borrador_{}s.mp4".format(int(limite)) if "--borrador" in sys.argv else "solo_video.mp4"
     run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "v.txt", "-c", "copy", f"../{nombre_v}"], cwd=TMP)
     (pr.tmp / (Path(nombre_v).stem + ".json")).write_text(json.dumps({"clips": {}, "origen": "grabado.py", "tramos": len(cortes)}), encoding="utf-8")
-    limpia = "highpass=f=80,afftdn=nf=-25,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=120" if G["limpiar_voz"] else "anull"
+    lv = G["limpiar_voz"]          # true (básica), false, o "suave" / "media" / "fuerte" / "radio" (audio.py)
+    if isinstance(lv, str):
+        import audio as _au
+        limpia = _au.cadena_voz(None if lv == "radio" else lv, lv == "radio") or "anull"
+    else:
+        limpia = "highpass=f=80,afftdn=nf=-25,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=120" if lv else "anull"
     voz = pr.dir / "02_VOZ" / f"{pr.id}_voz-grabado.wav"
     voz.parent.mkdir(exist_ok=True)
     run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "a.txt", "-af", limpia, str(voz)], cwd=TMP)

@@ -53,6 +53,12 @@ def audio(dur):
     auds = pr.audios()
     ins = sum([["-i", a] for a in auds], [])
     base = f"concat=n={len(auds)}:v=0:a=1"
+    av = pr.cfg.get("audio_voz") or {}
+    import audio as _au
+    limpieza = _au.cadena_voz(av.get("limpiar"), av.get("radio", False))
+    if limpieza:                                   # limpieza y ecualización de la voz (audio.py), antes de medir
+        base += "," + limpieza
+        print(f"audio: voz limpiada ({av.get('limpiar') or 'sin limpieza'}{', voz de radio' if av.get('radio') else ''})", flush=True)
     L = pr["volumen_lufs"]
     medida = run([FFMPEG, "-hide_banner", *ins, "-filter_complex", f"{base},loudnorm=I={L}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"])
     m = json.loads(medida[medida.rindex("{"):medida.rindex("}") + 1])
@@ -73,14 +79,24 @@ def audio(dur):
         (pr.tmp / "voz_paso2.wav").replace(pr.tmp / "voz_paso.wav")
     run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af",
          f"afade=t=in:d=0.3,afade=t=out:st={dur - 1.2:.3f}:d=1.2", pr.tmp / "voz.wav"])
+    mus = pr.cfg.get("musica") or {}
+    voz_final = pr.tmp / "voz.wav"                 # voz.wav queda siempre solo con la voz (paquete de CapCut, doblaje)
+    if mus.get("archivo"):                         # música bajo la voz, con ducking (audio.py)
+        con_mus = pr.tmp / "voz_musica.wav"
+        _au.mezclar(pr.tmp / "voz.wav", pr.ruta(mus["archivo"]), con_mus, mus.get("volumen", -20), mus.get("ducking", True),
+                    mus.get("desde", 0.0))
+        run([FFMPEG, "-v", "error", "-y", "-i", con_mus, "-af", f"afade=t=out:st={dur - 2.0:.3f}:d=2.0", "-t", f"{dur:.3f}",
+             pr.tmp / "voz_musica2.wav"])
+        voz_final = pr.tmp / "voz_musica2.wav"
+        print(f"audio: música bajo la voz ({mus.get('volumen', -20)} dB, ducking {'sí' if mus.get('ducking', True) else 'no'})", flush=True)
     efectos = pr.tmp / "efectos.wav"
     if efectos.exists() and pr["sonidos"]["activar"] and os.environ.get("SIN_EFECTOS") != "1":
-        run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz.wav", "-i", efectos, "-filter_complex",
+        run([FFMPEG, "-v", "error", "-y", "-i", voz_final, "-i", efectos, "-filter_complex",
              "[0:a][1:a]amix=inputs=2:normalize=0:dropout_transition=0,alimiter=limit=0.89:level=0",
              "-t", f"{dur:.3f}", "-c:a", "aac", "-b:a", "192k", pr.tmp / "narracion.m4a"])
         print("audio: voz + efectos", flush=True)
     else:
-        run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz.wav", "-c:a", "aac", "-b:a", "192k", pr.tmp / "narracion.m4a"])
+        run([FFMPEG, "-v", "error", "-y", "-i", voz_final, "-c:a", "aac", "-b:a", "192k", pr.tmp / "narracion.m4a"])
         print("audio: solo voz", flush=True)
 
 
@@ -152,7 +168,9 @@ def main():
         n = int(float(ARG("--borrador")))
         nombre = f"{pr.base_nombre}_borrador-{n}s.mp4"
         run([FFMPEG, "-v", "error", "-y", "-i", f"tmp/solo_video_borrador_{n}s.mp4", "-i", "tmp/narracion.m4a",
-             "-map", "0:v", "-map", "1:a", "-vf", "ass=tmp/todo.ass,fade=t=in:d=0.5", *ENCODE, "-c:a", "aac",
+             "-map", "0:v", "-map", "1:a", "-vf",
+             (lambda l: (l + "," if l else "") + "ass=tmp/todo.ass,fade=t=in:d=0.5")(__import__("efectos").cadena(pr.cfg.get("efectos_video"))),
+             *ENCODE, "-c:a", "aac",
              "-shortest", "-movflags", "+faststart", nombre], cwd=pr.salida)
         print("LISTO", pr.salida / nombre, flush=True)
         return
@@ -167,10 +185,14 @@ def main():
             print("audio cambiado:", nombre, flush=True)
         return
     fades = f"fade=t=in:d=0.5,fade=t=out:st={dur - 1.2:.3f}:d=1.2"
+    import efectos as _fx
+    look = _fx.cadena(pr.cfg.get("efectos_video"))          # grano, viñeta, antiguo, vhs... debajo de los textos
+    if look:
+        print(f"efectos de imagen: {', '.join(pr.cfg['efectos_video'])}", flush=True)
     for nombre, ass in finales:
         parcial = nombre.replace(".mp4", ".parcial.mp4")
         run([FFMPEG, "-v", "error", "-y", "-i", solo, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
-             "-vf", f"ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", "-movflags", "+faststart", parcial], cwd=pr.salida)
+             "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", "-movflags", "+faststart", parcial], cwd=pr.salida)
         (pr.salida / parcial).replace(pr.salida / nombre)
         print("listo:", pr.salida / nombre, flush=True)
     print("LISTO", flush=True)

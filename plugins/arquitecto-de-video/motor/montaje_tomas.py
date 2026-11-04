@@ -12,6 +12,8 @@
 #               {"archivo": "video.mp4", "hasta": 211.30, "desde_clip": 5.0, "velocidad": 1.0, "brillo": 0.02},
 #               {"archivo": "baile.mp4", "hasta": 220.0, "rampa": [1.0, 0.35], "estabilizar": true} ] }
 # "rampa": curva de velocidad de v0 a v1 (cámara lenta que entra de a poco); "estabilizar": quita el temblor de la mano.
+# Efectos (efectos.py): "efectos": ["brillo", "grano"] por tramo (o en la raíz para todos), "congelar": {"en": 1.2,
+#   "dura": 0.8} (cuadro congelado con destello, el tramo sigue durando lo mismo) y "fluido": true (cámara lenta sin saltos).
 # Transiciones (las 68 de transiciones.py, con nombre del estudio, de CapCut o de ffmpeg; duración en cuadros):
 #   en un tramo: "transicion": ["giro", 10]  -> transición AL ENTRAR a ese tramo (desde el anterior)
 #   para todos:  "transicion": ["mezcla", 8] en la raíz de montaje.json, o "variar_transiciones": ["empujar", "golpe", ...]
@@ -22,6 +24,7 @@ import math, json, re, subprocess, sys
 from pathlib import Path
 from color import cadena, LOOKS
 import transiciones
+import efectos as fx
 
 try:
     from estudio import FFMPEG, FFPROBE
@@ -66,6 +69,8 @@ def tramo_foto(ruta, dur, t, W, H, fps, look, sal):
               f"eq=brightness=-0.10:saturation=0.8[bg];[b]scale={W * 2}:-2,"
               f"zoompan=z='{z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{fh}:fps={fps}[fg];"
               f"[bg][fg]overlay=0:(H-h)/2,{color}[v]")
+    if t.get("efectos"):
+        fc = fc[:-3] + "," + fx.cadena(t["efectos"]) + "[v]"
     run([FFMPEG, "-v", "error", "-y", "-loop", "1", "-framerate", fps, "-t", f"{dur:.3f}", "-i", ruta,
          "-filter_complex", fc, "-map", "[v]", "-frames:v", n, "-c:v", "libx264", "-preset", "veryfast", "-crf", 18,
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
@@ -90,7 +95,14 @@ def tramo_video(ruta, dur, t, W, H, fps, look, sal):
         consumo = fuente
     else:
         tiempo, consumo = f"setpts=PTS/{vel}", dur * vel
-    vf = f"{estab}{enc},{cadena(ruta, look, t.get('brillo', 0.0))}{nitidez},{tiempo},fps={fps}"
+    lento = t.get("rampa") or vel < 1
+    ritmo = fx.fluido(fps) if t.get("fluido") and lento else f"fps={fps}"     # cámara lenta que inventa cuadros
+    vf = f"{estab}{enc},{cadena(ruta, look, t.get('brillo', 0.0))}{nitidez},{tiempo},{ritmo}"
+    if t.get("congelar"):
+        c = t["congelar"]
+        vf += "," + fx.congelar(float(c["en"]), float(c.get("dura", 0.8)), fps, c.get("destello", True))
+    if t.get("efectos"):
+        vf += "," + fx.cadena(t["efectos"])
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t.get('desde_clip', 0):.3f}", "-t", f"{consumo + 0.5:.3f}", "-i", ruta,
          "-an", "-vf", vf, "-frames:v", round(dur * fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", 18,
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
@@ -170,6 +182,7 @@ def main():
         if solo and n != solo and sal.exists():
             continue
         ruta = mat / t["archivo"]
+        t = dict(t, efectos=t.get("efectos", cfg.get("efectos")))
         (tramo_foto if ruta.suffix.lower() in FOTO else tramo_video)(ruta, dur + cola / fps, t, W, H, fps, look, sal)
         print(f"tramo {n}/{len(tramos)} {t['archivo']} {dur:.2f} s", flush=True)
     if any(TRS):

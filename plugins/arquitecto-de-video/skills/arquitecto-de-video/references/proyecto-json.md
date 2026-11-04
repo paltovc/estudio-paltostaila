@@ -63,6 +63,7 @@ Vive en la carpeta del video. Todo campo que falte toma el valor por defecto del
 Notas:
 - `frase` se busca en la transcripción ya corregida, sin importar mayúsculas ni signos; debe ser texto que se dice de verdad. Si el motor dice "No encontre la frase", copiarla de la transcripción.
 - Los momentos se pueden dar como `{"frase": ...}`, `{"escena": n}` (inicio de la escena) o `{"segundo": s}`, con `"desfase"` opcional en segundos.
+- Herramientas propias (`herramientas-propias.md`): `"graficos"` (gráficos animados por escena), `"audio_voz": {"limpiar": "media", "radio": true}`, `"musica": {"archivo": ..., "volumen": -20, "ducking": true}` y `"efectos_video": ["grano", "vineta"]`.
 - Transiciones: cualquiera de las 68 de `transiciones.md` (nombre del estudio como `golpe`, `giro`, `empujar`; nombre de CapCut como `spin`, `whip`; o de ffmpeg como `fade`, `smoothleft`). Opcionales: `"variar": [...]` rota entre varias en las escenas normales y `"por_escena": {"7": ["giro", 14]}` fija la de una escena. La duración va en cuadros (12 = 0,4 s a 30 fps).
 - `planos`: el segundo es del video completo (no de la escena). El primer plano empieza siempre con la escena.
 - `\\N` en un título es salto de línea.

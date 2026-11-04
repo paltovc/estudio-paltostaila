@@ -14,6 +14,12 @@ Patricio tiene CapCut Pro instalado en su PC. Regla: **aprender de CapCut sí; a
 | Stabilize | `montaje_tomas.py`: `"estabilizar": true` (filtro deshake de ffmpeg) | nuevo 0.9 |
 | Color grading con LUT | `color.py`: look `"lut:C:\\ruta\\archivo.cube"` | nuevo 0.9 |
 | Transiciones (Mix, Slide, Wipe, Pull in, Spin, Whip, Glitch, Shake, Light leak…) | `transiciones.py`: 68 propias en videos narrados (`armar.py`) y sobre música (`montaje_tomas.py`); catálogo en video con `--catalogo` (`transiciones.md`) | nuevo 0.10 |
+| Reducir ruido, Realzar voz, Ducking | `audio.py` (y `audio_voz` / `musica` en proyecto.json) | nuevo 0.11 |
+| Effects (grano, VHS, retro, glow), Freeze frame, Smooth slow-mo | `efectos.py` (`efectos_video`; en montaje: `efectos`, `congelar`, `fluido`) | nuevo 0.11 |
+| Chroma key, Overlay/PiP, Split screen, Mask | `capas.py` | nuevo 0.11 |
+| Tracking | `seguimiento.py` | nuevo 0.11 |
+| Upscale / Enhance | `mejorar.py` (Real-ESRGAN BSD-3 o clásico) | nuevo 0.11 |
+| Subtítulos traducidos + doblaje | `doblaje.py` | nuevo 0.11 |
 | Auto Cutout / quitar fondo | imágenes: `diseno.py` con rembg; video: no (pesado sin GPU) | imágenes listo |
 | Text to Speech | `voces.py` (edge-tts, voz Lorenzo) | listo |
 | Script to Video | todo el flujo del arquitecto | listo |
