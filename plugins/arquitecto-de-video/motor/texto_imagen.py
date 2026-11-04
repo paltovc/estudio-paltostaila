@@ -117,26 +117,30 @@ def borrar(im, mascara, metodo="lama"):
 
 
 def colores_texto(im, caja):
-    """(color de las letras, color del contorno) dentro de la caja. Tres grupos de color: el que domina en el borde de
-    la caja es el fondo; de los otros dos, el más abundante es el relleno de las letras y el otro su contorno."""
-    x0, y0, x1, y1 = caja
-    a = np.array(im.crop((x0, y0, x1, y1)).convert("RGB")).astype(np.float32)
-    if a.shape[0] < 4 or a.shape[1] < 4:
-        return (255, 255, 255), (0, 0, 0)
+    """(color de las letras, color del contorno o None) dentro de la caja.
+    Fondo = mediana del borde de la caja; letras = lo que se aleja del fondo; el contorno es el anillo exterior de las
+    letras (se separa con una erosión) cuando su color es claramente otro."""
     import cv2
-    px = a.reshape(-1, 3)
-    _, et, centros = cv2.kmeans(px, 3, None, (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0), 3, cv2.KMEANS_PP_CENTERS)
-    et = et.reshape(a.shape[:2])
-    borde = np.concatenate([et[0], et[-1], et[:, 0], et[:, -1]])
-    fondo = int(np.bincount(borde, minlength=3).argmax())
-    cuenta = np.bincount(et.ravel(), minlength=3)
-    resto = sorted((k for k in range(3) if k != fondo), key=lambda k: -cuenta[k])
-    letra = tuple(int(v) for v in centros[resto[0]])
-    otro = tuple(int(v) for v in centros[resto[1]])
-    dist = lambda p, q: sum((p[i] - q[i]) ** 2 for i in range(3)) ** 0.5
-    if cuenta[resto[1]] < 0.12 * cuenta[resto[0]] or dist(otro, letra) < 60:      # el original no tenía contorno
-        otro = None
-    return letra, otro
+    x0, y0, x1, y1 = caja
+    a = np.array(im.crop((x0, y0, x1, y1)).convert("RGB")).astype(np.int32)
+    if a.shape[0] < 6 or a.shape[1] < 6:
+        return (255, 255, 255), None
+    borde = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    fondo = np.median(borde, axis=0)
+    dist = np.sqrt(((a - fondo) ** 2).sum(axis=2))
+    letras = (dist > 60).astype(np.uint8)
+    if letras.sum() < 20:
+        return tuple(int(v) for v in a.reshape(-1, 3).mean(0)), None
+    r = max(1, (y1 - y0) // 22)
+    interior = cv2.erode(letras, np.ones((2 * r + 1, 2 * r + 1), np.uint8)).astype(bool)
+    anillo = letras.astype(bool) & ~interior
+    if interior.sum() < 10:
+        return tuple(int(v) for v in np.median(a[letras.astype(bool)], axis=0)), None
+    letra = np.median(a[interior], axis=0)
+    aro = np.median(a[anillo], axis=0) if anillo.sum() > 10 else letra
+    d = lambda p, q: float(np.sqrt(((p - q) ** 2).sum()))
+    contorno = tuple(int(v) for v in aro) if d(aro, letra) > 90 and d(aro, fondo) > 60 else None
+    return tuple(int(v) for v in letra), contorno
 
 
 def fuente_para(texto, ancho, alto, nombre_fuente, mk):

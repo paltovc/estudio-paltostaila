@@ -108,6 +108,14 @@ def cargar(c):
     return d
 
 
+def recortar(src):
+    """Quita el silencio del principio y del final (las voces generadas traen aire) -> .wav al lado; devuelve su largo."""
+    w = Path(src).with_suffix(".recortado.wav")
+    sil = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.03"
+    run([FFMPEG, "-v", "error", "-y", "-i", src, "-af", f"{sil},areverse,{sil},areverse", "-ar", 48000, w])
+    return w, dur(w)
+
+
 async def _tts(texto, voz, destino, vel):
     import edge_tts
     await edge_tts.Communicate(texto, voz, rate=f"{vel:+d}%").save(str(destino))
@@ -127,19 +135,21 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
         hueco = (segs[i + 1]["inicio"] if i + 1 < len(segs) else total) - s["inicio"]
         espacio = s["fin"] - s["inicio"]
         if desde_archivos:
-            src = next((p for p in vdir.glob(f"{s['id']:03d}.*")), None)
+            src = next((p for p in sorted(vdir.glob(f"{s['id']:03d}.*")) if ".recortado" not in p.name), None)
             if not src:
                 avisos.append(f"frase {s['id']}: falta voces\\{s['id']:03d}.mp3")
                 continue
-            largo, vel = dur(src), 0
+            vel = 0
+            src, largo = recortar(src)
         else:
             src, vel = vdir / f"{s['id']:03d}.mp3", 0
             asyncio.run(_tts(s["traduccion"], nombre_voz, src, 0))
-            largo = dur(src)
+            src_w, largo = recortar(src)
             if largo > espacio * 1.02:                         # no cabe: acelerar lo justo
                 vel = min(vel_max, int((largo / espacio - 1) * 100) + 3)
                 asyncio.run(_tts(s["traduccion"], nombre_voz, src, vel))
-                largo = dur(src)
+                src_w, largo = recortar(src)
+            src = src_w
         tempo = 1.0
         if largo > hueco:                                       # ni acelerada cabe antes de la frase siguiente
             tempo = min(1.25, largo / hueco)
@@ -158,7 +168,12 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
         f"amix=inputs={len(partes)}:normalize=0:dropout_transition=0,apad,atrim=0:{total:.3f}[v]"
     script = c / "_mezcla.txt"
     script.write_text(mezcla, encoding="utf-8")
-    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex_script", script, "-map", "[v]", c / "voz_traducida_paso.wav"])
+    # ffmpeg 7.1+ lee el filtro desde archivo con "-/filter_complex"; las versiones viejas con "-filter_complex_script"
+    cola = ["-map", "[v]", c / "voz_traducida_paso.wav"]
+    r = subprocess.run([str(x) for x in [FFMPEG, "-v", "error", "-y", *ins, "-/filter_complex", script, *cola]],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode:
+        run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex_script", script, *cola])
     import audio as au
     au.normalizar(c / "voz_traducida_paso.wav", c / "voz_traducida.wav")
     (c / "voz_traducida_paso.wav").unlink()

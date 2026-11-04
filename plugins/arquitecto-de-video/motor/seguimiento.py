@@ -160,7 +160,10 @@ def main():
     tiles = []
     for t, f, (x, y, w, h) in muestras[:12]:
         im = Image.fromarray(f[:, :, ::-1])
-        ImageDraw.Draw(im).rectangle([x, y, x + w, y + h], outline=(255, 0, 80), width=max(3, im.width // 300))
+        dd = ImageDraw.Draw(im)
+        g = max(6, im.width // 160)
+        dd.rectangle([x, y, x + w, y + h], outline=(0, 0, 0), width=g + 4)
+        dd.rectangle([x, y, x + w, y + h], outline=(0, 255, 120), width=g)
         im.thumbnail((320, 320))
         tiles.append(im)
     if tiles:
