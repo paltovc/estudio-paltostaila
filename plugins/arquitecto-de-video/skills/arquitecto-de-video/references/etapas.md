@@ -113,5 +113,7 @@ Con los datos que la persona comparta (capturas de YouTube Studio, TikTok Analyt
 | Sala de edición | `python sala.py "<video>"` (segundo plano) → `http://127.0.0.1:8765/` | la persona abre Chrome; guardar deja respaldo en `08_SALA/` |
 | Copia para el celular | `python celu.py "<video>" [archivo] [--zona]` | 720p en `07_RENDER/celu` y en Drive si existe |
 | Tomas a cámara | `python grabado.py "<video>" transcribir` → `cortar` → `armar [--borrador 60]` | luego `terminar.py` y `vertical.py` |
+| Ritmo medido | `python ritmo.py "<video>" [--comparar "<otro>"]` | cortes, saltos, tramos quietos, volumen, hoja de cortes; `referente.py` lo corre solo |
+| Receta de miniatura | `python receta_miniatura.py mini1.jpg mini2.jpg --nuestra mia.png` | paleta, brillo, contraste, peso visual; después `receta-miniatura.md` |
 
 Errores conocidos: una fuente que no está instalada en Windows hace que libass use otra parecida (revisar las fotos de prueba); los elementos de una frase que se repite en el guion necesitan `"despues"` para caer en la segunda vez.

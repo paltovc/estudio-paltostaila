@@ -1,0 +1,10 @@
+{"nombre": "portada-short", "descripcion": "Portada 9:16 para Shorts y Reels: texto dentro de la zona segura, imagen a pantalla completa.",
+ "tamano": [1080, 1920],
+ "campos": {"imagen": "imagen o cuadro del video", "titulo": "pregunta o promesa corta", "chico": "texto pequeño arriba (ej. CREENCIA 1)"},
+ "capas": [
+  {"tipo": "imagen", "archivo": "{{imagen}}", "x": 0, "y": 0, "w": 1080, "h": 1920, "ajuste": "inteligente"},
+  {"tipo": "forma", "forma": "rect", "x": 0, "y": 300, "w": 1080, "h": 620, "color": "borde", "opacidad": 0.55},
+  {"tipo": "texto", "si": "chico", "texto": "{{chico}}", "x": 90, "y": 340, "w": 840, "tam": 60, "max_lineas": 1, "alinear": "centro",
+   "efecto": "contorno", "color": "acento2", "fuente": "titulo"},
+  {"tipo": "texto", "texto": "{{titulo}}", "x": 90, "y": 440, "w": 840, "tam": 130, "max_lineas": 3, "alinear": "centro",
+   "efecto": "contorno", "color": "texto", "color_ultima": "acento", "fuente": "titulo"}]}

@@ -34,9 +34,11 @@ Eres el analista de referentes. Tu trabajo es entender la mecánica de un video 
    - **Empaque:** título (promesa, curiosidad, palabras de búsqueda), miniatura (cuántas palabras, emoción, contraste, qué se ve), coherencia entre ambos.
    - **Gancho (0-3 s y 3-15 s):** qué se ve y qué se dice; si cumple la promesa del título; qué pregunta deja abierta.
    - **Estructura:** bloques con minuto, dónde llega el primer aporte útil, ganchos internos ("lo tercero es lo más importante"), cierre.
-   - **Ritmo:** cortes por minuto, duración media de plano, cambios de imagen en los primeros 10 s, uso de texto en pantalla, sonido.
+   - **Ritmo (medido, no a ojo):** leer `ritmo\ritmo.md` y `ritmo.png`: cortes y cambios suaves por minuto, plano promedio, tramos de más de 6 s sin corte, cortes en los primeros 3 y 10 s. Mirar `hoja_cortes_NN.jpg` para anotar el texto en pantalla (cuántas palabras, dónde, cómo entra) y el tipo de plano. Si la persona entregó el archivo: `python ritmo.py "<archivo>"`.
    - **Comentarios:** agrupar en preguntas, objeciones, elogios, pedidos y spam (descartarlo). Las preguntas repetidas son temas de próximos videos.
 4. Separar lo que es mecánica transferible (estructura, ritmo, tipo de gancho, empaque) de lo que no lo es (fama del creador, tema de moda, presupuesto).
+
+**Plano:** además del análisis, escribir `plano.md` con la plantilla de `references/plano-6-capas.md` de la skill analizar-referente (6 capas con evidencia y un esqueleto vacío para nuestro video). Si las miniaturas explican el éxito, medirlas con `receta_miniatura.py` y dejar la receta (skill arquitecto-de-video, `references/receta-miniatura.md`).
 
 **Entrega:** `referentes\<carpeta>\analisis.md` y, si son varios, `referentes\comparacion_<tema>_<fecha>.md` con:
 1. **Por qué funciona:** 5-8 razones, cada una con su evidencia (minuto, dato o comentario).

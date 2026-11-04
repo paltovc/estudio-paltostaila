@@ -393,12 +393,34 @@ class Vivo:
         return ev
 
     def texto(self, d, t0):
+        """Texto grande. entrada: pop (crece), maquina (se escribe letra a letra), desliza (entra desde un lado),
+        rebote (cae y rebota), sello (gira y golpea), brillo (aparece desde un destello)."""
         a = self._t(d["en"]) - t0
         b = a + float(d.get("dura", 1.6))
         x, y = self._pos(d.get("pos"), "centro")
         color = d.get("color", self.e["clave"])
-        return [f"Dialogue: 6,{ts(a)},{ts(b)},Vivo,,0,0,0,,{{\\an5\\pos({x},{y})\\fs{round(150 * self.esc)}\\c{c(color)}\\bord{round(10 * self.esc)}"
-                f"\\fscx0\\fscy0\\t(0,180,\\fscx120\\fscy120)\\t(180,300,\\fscx100\\fscy100)\\fad(0,250)}}{limpio(d['texto'])}"]
+        tam, bord = round(d.get("tam", 150) * self.esc), round(10 * self.esc)
+        txt = limpio(d["texto"])
+        base = f"Dialogue: 6,{ts(a)},{ts(b)},Vivo,,0,0,0,,{{\\an5"
+        estilo = f"\\fs{tam}\\c{c(color)}\\bord{bord}"
+        entrada = d.get("entrada", "pop")
+        if entrada == "maquina":
+            ancho = round(len(txt) * tam * 0.62)
+            x0 = x - ancho // 2
+            ms = int(min(900, 60 * len(txt)))
+            return [f"{base}\\pos({x},{y}){estilo}\\clip({x0},{y - tam},{x0 + 1},{y + tam})\\t(0,{ms},\\clip({x0},{y - tam},{x0 + ancho + 20},{y + tam}))\\fad(0,250)}}{txt}"]
+        if entrada == "desliza":
+            desde = -tam * len(txt) if d.get("desde", "izq") == "izq" else self.W + tam * len(txt) // 2
+            return [f"{base}\\move({desde},{y},{x},{y},0,260){estilo}\\fad(0,250)}}{txt}"]
+        if entrada == "rebote":
+            return [f"{base}\\move({x},{y - round(0.25 * self.H)},{x},{y},0,240){estilo}\\t(240,320,\\fscx112\\fscy88)\\t(320,420,\\fscx100\\fscy100)\\fad(0,250)}}{txt}"]
+        if entrada == "sello":
+            return [f"{base}\\pos({x},{y}){estilo}\\frz-14\\fscx260\\fscy260\\alpha&HFF&\\t(0,160,\\fscx100\\fscy100\\alpha&H00&)\\fad(0,250)}}{txt}"]
+        if entrada == "brillo":
+            return [f"{base}\\pos({x},{y}){estilo}\\blur18\\alpha&HFF&\\t(0,260,\\blur0\\alpha&H00&)\\fad(0,250)}}{txt}",
+                    f"Dialogue: 7,{ts(a)},{ts(min(b, a + 0.5))},VivoDibujo,,0,0,0,,{{\\an5\\pos({x + round(tam * len(txt) * 0.3)},{y - tam // 2})"
+                    f"\\1c{c(self.e['clave'])}\\bord0\\fscx0\\fscy0\\t(0,150,\\fscx130\\fscy130)\\t(150,400,\\fscx0\\fscy0)\\p1}}{destello(round(30 * self.esc))}{{\\p0}}"]
+        return [f"{base}\\pos({x},{y}){estilo}\\fscx0\\fscy0\\t(0,180,\\fscx120\\fscy120)\\t(180,300,\\fscx100\\fscy100)\\fad(0,250)}}{txt}"]
 
     def linea_de_tiempo(self):
         """Tiempos de cada elemento (para la sala de edición): inicio, fin y momentos de sus partes."""

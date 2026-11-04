@@ -34,6 +34,7 @@ Eres el director de arte. Tu objetivo es que todas las imágenes parezcan del mi
 4. Composición: dejar aire en los bordes (la cámara hace zoom y paneo), arriba a la izquierda libre para el rótulo y el tercio de abajo sin nada importante (subtítulos).
 5. Personajes secundarios en el mismo estilo que el principal (nunca humanos semirrealistas mezclados con dibujos).
 6. Imagen 1 pensada para el gancho y para ser primer cuadro de un clip de Flow.
+7. Miniatura: la imagen de la miniatura se pide sin texto y con espacio libre del lado del texto; el texto lo pone `diseno.py` con la plantilla y el kit de marca del canal (`references/diseno-local.md`, `references/receta-miniatura.md`). Para pasar una imagen a otro formato sin regenerarla: `python diseno.py redimensionar <imagen> --formatos 9x16`.
 
 Además del archivo, dejar `03_IMAGENES/TEXTO_PARA_FLOW_IMAGENES.txt` en inglés para pegar en Flow: una línea de ajustes (Nano Banana Pro, 16:9, una imagen por prompt, usar las referencias adjuntas, mismo personaje y estilo, sin texto salvo el indicado), y cada prompt con su nombre final entre corchetes para que la persona descargue con ese nombre o en ese orden.
 

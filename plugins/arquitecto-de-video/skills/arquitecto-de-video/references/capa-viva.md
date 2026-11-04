@@ -31,7 +31,7 @@ Cada elemento entra en una frase de la transcripción (`"en": "texto exacto"`; s
 | `lista` | `titulo`, `items` (texto o `{"texto", "frase"}` para que cada línea se escriba cuando se dice), `pos`, `dura` | tarjeta de papel escrita a mano, línea por línea |
 | `fichas` | `items`, `frases` (o `cada` en segundos), `colores` | cadena A → B → C (en vertical, en columna) |
 | `lluvia` | `simbolo`: billetes o confeti; `cantidad`, `dura` | ganancias, celebración |
-| `texto` | `texto`, `color`, `dura`, `pos` | un número o palabra enorme: "x2", "-30%", "FOMO" |
+| `texto` | `texto`, `color`, `dura`, `pos`, `tam`, `entrada`: pop, maquina (se escribe letra a letra), desliza (`desde` izq/der), rebote, sello, brillo | un número o palabra enorme: "x2", "-30%", "FOMO" |
 
 Posiciones: `arriba-izq`, `arriba-der`, `centro`, `izquierda`, `derecha`, `abajo-izq`, `abajo-der` o `[x, y]` en fracciones. En vertical todo queda fuera de la columna de botones de la derecha.
 

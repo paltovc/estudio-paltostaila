@@ -91,6 +91,14 @@ def main():
             run([FFMPEG, "-v", "error", "-y", "-i", video, "-t", "3", "-vf", "fps=2,scale=480:-1,tile=3x2", "-frames:v", "1", carpeta / "gancho_0a3s.jpg"])
             paso = max(dur / 24, 1)
             run([FFMPEG, "-v", "error", "-y", "-i", video, "-vf", f"fps=1/{paso:.2f},scale=360:-1,tile=6x4", "-frames:v", "1", carpeta / "hoja_completa.jpg"])
+            try:   # ritmo medido: cortes, saltos, tramos quietos, volumen y hoja con el cuadro de cada corte
+                import ritmo
+                r, vol, rs = ritmo.analizar(video, carpeta / "ritmo")
+                ritmo.grafico([(r, vol)], rs / "ritmo.png")
+                ritmo.informe(r, rs)
+                datos["cambios_suaves_por_minuto"] = r["cambios_suaves_por_minuto"]
+            except Exception as e:
+                print("aviso ritmo ->", str(e)[-200:])
             if "--transcribir" in args and not transcripcion:
                 transcripcion = whisperx(video, carpeta)
     texto = "\n".join(f"[{mmss(t)}] {x}" for t, x in transcripcion)
@@ -102,7 +110,7 @@ def main():
          "| dato | valor |", "|---|---|"]
     for k in ["plataforma", "canal", "seguidores", "fecha", "dias_publicado", "duracion_s", "vistas", "vistas_por_dia",
               "likes", "likes_por_1000_vistas", "comentarios", "comentarios_por_1000_vistas", "mediana_vistas_canal",
-              "veces_sobre_su_canal", "cortes_por_minuto", "plano_promedio_s", "cortes_primeros_10s"]:
+              "veces_sobre_su_canal", "cortes_por_minuto", "cambios_suaves_por_minuto", "plano_promedio_s", "cortes_primeros_10s"]:
         if datos.get(k) is not None:
             m.append(f"| {k.replace('_', ' ')} | {datos[k]} |")
     gancho = [x for t, x in transcripcion if t <= 15]
@@ -110,6 +118,7 @@ def main():
           "", "## Comentarios con mas likes"]
     m += [f"- ({c.get('like_count') or 0}) {(c.get('text') or '').strip()[:300]}" for c in coms[:40]]
     m += ["", "## Archivos", "gancho_0a3s.jpg (6 cuadros de los primeros 3 s), hoja_completa.jpg (24 cuadros), miniatura (video*.jpg),",
+          "ritmo\\ritmo.md + ritmo.png + hoja_cortes_NN.jpg (ritmo medido y el cuadro de cada corte),",
           "transcripcion.txt, comentarios.json (todos), datos.json"]
     (carpeta / "informe_base.md").write_text("\n".join(m), encoding="utf-8")
     print("\n".join(m[:25]))

@@ -1,0 +1,10 @@
+{"nombre": "miniatura-centro", "descripcion": "Personaje recortado (sin fondo) sobre color de marca con texto grande arriba; para cuando la imagen no tiene fondo limpio.",
+ "tamano": [1280, 720],
+ "campos": {"imagen": "imagen del personaje", "titulo": "2-4 palabras", "sin_fondo": "si se pone 1, recorta el personaje (rembg)"},
+ "fondo": "fondo",
+ "capas": [
+  {"tipo": "forma", "forma": "circulo", "x": 340, "y": 160, "w": 600, "h": 600, "color": "acento", "opacidad": 0.25},
+  {"tipo": "imagen", "archivo": "{{imagen}}", "x": 340, "y": 200, "w": 600, "h": 520, "ajuste": "inteligente", "mascara": "redondeado", "radio": 36,
+   "marco": {"color": "acento", "grosor": 10}, "sombra": true},
+  {"tipo": "texto", "texto": "{{titulo}}", "x": 60, "y": 28, "w": 1160, "tam": 120, "max_lineas": 1, "alinear": "centro",
+   "efecto": "sombra", "color": "texto", "fuente": "titulo"}]}

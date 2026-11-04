@@ -1,0 +1,11 @@
+{"nombre": "miniatura-lado", "descripcion": "Imagen a pantalla completa, franja oscura y 2-3 palabras grandes a un lado; última línea en el color de acento.",
+ "tamano": [1280, 720],
+ "campos": {"imagen": "imagen de fondo (personaje a la izquierda)", "titulo": "2-4 palabras; \\n para partir", "sello": "opcional: palabra en una caja (ej. ALERTA)"},
+ "capas": [
+  {"tipo": "imagen", "archivo": "{{imagen}}", "x": 0, "y": 0, "w": 1280, "h": 720, "ajuste": "inteligente"},
+  {"tipo": "forma", "forma": "degradado", "x": 560, "y": 0, "w": 720, "h": 720, "color": "borde", "opacidad": 0.85, "desde": "der"},
+  {"tipo": "texto", "texto": "{{titulo}}", "x": 640, "y": 150, "w": 600, "tam": 132, "max_lineas": 3, "alinear": "der",
+   "efecto": "contorno", "color": "texto", "color_ultima": "acento", "fuente": "titulo"},
+  {"tipo": "texto", "si": "sello", "texto": "{{sello}}", "x": 900, "y": 560, "w": 340, "tam": 54, "max_lineas": 1, "alinear": "der",
+   "efecto": "caja", "color": "texto", "fondo": "alerta", "fuente": "titulo", "giro": 3},
+  {"tipo": "logo", "x": 24, "y": 600, "w": 96, "h": 96}]}
