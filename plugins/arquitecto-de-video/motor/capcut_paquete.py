@@ -7,6 +7,8 @@
 #   <ID>_voz.wav              la voz a -14 LUFS
 #   <ID>_subtitulos.srt       los subtítulos (CapCut: Subtítulos > Agregar subtítulos > elegir el .srt)
 #   <ID>_rotulos.txt          rótulos y capítulos con su minuto, para copiarlos como texto
+#   escenas\001.mp4 ...       un clip por escena (sin audio), para poner las transiciones de CapCut entre ellos
+#                             (CapCut solo pone transiciones entre dos clips seguidos). --sin-escenas para no generarlos.
 #   LEEME.txt                 pasos
 import shutil
 from pathlib import Path
@@ -34,6 +36,19 @@ def main():
         subs = cues(segs, pr["subtitulos"].get("max_caracteres", 80))
         (d / f"{pr.id}_subtitulos.srt").write_text("".join(f"{i}\n{ts(a, False)} --> {ts(b, False)}\n{t}\n\n"
                                                           for i, (a, b, t) in enumerate(subs, 1)), encoding="utf-8")
+    n_esc = 0
+    if pr.receta.exists() and "--sin-escenas" not in __import__("sys").argv:
+        carpeta = d / "escenas"
+        carpeta.mkdir(exist_ok=True)
+        escenas = pr.escenas()
+        for i, r in enumerate(escenas):
+            a = r["t0"]
+            b = escenas[i + 1]["t0"] if i + 1 < len(escenas) else r["t1"]     # sin huecos: cada clip llega hasta el siguiente
+            if b - a < 0.1:
+                continue
+            run([FFMPEG, "-v", "error", "-y", "-ss", f"{a:.3f}", "-i", solo, "-t", f"{b - a:.3f}", "-an", "-c:v", "libx264",
+                 "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", carpeta / f"{r['n']:03d}.mp4"])
+            n_esc += 1
     _, pals = palabras(pr)
     lineas = []
     for r in pr["rotulos"]:
@@ -50,6 +65,10 @@ def main():
     (d / "LEEME.txt").write_text(f"""Paquete de {pr.id} para terminar en CapCut (escritorio)
 
 1. CapCut > Crear proyecto > Importar: {pr.id}_video_limpio.mp4 y arrastrarlo a la línea de tiempo.
+   CON TRANSICIONES DE CAPCUT: en vez del video limpio, importar todos los clips de la carpeta escenas ({n_esc} clips,
+   001, 002, ...) y ponerlos en orden en la pista principal; abajo, en otra pista de audio, {pr.id}_voz.wav desde el
+   segundo 0. Después arrastrar la transición que guste entre dos clips. Al final revisar que la voz siga
+   calzando con las imágenes (si una transición corre los clips, mover un poco el clip siguiente).
 2. Subtítulos: menú Subtítulos > Agregar subtítulos (o Importar) > elegir {pr.id}_subtitulos.srt. Después elegir
    un estilo y marcar "Aplicar a todos". (O usar los subtítulos automáticos de CapCut sobre la voz.)
 3. Rótulos y capítulos: {pr.id}_rotulos.txt tiene cada texto con su minuto.
