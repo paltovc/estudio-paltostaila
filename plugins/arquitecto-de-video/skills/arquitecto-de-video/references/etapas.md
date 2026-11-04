@@ -94,7 +94,7 @@ Para comparar con y sin efectos: `SIN_EFECTOS=1` antes de `terminar.py`.
 2. `render.cmd "<video>"` → armado, sonidos, terminación, verticales, miniaturas y revisión automática.
 3. Verificar `cuadros: N (esperados N) OK` en el log.
 Solo cambió el audio: `python sonidos.py` + `python terminar.py "<video>" --solo-audio` (no recodifica la imagen). Una versión nueva sin pisar la anterior: cambiar `"version"` en `proyecto.json` (v2, v3...).
-Transiciones por defecto: fundido 0,4 s entre escenas, deslizamiento 0,6 s al abrir bloque, fundido 0,2 s entre planos.
+Transiciones por defecto: fundido 0,4 s entre escenas, deslizamiento 0,6 s al abrir bloque, fundido 0,2 s entre planos. Hay 68 para elegir (`references/transiciones.md`; catálogo en video con `python transiciones.py --catalogo`), también en `montaje_tomas.py` para videos sobre música.
 
 ## 9b. Control de calidad (`control-de-calidad`)
 `python revisar.py "<video>"` + mirar las hojas de contacto y fotogramas en `07_RENDER/revision`. Revisar: imagen acorde a la frase, sin saltos ni negros en las transiciones, planos que no corten personajes, subtítulo que no tape lo importante, rótulos legibles, sin texto duplicado, clips en su escena, estilo del personaje igual en todas las imágenes, textos de imágenes en el idioma del canal, duración = voz, volumen ≈ -14 LUFS. Decir con claridad qué se miró y qué falta escuchar.

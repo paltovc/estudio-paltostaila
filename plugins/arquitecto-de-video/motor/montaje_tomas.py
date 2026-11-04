@@ -12,10 +12,16 @@
 #               {"archivo": "video.mp4", "hasta": 211.30, "desde_clip": 5.0, "velocidad": 1.0, "brillo": 0.02},
 #               {"archivo": "baile.mp4", "hasta": 220.0, "rampa": [1.0, 0.35], "estabilizar": true} ] }
 # "rampa": curva de velocidad de v0 a v1 (cámara lenta que entra de a poco); "estabilizar": quita el temblor de la mano.
+# Transiciones (las 68 de transiciones.py, con nombre del estudio, de CapCut o de ffmpeg; duración en cuadros):
+#   en un tramo: "transicion": ["giro", 10]  -> transición AL ENTRAR a ese tramo (desde el anterior)
+#   para todos:  "transicion": ["mezcla", 8] en la raíz de montaje.json, o "variar_transiciones": ["empujar", "golpe", ...]
+#   "transicion": "corte" en un tramo deja ese cambio como corte seco. Sin nada de esto: cortes secos en el golpe.
+#   El tramo nuevo empieza igual en su golpe: la transición se monta encima de ese instante, así que no se corre el ritmo.
 # Cada tramo empieza donde termina el anterior ("hasta" en segundos de la canción, idealmente en un golpe).
 import math, json, re, subprocess, sys
 from pathlib import Path
 from color import cadena, LOOKS
+import transiciones
 
 try:
     from estudio import FFMPEG, FFPROBE
@@ -90,6 +96,32 @@ def tramo_video(ruta, dur, t, W, H, fps, look, sal):
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
 
 
+def unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp):
+    """Cada tramo i ya trae TRS[i+1] cuadros de más al final. Se arma: cuerpo_1, trans_1_2, cuerpo_2, ...
+    cuerpo_i = cuadros [entrada_i, cuadros_i) del tramo; trans = cola del anterior + primeros d cuadros del siguiente.
+    El total de cuadros no cambia y cada tramo sigue empezando en su golpe."""
+    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", 18, "-pix_fmt", "yuv420p",
+           "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"]
+    piezas = []
+    for i, ruta in enumerate(lista):
+        h = TRS[i][1] if TRS[i] else 0
+        if h >= cuadros[i]:
+            raise SystemExit(f"Tramo {i + 1}: dura menos que su transición de entrada ({h} cuadros); acórtala o alarga el tramo")
+        cuerpo = tmp / f"cuerpo_{i + 1:02d}.mp4"
+        run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-vf", f"trim=start_frame={h}:end_frame={cuadros[i]},setpts=PTS-STARTPTS",
+             "-an", *enc, cuerpo])
+        piezas.append(cuerpo)
+        if i + 1 < len(lista) and TRS[i + 1]:
+            nombre, d = TRS[i + 1]
+            pieza = tmp / f"trans_{i + 1:02d}_{i + 2:02d}.mp4"
+            fc = (f"[0]trim=start_frame={cuadros[i]}:end_frame={cuadros[i] + d},setpts=PTS-STARTPTS[p];"
+                  f"[1]trim=end_frame={d},setpts=PTS-STARTPTS[q];" + transiciones.cadena(nombre, d, fps, W, H, "p", "q", "v"))
+            run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-i", lista[i + 1], "-filter_complex", fc, "-map", "[v]",
+                 "-frames:v", d, "-an", *enc, pieza])
+            piezas.append(pieza)
+    return piezas
+
+
 def audio(cfg, base, sal, objetivo=-14.0):
     a = cfg["audio"]
     dur = a["hasta"] - a["desde"]
@@ -115,17 +147,33 @@ def main():
     mat = Path(cfg["material"])
     tmp = base / "07_RENDER" / "tmp"; tmp.mkdir(parents=True, exist_ok=True)
     solo = int(sys.argv[sys.argv.index("--tramo") + 1]) if "--tramo" in sys.argv else None
-    inicio, lista = cfg["audio"]["desde"], []
-    for n, t in enumerate(cfg["tramos"], 1):
+    tramos = cfg["tramos"]
+    variar = cfg.get("variar_transiciones", [])
+    def entrada(i):                       # transición al entrar al tramo i (0-based); None = corte
+        if i == 0:
+            return None
+        t = tramos[i].get("transicion", cfg.get("transicion"))
+        if t is None and variar:
+            t = [variar[(i - 1) % len(variar)], cfg.get("cuadros_transicion", 8)]
+        if not t or t == "corte":
+            return None
+        return (t, cfg.get("cuadros_transicion", 8)) if isinstance(t, str) else (t[0], int(t[1]))
+    TRS = [entrada(i) for i in range(len(tramos))]
+    inicio, lista, cuadros = cfg["audio"]["desde"], [], []
+    for n, t in enumerate(tramos, 1):
         dur = t["hasta"] - inicio
         inicio = t["hasta"]
+        cuadros.append(round(dur * fps))
+        cola = TRS[n][1] if n < len(tramos) and TRS[n] else 0     # cuadros extra para la transición de salida
         sal = tmp / f"tramo_{n:02d}.mp4"
         lista.append(sal)
         if solo and n != solo and sal.exists():
             continue
         ruta = mat / t["archivo"]
-        (tramo_foto if ruta.suffix.lower() in FOTO else tramo_video)(ruta, dur, t, W, H, fps, look, sal)
-        print(f"tramo {n}/{len(cfg['tramos'])} {t['archivo']} {dur:.2f} s", flush=True)
+        (tramo_foto if ruta.suffix.lower() in FOTO else tramo_video)(ruta, dur + cola / fps, t, W, H, fps, look, sal)
+        print(f"tramo {n}/{len(tramos)} {t['archivo']} {dur:.2f} s", flush=True)
+    if any(TRS):
+        lista = unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp)
     (tmp / "lista.txt").write_text("".join(f"file '{p.name}'\n" for p in lista), encoding="utf-8")
     run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", 0, "-i", tmp / "lista.txt", "-c", "copy", tmp / "imagen.mp4"])
     lufs = audio(cfg, base, tmp / "audio.wav")

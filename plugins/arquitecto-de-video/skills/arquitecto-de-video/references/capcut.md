@@ -13,6 +13,7 @@ Patricio tiene CapCut Pro instalado en su PC. Regla: **aprender de CapCut sí; a
 | Speed curves (rampas de velocidad) | `montaje_tomas.py`: `"rampa": [1.0, 0.35]` en un tramo | nuevo 0.9 |
 | Stabilize | `montaje_tomas.py`: `"estabilizar": true` (filtro deshake de ffmpeg) | nuevo 0.9 |
 | Color grading con LUT | `color.py`: look `"lut:C:\\ruta\\archivo.cube"` | nuevo 0.9 |
+| Transiciones (Mix, Slide, Wipe, Pull in, Spin, Whip, Glitch, Shake, Light leak…) | `transiciones.py`: 68 propias en videos narrados (`armar.py`) y sobre música (`montaje_tomas.py`); catálogo en video con `--catalogo` (`transiciones.md`) | nuevo 0.10 |
 | Auto Cutout / quitar fondo | imágenes: `diseno.py` con rembg; video: no (pesado sin GPU) | imágenes listo |
 | Text to Speech | `voces.py` (edge-tts, voz Lorenzo) | listo |
 | Script to Video | todo el flujo del arquitecto | listo |

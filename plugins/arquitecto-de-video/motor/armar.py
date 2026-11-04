@@ -7,11 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from datetime import datetime
 from estudio import Proyecto, FFMPEG, FFPROBE, run, duracion_medio
+import transiciones
 
 pr = Proyecto()
 HASTA = float(sys.argv[sys.argv.index("--hasta") + 1]) if "--hasta" in sys.argv else None
 FPS, W, H = pr.fps, pr.ancho, pr.alto
-TR = {k: tuple(v) for k, v in pr["transiciones"].items()}
+TR = {k: tuple(v) for k, v in pr["transiciones"].items() if k in ("normal", "capitulo", "plano")}
+VARIAR = list(pr["transiciones"].get("variar", []))          # rota entre estas en las escenas normales
+POR_ESCENA = {int(k): tuple(v) for k, v in pr["transiciones"].get("por_escena", {}).items()}
 CAPITULOS = set(int(x) for x in pr["escenas_capitulo"])
 ALIAS = {int(k): int(v) for k, v in pr["alias_clips"].items()}
 PLANOS = {int(k): v for k, v in pr["planos"].items()}
@@ -37,7 +40,14 @@ def tomas():
         img = pr.imagenes / r["archivo"]
         if not img.exists():
             sys.exit(f"Escena {n}: no existe la imagen {img}")
-        t_escena = TR["capitulo"] if n in CAPITULOS else TR["normal"]
+        if n in POR_ESCENA:
+            t_escena = POR_ESCENA[n]
+        elif n in CAPITULOS:
+            t_escena = TR["capitulo"]
+        elif VARIAR:
+            t_escena = (VARIAR[k % len(VARIAR)], TR["normal"][1])
+        else:
+            t_escena = TR["normal"]
         clip = pr.clips / f"escena_{ALIAS.get(n, n):03d}.mp4"
         if n in PLANOS:   # planos de camara; si hay clip, el clip reemplaza el primer plano
             cortes = PLANOS[n]
@@ -125,7 +135,7 @@ def pieza(trabajo):
         tipo, d = s2["t"]
         ini1 = (s1["b"] - s1["post"]) - s1["ea"]
         fc = (flujo(s1, 0, ini1, d, "p") + ";" + flujo(s2, 1, 0, d, "q") + ";"
-              f"[p][q]xfade=transition={tipo}:duration={d / FPS:.4f}:offset=0,format=yuv420p[v]")
+              + transiciones.cadena(tipo, d, FPS, W, H, "p", "q", "v"))
         cmd = [FFMPEG, "-v", "error", "-y", "-i", s1["src"], "-i", s2["src"], "-filter_complex", fc,
                "-map", "[v]", "-frames:v", d]
     run(cmd + ENCODE + [parcial])

@@ -92,6 +92,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/diseno-local.md`: kit de marca, plantillas con campos, efectos de texto, máscaras, redimensionado inteligente y quitar fondo (`diseno.py`); qué se deja al conector de Canva y qué está prohibido.
 - `references/receta-miniatura.md`: medir miniaturas que funcionan (`receta_miniatura.py`) y convertirlo en reglas y prompt propios.
 - `references/capcut.md`: qué se aprendió de CapCut, qué equivale en el estudio (reencuadre automático, rampas, estabilizar, LUT), el paquete para terminar a mano y por qué no se automatiza CapCut.
+- `references/transiciones.md`: las 68 transiciones al estilo de CapCut (nombres, catálogo en video, cómo elegirlas por escena, rotarlas o usarlas en videos sobre música, y cuál conviene en cada canal).
 - `references/capa-viva.md`: subtítulos dinámicos (presets por canal) y elementos animados sincronizados con la voz; cómo probarlos.
 - `references/sala-de-edicion.md`: la sala local para mirar en formato celular o YouTube, cambiar estilos y dejar notas; cómo aplicar esas notas; copia para el celular.
 - `references/monetizacion.md`: reglas de YouTube que tumban canales sin rostro (contenido no auténtico, reutilizado, etiqueta de IA, licencias) y la revisión de 7 preguntas antes de publicar.
