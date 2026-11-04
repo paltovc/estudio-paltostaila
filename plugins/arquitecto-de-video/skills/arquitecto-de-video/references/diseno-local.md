@@ -1,13 +1,17 @@
 # Diseño local: funciones tipo Canva hechas en el estudio (diseno.py)
 
-Lo que Canva hace bien para miniaturas, portadas y piezas para redes, hecho con código propio y licencias abiertas. **No es ingeniería inversa de Canva:** sus términos prohíben copiar, descompilar o replicar su servicio, y su conector prohíbe sacar plantillas, kits o la estructura de los diseños para usarlos fuera de Canva. Aquí todo es de autoría propia: el kit de marca, las plantillas y los efectos.
+Lo que Canva hace bien para miniaturas, portadas y piezas para redes, hecho con código propio y licencias abiertas.
+
+**Aprender de Canva sí; copiarlo no.** Se puede mirar qué funciones ofrece Canva (su ayuda y sus guías son públicas), usarlo como cualquier usuario, entender por qué un diseño funciona y hacer nuestra propia versión: las ideas y las funciones no se copian, se aprenden. Lo que no se hace es desarmar su software, extraer su contenido de forma automática, ni usar el conector para sacar sus plantillas, kits o la estructura de sus diseños y replicarlos aquí. Tampoco se usan sus elementos, fotos o fuentes con licencia fuera de Canva.
+
+**No es ingeniería inversa de Canva:** sus términos prohíben copiar, descompilar o replicar su servicio, y su conector prohíbe sacar plantillas, kits o la estructura de los diseños para usarlos fuera de Canva. Aquí todo es de autoría propia: el kit de marca, las plantillas y los efectos.
 
 ## Qué hace cada parte
 | Función | Cómo | Comando |
 |---|---|---|
 | Kit de marca | `canales\<canal>\marca.json`: colores por papel (texto, acento, acento2, borde, fondo, alerta), fuentes (titulo, texto, mano) y logo propio | `python diseno.py marca finanzas` (crea uno base si no existe) |
 | Plantillas con campos (autofill local) | JSON con capas: imagen, texto, forma, logo; campos `{{titulo}}`, `{{imagen}}`, `{{sello}}`; capa opcional con `"si": "sello"` | `python diseno.py plantilla miniatura-lado --base <carpeta imágenes> --campo imagen=FIN-003_img-012.png --campo "titulo=¿Me lo\nvoy a perder?" --campo sello=FOMO --salida <proyecto>\08_PUBLICAR\miniatura-1.png` |
-| Efectos de texto | `efecto`: contorno, sombra, neon, degradado (`color` → `color2`), curva (`radio_curva`), caja (`fondo`); `color_ultima` pinta la última línea; el tamaño se ajusta solo al ancho y al máximo de líneas | en la plantilla |
+| Efectos de texto | `efecto`: contorno, sombra, elevar (`intensidad`), hueco (`grosor`), empalme (hueco + copia desplazada en `color2`), eco (dos copias detrás), glitch (`color_glitch1`, `color_glitch2`), neon, degradado (`color` → `color2`), curva (`radio_curva`), caja (`fondo`); `direccion` y `desplazamiento` para eco, glitch y empalme; `color_ultima` pinta la última línea; el tamaño se ajusta solo al ancho y al máximo de líneas | en la plantilla |
 | Imágenes | `ajuste`: cubrir, contener, inteligente (busca el sujeto), relleno (completa sobre fondo desenfocado); `mascara`: circulo, redondeado; `marco`; `sombra` | en la plantilla |
 | Formas | rect (con `radio`), circulo (`solo_borde` para resaltar), flecha, degradado (oscurece un lado para que el texto se lea) | en la plantilla |
 | Redimensionar (tipo Magic Resize) | recorte inteligente o relleno a 16x9, 9x16, 1x1, 4x5 | `python diseno.py redimensionar imagen.jpg --formatos 16x9,9x16,1x1 [--modo relleno]` |

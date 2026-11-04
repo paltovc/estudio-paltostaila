@@ -213,6 +213,24 @@ def capa_texto(lienzo, c, mk, datos):
             pad = tam * 0.22
             d.rounded_rectangle([x - pad, y - pad * 0.5, x + lw + pad, y + tam * 1.02 + pad * 0.3], radius=tam * 0.18,
                                 fill=color(c.get("fondo", "borde"), mk, c.get("fondo_alfa", 230)))
+    if efecto in ("eco", "glitch", "empalme"):     # copias detrás del texto, desplazadas
+        ang = math.radians(c.get("direccion", -45))
+        dist = c.get("desplazamiento", tam * (0.05 if efecto == "glitch" else 0.08))
+        if efecto == "glitch":
+            copias = [(-1, color(c.get("color_glitch1", "#00E5FF"), mk)), (1, color(c.get("color_glitch2", "#FF3DA8"), mk))]
+        elif efecto == "eco":
+            copias = [(2, col[:3] + (70,)), (1, col[:3] + (140,))]
+        else:
+            copias = [(1, color(c.get("color2", "acento"), mk))]
+        for k, tinte in copias:
+            for x, y, l, _ in pos:
+                d.text((x + k * dist * math.cos(ang), y - k * dist * math.sin(ang)), l, font=f, fill=tinte)
+    if efecto == "elevar":                           # sombra suave y difusa justo debajo: el texto "flota"
+        sombra = Image.new("RGBA", lienzo.size, (0, 0, 0, 0))
+        ds = ImageDraw.Draw(sombra)
+        for x, y, l, _ in pos:
+            ds.text((x, y + tam * 0.04), l, font=f, fill=(0, 0, 0, round(255 * c.get("intensidad", 0.55))))
+        capa.alpha_composite(sombra.filter(ImageFilter.GaussianBlur(tam * 0.09)))
     if efecto in ("sombra", "neon"):
         glow = Image.new("RGBA", lienzo.size, (0, 0, 0, 0))
         dg = ImageDraw.Draw(glow)
@@ -229,6 +247,10 @@ def capa_texto(lienzo, c, mk, datos):
         relleno = color(acento, mk) if acento and i == len(pos) - 1 else col
         if efecto == "neon":
             d.text((x, y), l, font=f, fill=(255, 255, 255, 255), stroke_width=max(2, grosor // 3), stroke_fill=relleno)
+        elif efecto in ("hueco", "empalme"):       # solo el contorno: el centro de la letra queda transparente
+            hueco = Image.new("RGBA", lienzo.size, (0, 0, 0, 0))     # en su propia capa, para no borrar lo que está detrás
+            ImageDraw.Draw(hueco).text((x, y), l, font=f, fill=(0, 0, 0, 0), stroke_width=c.get("grosor", max(3, tam // 18)), stroke_fill=relleno)
+            capa.alpha_composite(hueco)
         elif efecto == "degradado":
             d.text((x, y), l, font=f, fill=(0, 0, 0, 0), stroke_width=grosor, stroke_fill=borde)
             m = Image.new("L", lienzo.size, 0)
