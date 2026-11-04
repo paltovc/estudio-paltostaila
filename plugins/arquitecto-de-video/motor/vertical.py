@@ -25,6 +25,64 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
+def seguir(video, t0, dur, ancho_fuente):
+    """Reencuadre automático (como Auto Reframe de CapCut): dónde está el sujeto en cada segundo.
+    Usa la cara si OpenCV está instalado; si no, lo que más se mueve y tiene más detalle. Devuelve la expresión de x
+    para el crop de 1080 px sobre el video escalado a 1920 de alto, suavizada para que la cámara no salte."""
+    import subprocess
+    w, h = 480, 270
+    r = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", str(video), "-vf",
+                        f"fps=2,scale={w}:{h}", "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True)
+    datos = r.stdout
+    n = len(datos) // (w * h)
+    try:
+        import cv2, numpy as np
+        caras = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        if caras.empty():
+            raise RuntimeError("sin el archivo de caras")
+    except Exception:
+        cv2 = np = caras = None
+    centros, previo = [], None
+    for k in range(n):
+        cuadro = datos[k * w * h:(k + 1) * w * h]
+        cx = None
+        if cv2 is not None:
+            g = np.frombuffer(cuadro, dtype=np.uint8).reshape(h, w)
+            enc = caras.detectMultiScale(g, 1.1, 5, minSize=(20, 20))
+            if len(enc):
+                x, y, fw, fh = max(enc, key=lambda e: e[2] * e[3])
+                cx = (x + fw / 2) / w
+        if cx is None:     # sin cara: columnas con más movimiento y detalle
+            col = [0.0] * w
+            for y in range(0, h, 3):
+                fila = cuadro[y * w:(y + 1) * w]
+                ant = previo[y * w:(y + 1) * w] if previo else None
+                for x in range(1, w - 1, 2):
+                    v = abs(fila[x + 1] - fila[x - 1]) + (abs(fila[x] - ant[x]) * 2 if ant else 0)
+                    col[x] += v
+            tot = sum(col)
+            cx = sum(i * c for i, c in enumerate(col)) / tot / w if tot else 0.5
+        centros.append(cx)
+        previo = cuadro
+    if not centros:
+        return "(iw-1080)/2"
+    # suavizar: mediana de 5 y luego promedio móvil de 5 (la "cámara" se desliza, no salta)
+    med = [sorted(centros[max(0, i - 2):i + 3])[len(centros[max(0, i - 2):i + 3]) // 2] for i in range(len(centros))]
+    suave = [sum(med[max(0, i - 2):i + 3]) / len(med[max(0, i - 2):i + 3]) for i in range(len(med))]
+    pts, ultimo = [], None
+    for i, c in enumerate(suave):            # puntos clave: cada 0,5 s, solo cuando cambia de verdad o cada 4 s
+        t = i / 2
+        if ultimo is None or abs(c - ultimo[1]) > 0.03 or t - ultimo[0] >= 4 or i == len(suave) - 1:
+            pts.append((t, c)); ultimo = (t, c)
+    X = lambda c: f"max(0,min(iw-1080,iw*{c:.4f}-540))"
+    expr = X(pts[-1][1])
+    for (ta, ca), (tb, cb) in reversed(list(zip(pts, pts[1:]))):
+        expr = f"if(lt(t,{tb:.2f}),max(0,min(iw-1080,iw*({ca:.4f}+({cb - ca:.4f})*(t-{ta:.2f})/{max(tb - ta, 0.01):.2f})-540)),{expr})"
+    print(f"  reencuadre: {len(pts)} puntos ({'caras' if cv2 is not None else 'movimiento'}), sujeto entre "
+          f"{min(suave):.2f} y {max(suave):.2f} del ancho", flush=True)
+    return expr
+
+
 def corte(segs, pals, v):
     t0 = float(v["desde_s"]) if "desde_s" in v else buscar(pals, v["desde"]) - 0.15
     if "hasta_s" in v:
@@ -50,7 +108,11 @@ def corte(segs, pals, v):
     (pr.salida / ass).write_text("".join(lineas), encoding="utf-8-sig")
     if dur > 180:
         sys.exit(f"{v['nombre']}: dura {dur:.0f} s; un Short de YouTube puede durar como maximo 3 minutos")
-    if v.get("modo") == "recorte":   # pantalla completa: recorta del 16:9 una franja vertical (cuidado con personajes en los bordes)
+    if v.get("modo") == "seguir":    # pantalla completa y el recorte sigue al sujeto
+        x = seguir(pr.salida / "tmp" / "solo_video.mp4", t0, dur, None)
+        vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='{x}':y=0,"
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+    elif v.get("modo") == "recorte":   # pantalla completa: recorta del 16:9 una franja vertical (cuidado con personajes en los bordes)
         cx = float(v.get("centro_x", 0.5))
         vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='max(0,min(iw-1080,iw*{cx}-540))':y=0,"
               f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")

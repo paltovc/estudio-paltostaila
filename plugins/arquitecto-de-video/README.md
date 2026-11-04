@@ -1,6 +1,6 @@
 # Arquitecto de video — Estudio Paltostaila
 
-Un equipo de 14 agentes que lleva un video narrado desde la idea hasta el paquete listo para subir a YouTube, Shorts y TikTok (Instagram queda preparado). Tú pones la voz, las imágenes y los clips; el equipo investiga, escribe, organiza, arma, revisa y empaqueta. Nada se publica ni se gasta sin tu sí.
+Un equipo de 15 agentes que lleva un video narrado desde la idea hasta el paquete listo para subir a YouTube, Shorts y TikTok (Instagram queda preparado). Tú pones la voz, las imágenes y los clips; el equipo investiga, escribe, organiza, arma, revisa y empaqueta. Nada se publica ni se gasta sin tu sí.
 
 ## Cómo se usa
 

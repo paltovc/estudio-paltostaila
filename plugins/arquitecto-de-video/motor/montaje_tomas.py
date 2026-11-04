@@ -9,9 +9,11 @@
 #   "look": "calido",
 #   "audio": {"archivo": "02_CANCION/cancion.wav", "desde": 195.72, "hasta": 244.55, "entrada": 0.4, "salida": 3.0},
 #   "tramos": [ {"archivo": "foto.jpg", "hasta": 199.62, "zoom": "entra"},
-#               {"archivo": "video.mp4", "hasta": 211.30, "desde_clip": 5.0, "velocidad": 1.0, "brillo": 0.02} ] }
+#               {"archivo": "video.mp4", "hasta": 211.30, "desde_clip": 5.0, "velocidad": 1.0, "brillo": 0.02},
+#               {"archivo": "baile.mp4", "hasta": 220.0, "rampa": [1.0, 0.35], "estabilizar": true} ] }
+# "rampa": curva de velocidad de v0 a v1 (cámara lenta que entra de a poco); "estabilizar": quita el temblor de la mano.
 # Cada tramo empieza donde termina el anterior ("hasta" en segundos de la canción, idealmente en un golpe).
-import json, re, subprocess, sys
+import math, json, re, subprocess, sys
 from pathlib import Path
 from color import cadena, LOOKS
 
@@ -72,8 +74,18 @@ def tramo_video(ruta, dur, t, W, H, fps, look, sal):
     else:
         enc = f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H}"
     nitidez = ",unsharp=5:5:0.6" if max(w, h) < 1200 else ""
-    vf = f"{enc},{cadena(ruta, look, t.get('brillo', 0.0))}{nitidez},setpts=PTS/{vel},fps={fps}"
-    run([FFMPEG, "-v", "error", "-y", "-ss", f"{t.get('desde_clip', 0):.3f}", "-t", f"{dur * vel + 0.5:.3f}", "-i", ruta,
+    estab = "deshake=rx=24:ry=24," if t.get("estabilizar") else ""          # toma movida a mano (como Stabilize de CapCut)
+    if t.get("rampa"):     # curva de velocidad (speed ramp): pasa de v0 a v1 a lo largo de la toma, p. ej. [1.0, 0.35]
+        v0, v1 = (float(x) for x in t["rampa"])
+        fuente = dur * (v1 - v0) / math.log(v1 / v0) if abs(v1 - v0) > 1e-3 else dur * v0
+        k = fuente / (v1 - v0) if abs(v1 - v0) > 1e-3 else 0
+        tiempo = (f"setpts='({k:.5f}*log(({v0}+({v1 - v0:.5f})*T/{fuente:.5f})/{v0}))/TB'" if k
+                  else f"setpts=PTS/{v0}")
+        consumo = fuente
+    else:
+        tiempo, consumo = f"setpts=PTS/{vel}", dur * vel
+    vf = f"{estab}{enc},{cadena(ruta, look, t.get('brillo', 0.0))}{nitidez},{tiempo},fps={fps}"
+    run([FFMPEG, "-v", "error", "-y", "-ss", f"{t.get('desde_clip', 0):.3f}", "-t", f"{consumo + 0.5:.3f}", "-i", ruta,
          "-an", "-vf", vf, "-frames:v", round(dur * fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", 18,
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
 

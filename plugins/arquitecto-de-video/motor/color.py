@@ -32,11 +32,18 @@ def es_hdr(ruta):
 
 def cadena(ruta, look="calido", brillo=0.0):
     """Filtro de ffmpeg: HDR->SDR si hace falta + look. brillo: -0.1 a 0.15 para tomas oscuras o claras."""
+    lut = None
+    if str(look).startswith("lut:"):      # una LUT .cube propia o gratuita (como los LUT de CapCut o DaVinci)
+        lut = Path(str(look)[4:])
+        look = "natural"
     L = LOOKS[look]
     partes = []
     if Path(ruta).suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp") and es_hdr(ruta):
         partes.append("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=reinhard:param=0.6:desat=0,"
                       "zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
+    if lut:
+        ruta_lut = str(lut.resolve()).replace("\\", "/").replace(":", "\\:")
+        partes.append(f"lut3d=file='{ruta_lut}'")
     rm, gm, bm = L["med"]; rh, gh, bh = L["alt"]
     partes.append(f"eq=contrast={L['c']}:saturation={L['s']}:gamma={L['g']}:brightness={brillo}")
     partes.append(f"colorbalance=rm={rm}:gm={gm}:bm={bm}:rh={rh}:gh={gh}:bh={bh}")

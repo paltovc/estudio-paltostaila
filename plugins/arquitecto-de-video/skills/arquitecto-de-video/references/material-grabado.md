@@ -10,6 +10,8 @@ Para cuando la persona trae tomas y fotos propias en vez de imágenes generadas.
 
 Avisos: grabaciones a 30 cuadros no dan cámara lenta real (solo suave); videos que pasaron por WhatsApp pierden mucha calidad (pedir el original). Si aparecen menores, la persona decide si van en un video público.
 
+Extras aprendidos de CapCut para `montaje_tomas.py` (por tramo): `"rampa": [1.0, 0.35]` hace una curva de velocidad (la toma pasa a cámara lenta de a poco, ideal en el golpe de la música) y `"estabilizar": true` quita el temblor de la mano (filtro deshake). En `color.py` y en `"look"` se puede usar una LUT propia: `"look": "lut:C:\\ruta\\mi_look.cube"`.
+
 # Personas hablando a cámara (cursos, clases, tutoriales, testimonios): grabado.py
 
 Para cuando el material son tomas de alguien hablando y hay que elegir lo bueno y dejar los cortes suaves. El texto manda: se edita leyendo lo que se dijo, no mirando una forma de onda.

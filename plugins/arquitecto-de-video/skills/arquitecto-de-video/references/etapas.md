@@ -113,6 +113,9 @@ Con los datos que la persona comparta (capturas de YouTube Studio, TikTok Analyt
 | Sala de edición | `python sala.py "<video>"` (segundo plano) → `http://127.0.0.1:8765/` | la persona abre Chrome; guardar deja respaldo en `08_SALA/` |
 | Copia para el celular | `python celu.py "<video>" [archivo] [--zona]` | 720p en `07_RENDER/celu` y en Drive si existe |
 | Tomas a cámara | `python grabado.py "<video>" transcribir` → `cortar` → `armar [--borrador 60]` | luego `terminar.py` y `vertical.py` |
+| Evaluar antes de terminar | `python evaluar.py "<video>" [--video "<final o exportado>.mp4"]` | nota por ejes, clase A/B/C, mejoras con minuto, momentos para Shorts; luego el agente `evaluador` |
+| Paquete para CapCut | `python capcut_paquete.py "<video>"` | `09_CAPCUT`: video limpio, imagen, voz, .srt, rótulos con minuto |
+| Vertical que sigue al sujeto | `"modo": "seguir"` en un corte de `vertical` | reencuadre automático (cara con OpenCV o movimiento) |
 | Ritmo medido | `python ritmo.py "<video>" [--comparar "<otro>"]` | cortes, saltos, tramos quietos, volumen, hoja de cortes; `referente.py` lo corre solo |
 | Receta de miniatura | `python receta_miniatura.py mini1.jpg mini2.jpg --nuestra mia.png` | paleta, brillo, contraste, peso visual; después `receta-miniatura.md` |
 

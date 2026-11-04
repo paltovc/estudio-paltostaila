@@ -1,6 +1,6 @@
 ---
 name: arquitecto-de-video
-description: Dirige la producción completa de un video narrado con un equipo de agentes (investigación, guion, imágenes, clips de Flow, transcripción, escenas, sonido, render, control de calidad y publicación) para YouTube, TikTok e Instagram. Usar cuando se pida "hacer un video", "nuevo video", "armar el video", "seguir con el video", "estado del video", "render", "pasar a vertical", "paquete para YouTube", "subtítulos dinámicos", "sala de edición", "aplica las notas de la sala", "editar mi curso" o "editar estas tomas", o cuando se nombre al Arquitecto o al Estudio Paltostaila (o Estudio Palto Style).
+description: Dirige la producción completa de un video narrado con un equipo de agentes (investigación, guion, imágenes, clips de Flow, transcripción, escenas, sonido, render, control de calidad y publicación) para YouTube, TikTok e Instagram. Usar cuando se pida "hacer un video", "nuevo video", "armar el video", "seguir con el video", "estado del video", "render", "pasar a vertical", "paquete para YouTube", "subtítulos dinámicos", "sala de edición", "aplica las notas de la sala", "editar mi curso", "editar estas tomas", "evalúa el video", "¿tiene posibilidades de viralizar?" o "califica el video", o cuando se nombre al Arquitecto o al Estudio Paltostaila (o Estudio Palto Style).
 ---
 
 # Arquitecto de video y audio (Estudio Paltostaila)
@@ -40,6 +40,7 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 | 8 | Sonido | `sonidista` | efectos en `proyecto.json`, `tmp/efectos.wav` | — |
 | 9 | Montaje y render | `montajista` | borrador 60 s → **D: aprobar borrador** → finales en `07_RENDER` | **D** |
 | 9b | Control de calidad | `control-de-calidad` | `07_RENDER/revision/informe.txt` + hallazgos | **E: escuchar y aprobar** |
+| 9c | Evaluación y potencial | `evaluador` | `06_RECETA/evaluacion_<video>_final.md`: nota por ejes, clase A/B/C, potencial, 5 mejoras con minuto, momentos para Shorts | parte de **E** (con clase C no se publica) |
 | 10 | Publicación | `publicador` | `08_PUBLICAR/<plataforma>/` (3 variantes para "Probar y comparar", descripción, capítulos, 3 Shorts, comentario fijado) | **F: publicar** (lo hace la persona) |
 | 11 | Después de publicar | `analista` | `08_PUBLICAR/aprendizajes.md` (48 h y 7 días) + minería de comentarios mensual | — |
 
@@ -53,7 +54,7 @@ Lanzar agentes a la vez cuando no dependen uno del otro, y decir en una línea q
 - Al empezar: `cazador-de-tendencias` y `investigador` en paralelo; con los 2-3 mejores referentes, `analista-de-referentes`.
 - Después de A: `director-de-arte` y `publicador` (miniaturas definitivas) en paralelo, mientras la persona graba la voz.
 - Después de B: `director-de-movimiento` y `sonidista` en paralelo; `montajista` puede sacar el borrador de 60 s sin clips.
-- Después de los finales: `control-de-calidad` y `publicador` en paralelo.
+- Después de los finales: `control-de-calidad`, `evaluador` y `publicador` en paralelo. El evaluador también se puede pedir sobre el borrador ("¿tiene posibilidades?") para corregir antes del render final, y sobre un video terminado en CapCut (`--video`).
 - `control-de-calidad` nunca revisa trabajo que él mismo hizo: no le pasar el razonamiento del montajista, solo la carpeta.
 
 Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar y dónde, y las decisiones ya aprobadas. Al recibir la entrega, leerla, marcar la etapa en `00_ESTADO.md` y anotar lo que quedó pendiente.
@@ -90,6 +91,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/reglas-motor.md`: cómo cambiar o agregar scripts al motor sin romperlo (pensar, mínimo, quirúrgico, demostrar).
 - `references/diseno-local.md`: kit de marca, plantillas con campos, efectos de texto, máscaras, redimensionado inteligente y quitar fondo (`diseno.py`); qué se deja al conector de Canva y qué está prohibido.
 - `references/receta-miniatura.md`: medir miniaturas que funcionan (`receta_miniatura.py`) y convertirlo en reglas y prompt propios.
+- `references/capcut.md`: qué se aprendió de CapCut, qué equivale en el estudio (reencuadre automático, rampas, estabilizar, LUT), el paquete para terminar a mano y por qué no se automatiza CapCut.
 - `references/capa-viva.md`: subtítulos dinámicos (presets por canal) y elementos animados sincronizados con la voz; cómo probarlos.
 - `references/sala-de-edicion.md`: la sala local para mirar en formato celular o YouTube, cambiar estilos y dejar notas; cómo aplicar esas notas; copia para el celular.
 - `references/monetizacion.md`: reglas de YouTube que tumban canales sin rostro (contenido no auténtico, reutilizado, etiqueta de IA, licencias) y la revisión de 7 preguntas antes de publicar.
