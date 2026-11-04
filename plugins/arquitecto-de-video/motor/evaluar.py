@@ -218,8 +218,8 @@ def main():
     validos = {k: v for k, v in ejes.items() if v is not None}
     total = round(sum(validos[k] * pesos[k] for k in validos) / sum(pesos[k] for k in validos), 1)
     clase = "A" if total >= 8 else "B" if total >= 6 else "C"
-    if ejes.get("empaque") is None and clase == "A":
-        clase = "B"          # sin título ni miniatura elegidos no está listo para publicar
+    if (ejes.get("empaque") is None or not titulo or not minis) and clase == "A":
+        clase = "B"          # sin título o sin miniatura elegidos no está listo para publicar
     decision = {"A": "listo: publicar (después del control de calidad)", "B": "publicar después de los arreglos rápidos de abajo",
                 "C": "mejorar antes de publicar: rehacer las partes marcadas"}[clase]
     shorts = momentos_short(pals, frases, elementos, dur) if tipo == "largo" else []
