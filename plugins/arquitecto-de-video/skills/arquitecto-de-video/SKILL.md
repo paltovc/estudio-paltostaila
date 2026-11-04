@@ -79,6 +79,7 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/viralidad.md`: los principios que usan guionista, revisor, editor y publicador (gancho, ritmo, empaque, series).
 - `references/conectores.md`: qué conectores sirven y para qué (vidIQ, Notion, Drive, Sheets, Canva, Metricool, YouTube).
 - `references/material-grabado.md`: videos con tomas y fotos propias (inventario, canción y ritmo, color HDR, montaje al ritmo).
+- `references/prompts.md`: lista para escribir prompts de Flow, Nano Banana, ChatGPT o voicertool que salgan bien al primer intento.
 - `references/reglas-motor.md`: cómo cambiar o agregar scripts al motor sin romperlo (pensar, mínimo, quirúrgico, demostrar).
 - `references/monetizacion.md`: reglas de YouTube que tumban canales sin rostro (contenido no auténtico, reutilizado, etiqueta de IA, licencias) y la revisión de 7 preguntas antes de publicar.
 
