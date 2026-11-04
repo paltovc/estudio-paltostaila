@@ -110,6 +110,78 @@ def avion(r):
     return _poligono([(0, 45 * s), (100 * s, 5 * s), (62 * s, 95 * s), (48 * s, 58 * s)])
 
 
+# ---------- biblioteca de animaciones de entrada ----------
+# Aprendidas de las 20 animaciones de texto que describe la ayuda pública de Canva (Typewriter, Ascend, Rise, Pan...)
+# y hechas con etiquetas ASS propias. Nombre en español; también se acepta el nombre en inglés.
+ALIAS = {"fade": "fundido", "rise": "subir", "baseline": "base", "shift": "bajar", "pan": "panear", "skate": "patinar",
+         "drift": "deriva", "tumble": "voltereta", "bounce": "rebote", "stomp": "pisoton", "tectonic": "tectonico",
+         "scrapbook": "album", "breathe": "respirar", "typewriter": "maquina", "burst": "estallido", "roll": "rodar",
+         "ascend": "ascender", "block": "bloque", "flicker": "neon", "sube": "subir"}
+DE_LINEA = {"pop", "fundido", "subir", "base", "bajar", "panear", "patinar", "deriva", "voltereta", "rebote", "pisoton",
+            "album", "neon", "respirar", "desliza", "sello", "brillo"}
+POR_LETRA = {"maquina", "estallido", "rodar", "ascender"}
+ESPECIALES = {"tectonico", "bloque"}
+TODAS = sorted(DE_LINEA | POR_LETRA | ESPECIALES)
+
+
+def nombre_animacion(n):
+    n = (n or "pop").lower()
+    return ALIAS.get(n, n)
+
+
+def entrada_linea(n, x, y, tam, W, H, dura_ms=1600):
+    """Etiquetas de entrada para toda la línea (incluye su \\pos o \\move)."""
+    n = nombre_animacion(n)
+    P = f"\\pos({x},{y})"
+    m = lambda dx, dy, ms: f"\\move({x + dx},{y + dy},{x},{y},0,{ms})"
+    t = {
+        "pop": P + "\\fscx0\\fscy0\\t(0,150,\\fscx115\\fscy115)\\t(150,240,\\fscx100\\fscy100\\frz5)\\t(240,320,\\frz-3)\\t(320,400,\\frz0)",
+        "fundido": P + "\\fad(250,0)",
+        "subir": m(0, round(0.06 * H), 350) + "\\alpha&HFF&\\t(0,250,\\alpha&H00&)",
+        "base": m(0, round(tam * 0.9), 180) + f"\\clip(0,0,{W},{y + round(tam * 0.55)})",
+        "bajar": m(0, -round(0.06 * H), 350) + "\\alpha&HFF&\\t(0,250,\\alpha&H00&)",
+        "panear": m(-round(0.08 * W), 0, 400) + "\\alpha&HFF&\\t(0,350,\\alpha&H00&)",
+        "patinar": m(round(0.18 * W), 0, 300),
+        "deriva": m(-round(0.05 * W), 0, 900) + "\\alpha&HFF&\\t(0,600,\\alpha&H00&)",
+        "voltereta": m(-round(0.06 * W), -round(0.03 * H), 500) + "\\frz180\\fscx50\\fscy50\\t(0,500,\\frz0\\fscx100\\fscy100)",
+        "rebote": m(0, -round(0.25 * H), 240) + "\\t(240,320,\\fscx112\\fscy88)\\t(320,420,\\fscx100\\fscy100)",
+        "pisoton": P + "\\fscx300\\fscy300\\alpha&HFF&\\t(0,140,\\fscx100\\fscy100\\alpha&H00&)\\t(140,190,\\frz2)\\t(190,240,\\frz-1)\\t(240,280,\\frz0)",
+        "album": P + "\\frz-10\\fad(80,0)\\t(0,180,\\frz5)\\t(180,260,\\frz3)",
+        "neon": P + "\\alpha&HFF&\\t(0,60,\\alpha&H00&)\\t(60,120,\\alpha&HFF&)\\t(120,200,\\alpha&H00&)\\t(200,250,\\alpha&H90&)\\t(250,320,\\alpha&H00&)",
+        "desliza": m(-round(0.5 * W), 0, 260),
+        "sello": P + "\\frz-14\\fscx260\\fscy260\\alpha&HFF&\\t(0,160,\\fscx100\\fscy100\\alpha&H00&)",
+        "brillo": P + "\\blur18\\alpha&HFF&\\t(0,260,\\blur0\\alpha&H00&)",
+    }
+    if n == "respirar":
+        pulsos = "".join(f"\\t({k},{k + 400},\\fscx{106 if (k // 400) % 2 == 0 else 100}\\fscy{106 if (k // 400) % 2 == 0 else 100})"
+                         for k in range(0, max(400, dura_ms - 400), 400))
+        return P + "\\fad(150,0)" + pulsos
+    return t.get(n, t["pop"])
+
+
+def texto_por_letra(n, txt, ms_letra=55):
+    """Texto con etiquetas dentro de la línea: cada letra (o palabra) entra en su momento."""
+    n = nombre_animacion(n)
+    if n == "ascender":
+        out, k = [], 0
+        for palabra in txt.split(" "):
+            out.append(f"{{\\alpha&HFF&\\fscy40\\t({k},{k + 200},\\alpha&H00&\\fscy100)}}{palabra}")
+            k += 180
+        return " ".join(out)
+    out = []
+    for i, ch in enumerate(txt):
+        t = i * ms_letra
+        if n == "maquina":
+            out.append(f"{{\\alpha&HFF&\\t({t},{t + 1},\\alpha&H00&)}}{ch}")
+        elif n == "estallido":
+            out.append(f"{{\\alpha&HFF&\\fscx170\\fscy170\\t({t},{t + 130},\\alpha&H00&\\fscx100\\fscy100)}}{ch}")
+        elif n == "rodar":
+            out.append(f"{{\\alpha&HFF&\\frx-90\\t({t},{t + 170},\\alpha&H00&\\frx0)}}{ch}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 # ---------- el generador ----------
 class Vivo:
     def __init__(self, pr, pals, W, H, vertical=False):
@@ -205,10 +277,13 @@ class Vivo:
                         partes.append(f"{{\\c{c(color)}{grande}}}{pal}{{\\c{c(e['color'])}\\fscx100\\fscy100}}")
                 anim = ""
                 if k == 0 or e["palabras"] == 1:
-                    anim = {"pop": "\\fscx70\\fscy70\\t(0,90,\\fscx108\\fscy108)\\t(90,150,\\fscx100\\fscy100)",
-                            "sube": f"\\move({X},{Y + round(40 * s)},{X},{Y},0,120)\\alpha&HFF&\\t(0,120,\\alpha&H00&)",
-                            "fundido": "\\fad(120,0)"}[e["entrada"]]
-                pos = "" if "\\move" in anim else f"\\pos({X},{Y})"
+                    ent = nombre_animacion(e["entrada"])
+                    if ent == "pop":   # en subtítulos, un pop corto (cada pocas palabras)
+                        anim = f"\\pos({X},{Y})\\fscx70\\fscy70\\t(0,90,\\fscx108\\fscy108)\\t(90,150,\\fscx100\\fscy100)"
+                    else:
+                        anim = entrada_linea(ent if ent in DE_LINEA else "fundido", X, Y, round(e["tam"] * s), self.W, self.H,
+                                             int((b - a) * 1000))
+                pos = "" if ("\\move" in anim or "\\pos" in anim) else f"\\pos({X},{Y})"
                 txt = "".join(p + " " for p in partes).strip()
                 out.append(f"Dialogue: 4,{ts(a - t0)},{ts(b - t0)},Vivo,,0,0,0,,{{\\an5{pos}{anim}}}{txt}")
                 # destellos junto a las palabras clave (una vez por palabra)
@@ -393,34 +468,39 @@ class Vivo:
         return ev
 
     def texto(self, d, t0):
-        """Texto grande. entrada: pop (crece), maquina (se escribe letra a letra), desliza (entra desde un lado),
-        rebote (cae y rebota), sello (gira y golpea), brillo (aparece desde un destello)."""
+        """Texto grande con cualquiera de las 20 entradas (ver TODAS): pop, fundido, subir, base, bajar, panear, patinar,
+        deriva, voltereta, rebote, pisoton, tectonico, album, neon, respirar, maquina, estallido, rodar, ascender, bloque
+        (más desliza, sello y brillo)."""
         a = self._t(d["en"]) - t0
         b = a + float(d.get("dura", 1.6))
         x, y = self._pos(d.get("pos"), "centro")
         color = d.get("color", self.e["clave"])
         tam, bord = round(d.get("tam", 150) * self.esc), round(10 * self.esc)
         txt = limpio(d["texto"])
-        base = f"Dialogue: 6,{ts(a)},{ts(b)},Vivo,,0,0,0,,{{\\an5"
         estilo = f"\\fs{tam}\\c{c(color)}\\bord{bord}"
-        entrada = d.get("entrada", "pop")
-        if entrada == "maquina":
-            ancho = round(len(txt) * tam * 0.62)
-            x0 = x - ancho // 2
-            ms = int(min(900, 60 * len(txt)))
-            return [f"{base}\\pos({x},{y}){estilo}\\clip({x0},{y - tam},{x0 + 1},{y + tam})\\t(0,{ms},\\clip({x0},{y - tam},{x0 + ancho + 20},{y + tam}))\\fad(0,250)}}{txt}"]
-        if entrada == "desliza":
-            desde = -tam * len(txt) if d.get("desde", "izq") == "izq" else self.W + tam * len(txt) // 2
-            return [f"{base}\\move({desde},{y},{x},{y},0,260){estilo}\\fad(0,250)}}{txt}"]
-        if entrada == "rebote":
-            return [f"{base}\\move({x},{y - round(0.25 * self.H)},{x},{y},0,240){estilo}\\t(240,320,\\fscx112\\fscy88)\\t(320,420,\\fscx100\\fscy100)\\fad(0,250)}}{txt}"]
-        if entrada == "sello":
-            return [f"{base}\\pos({x},{y}){estilo}\\frz-14\\fscx260\\fscy260\\alpha&HFF&\\t(0,160,\\fscx100\\fscy100\\alpha&H00&)\\fad(0,250)}}{txt}"]
-        if entrada == "brillo":
-            return [f"{base}\\pos({x},{y}){estilo}\\blur18\\alpha&HFF&\\t(0,260,\\blur0\\alpha&H00&)\\fad(0,250)}}{txt}",
-                    f"Dialogue: 7,{ts(a)},{ts(min(b, a + 0.5))},VivoDibujo,,0,0,0,,{{\\an5\\pos({x + round(tam * len(txt) * 0.3)},{y - tam // 2})"
-                    f"\\1c{c(self.e['clave'])}\\bord0\\fscx0\\fscy0\\t(0,150,\\fscx130\\fscy130)\\t(150,400,\\fscx0\\fscy0)\\p1}}{destello(round(30 * self.esc))}{{\\p0}}"]
-        return [f"{base}\\pos({x},{y}){estilo}\\fscx0\\fscy0\\t(0,180,\\fscx120\\fscy120)\\t(180,300,\\fscx100\\fscy100)\\fad(0,250)}}{txt}"]
+        n = nombre_animacion(d.get("entrada", "pop"))
+        linea = lambda ini, fin, tags, texto: f"Dialogue: 6,{ts(ini)},{ts(fin)},Vivo,,0,0,0,,{{\\an5{tags}{estilo}}}{texto}"
+        if n in POR_LETRA:
+            return [linea(a, b, f"\\pos({x},{y})\\fad(0,250)", texto_por_letra(n, txt))]
+        if n == "tectonico":          # sacudida: izquierda, derecha, izquierda, al centro
+            pasos, out, t = [(-40, 40), (40, -30), (-30, 15), (15, 0)], [], a
+            for dx0, dx1 in pasos:
+                out.append(linea(t, t + 0.09, f"\\move({x + round(dx0 * self.esc)},{y},{x + round(dx1 * self.esc)},{y})", txt))
+                t += 0.09
+            out.append(linea(t, b, f"\\pos({x},{y})\\fad(0,250)", txt))
+            return out
+        if n == "bloque":             # un bloque de color cruza y al irse deja el texto
+            ancho = round(len(txt) * tam * 0.62) + round(30 * self.esc)
+            x0, x1 = x - ancho // 2, x + ancho // 2
+            rect_h = round(tam * 1.1)
+            barra = lambda ini, fin, an, tags: (f"Dialogue: 7,{ts(ini)},{ts(fin)},VivoDibujo,,0,0,0,,{{\\{an}{tags}\\1c{c(color)}\\bord0"
+                                                f"\\p1}}{rect(ancho, rect_h)}{{\\p0}}")
+            return [barra(a, a + 0.25, "an4", f"\\pos({x0},{y})\\fscx0\\t(0,250,\\fscx100)"),
+                    barra(a + 0.25, a + 0.5, "an6", f"\\pos({x1},{y})\\t(0,250,\\fscx0)"),
+                    linea(a + 0.25, b, f"\\pos({x},{y})\\fad(0,250)", txt)]
+        tags = entrada_linea(n, x, y, tam, self.W, self.H, int((b - a) * 1000))
+        tags = re.sub(r"\\fad\((\d+),0\)", r"\\fad(\1,250)", tags) if "\\fad(" in tags else tags + "\\fad(0,250)"
+        return [linea(a, b, tags, txt)]
 
     def linea_de_tiempo(self):
         """Tiempos de cada elemento (para la sala de edición): inicio, fin y momentos de sus partes."""

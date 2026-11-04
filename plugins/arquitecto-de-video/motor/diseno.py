@@ -22,6 +22,20 @@ MARCA_BASE = {"colores": {"texto": "#FFFFFF", "acento": "#FFD23F", "acento2": "#
               "logo": "", "sello": ""}
 FORMATOS = {"16x9": (1280, 720), "9x16": (1080, 1920), "1x1": (1080, 1080), "4x5": (1080, 1350), "yt": (1280, 720)}
 RESPALDO_FUENTE = ["ariblk.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf", "Arial Black.ttf"]
+REGISTRO = []      # lo que se dibujó en cada texto, para la revisión de legibilidad
+
+
+def luminancia(rgb):
+    def canal(v):
+        v = v / 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = rgb[:3]
+    return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b)
+
+
+def contraste(c1, c2):
+    a, b = sorted((luminancia(c1), luminancia(c2)), reverse=True)
+    return (a + 0.05) / (b + 0.05)
 
 
 # ---------- marca y fuentes ----------
@@ -122,6 +136,9 @@ def capa_imagen(lienzo, c, mk, base):
     w, h = c.get("w", lienzo.width), c.get("h", lienzo.height)
     if c.get("sin_fondo"):
         im = quitar_fondo(im)
+        caja = im.split()[3].point(lambda v: 255 if v > 128 else 0).getbbox()   # solo lo sólido
+        if caja:
+            im = im.crop(caja)          # solo el sujeto, sin aire transparente alrededor
     ajuste = c.get("ajuste", "cubrir")
     if c.get("sin_fondo") or ajuste == "contener":
         im = ImageOps.contain(im, (w, h))
@@ -143,7 +160,7 @@ def capa_imagen(lienzo, c, mk, base):
     if forma and not c.get("sin_fondo"):
         im.putalpha(ImageChops.multiply(im.split()[3], mascara(im.width, im.height, forma, c.get("radio", 40))))
     lienzo.alpha_composite(im, (x, y))
-    if c.get("marco"):
+    if c.get("marco") and not c.get("sin_fondo"):
         g = c["marco"].get("grosor", 8)
         d = ImageDraw.Draw(lienzo)
         caja = [x - g // 2, y - g // 2, x + im.width + g // 2, y + im.height + g // 2]
@@ -156,16 +173,17 @@ def capa_imagen(lienzo, c, mk, base):
 
 # ---------- texto ----------
 def partir(texto, f, w, max_lineas, d):
-    if "\n" in texto:
-        return texto.split("\n")
-    palabras, lineas, actual = texto.split(), [], ""
-    for p in palabras:
-        prueba = (actual + " " + p).strip()
-        if d.textlength(prueba, font=f) <= w or not actual:
-            actual = prueba
-        else:
-            lineas.append(actual); actual = p
-    lineas.append(actual)
+    """Respeta los saltos de línea pedidos y además parte lo que no cabe en el ancho."""
+    lineas = []
+    for trozo in texto.split("\n"):
+        actual = ""
+        for p in trozo.split():
+            prueba = (actual + " " + p).strip()
+            if d.textlength(prueba, font=f) <= w or not actual:
+                actual = prueba
+            else:
+                lineas.append(actual); actual = p
+        lineas.append(actual)
     return lineas if len(lineas) <= max_lineas else None
 
 
@@ -208,6 +226,11 @@ def capa_texto(lienzo, c, mk, datos):
         al = c.get("alinear", "izq")
         x = x0 + (w - lw) / 2 if al == "centro" else (x0 + w - lw if al == "der" else x0)
         pos.append((x, y0 + i * alto_l, l, lw))
+    caja = (min(p[0] for p in pos), y0, max(p[0] + p[3] for p in pos), y0 + alto_l * len(pos))
+    zona = lienzo.crop(tuple(int(max(0, v)) for v in caja)).convert("RGB")
+    fondo_prom = tuple(int(v) for v in zona.resize((1, 1), Image.BOX).getpixel((0, 0))) if zona.width and zona.height else (0, 0, 0)
+    REGISTRO.append({"texto": texto, "tam": tam, "lineas": len(pos), "fuente": getattr(f, "path", "?"), "caja": caja,
+                     "contraste": round(contraste(col, fondo_prom), 1), "apoyo": efecto in ("contorno", "caja", "sombra", "neon", "empalme", "glitch")})
     if efecto == "caja":
         for x, y, l, lw in pos:
             pad = tam * 0.22
@@ -324,8 +347,37 @@ def capa_logo(lienzo, c, mk):
 
 
 # ---------- plantillas ----------
+def revisar(lienzo):
+    """Reglas de legibilidad para miniaturas y portadas (las mismas que se miran a ojo, ahora medidas)."""
+    W, H = lienzo.size
+    avisos, info = [], []
+    palabras = sum(len(r["texto"].split()) for r in REGISTRO)
+    fuentes = {Path(str(r["fuente"])).name for r in REGISTRO}
+    info.append(f"{palabras} palabras, {len(fuentes)} fuente(s): {', '.join(sorted(fuentes))}")
+    if palabras > 6:
+        avisos.append(f"{palabras} palabras: en una miniatura se leen 2-4 de un vistazo; dejar el resto para el título")
+    if len(fuentes) > 2:
+        avisos.append(f"{len(fuentes)} fuentes distintas: usar 1 o 2 (una para el título, otra para lo secundario)")
+    tams = sorted({r["tam"] for r in REGISTRO}, reverse=True)
+    if len(tams) > 1 and tams[0] < tams[1] * 1.5:
+        avisos.append("el texto principal y el secundario tienen tamaños parecidos: la jerarquía no se nota (el principal ~2 veces más grande)")
+    for r in REGISTRO:
+        en_cel = r["tam"] * 160 / W
+        info.append(f"«{r['texto'][:30]}»: {r['tam']} px ({en_cel:.1f} px a 160 de ancho), contraste {r['contraste']}:1")
+        if en_cel < 8 and r is REGISTRO[0]:
+            avisos.append(f"«{r['texto'][:30]}» queda de {en_cel:.1f} px en el celular: no se lee; agrandar o acortar")
+        if r["contraste"] < 3 and not r["apoyo"]:
+            avisos.append(f"«{r['texto'][:30]}» contrasta {r['contraste']}:1 con su fondo (mínimo 3:1 para texto grande): agregar contorno, caja o cambiar el color")
+        if H > W:          # vertical: zona segura de Reels/Shorts/TikTok
+            x0, y0, x1, y1 = r["caja"]
+            if y0 < 0.12 * H or y1 > 0.80 * H or x1 > 0.86 * W:
+                avisos.append(f"«{r['texto'][:30]}» toca la zona de botones o de texto de la app: moverlo hacia el centro")
+    return avisos, info
+
+
 def render(plantilla, datos=None, base=".", canal=None):
     datos = datos or {}
+    REGISTRO.clear()
     mk = marca(canal or plantilla.get("canal") or datos.get("canal"), datos.get("proyecto"))
     W, H = plantilla.get("tamano", [1280, 720])
     lienzo = Image.new("RGBA", (W, H), color(plantilla.get("fondo", "fondo"), mk))
@@ -423,13 +475,20 @@ def main():
         base = Path(opt("--base") or (Path(opt("--datos")).parent if opt("--datos") else Path.cwd()))
         salida = Path(opt("--salida") or base / f"{pl_ruta.stem}.png")
         salida.parent.mkdir(parents=True, exist_ok=True)
-        render(plantilla, datos, base, opt("--canal")).save(salida, quality=93)
+        img = render(plantilla, datos, base, opt("--canal"))
+        img.save(salida, quality=93)
         print("listo:", salida)
+        avisos, info = revisar(img)
+        texto_rev = "\n".join(["Revisión de legibilidad", *info, "", *(f"AVISO: {a}" for a in avisos)] or [])
+        salida.with_name(salida.stem + "_revision.txt").write_text(texto_rev + ("\nOK: sin avisos" if not avisos else "") + "\n", encoding="utf-8")
+        print(texto_rev + ("\nOK: sin avisos" if not avisos else ""))
         for fm in [f for f in (opt("--formatos") or "").split(",") if f]:
             W, H = FORMATOS[fm]
             destino = salida.with_name(f"{salida.stem}_{fm}{salida.suffix}")
-            render(escalar_plantilla(plantilla, W, H), datos, base, opt("--canal")).save(destino, quality=93)
-            print("listo:", destino)
+            img2 = render(escalar_plantilla(plantilla, W, H), datos, base, opt("--canal"))
+            img2.save(destino, quality=93)
+            avisos2, _ = revisar(img2)
+            print("listo:", destino, *(f"\n  AVISO {fm}: {a}" for a in avisos2))
         # vista de cómo se ve en el celular (160 px de ancho, como en la lista de YouTube)
         prev = Image.open(salida)
         prev.resize((160, round(160 * prev.height / prev.width))).save(salida.with_name(salida.stem + "_160px.png"))

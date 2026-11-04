@@ -94,7 +94,7 @@ footer{border-top:1px solid var(--linea);background:var(--panel);min-width:0}
     <div class="fila"><span>Fuente</span><select id="fuente"></select></div>
     <div class="fila"><span>Tamaño <b id="tamV"></b></span><input type="range" id="tam" min="40" max="140" step="2"></div>
     <div class="fila"><span>Palabras a la vez</span><select id="palabras"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
-    <div class="fila"><span>Cómo entran</span><select id="entrada"><option value="pop">Pop (crecen)</option><option value="sube">Suben</option><option value="fundido">Fundido suave</option></select></div>
+    <div class="fila"><span>Cómo entran</span><select id="entrada"><option value="pop">Pop (crecen)</option><option value="subir">Suben</option><option value="fundido">Fundido suave</option><option value="base">Salen de la línea</option><option value="bajar">Bajan</option><option value="panear">Entran desde la izquierda</option><option value="patinar">Patinan desde la derecha</option><option value="deriva">Deriva lenta</option><option value="voltereta">Voltereta</option><option value="rebote">Rebote</option><option value="pisoton">Pisotón</option><option value="album">Álbum (se inclinan)</option><option value="neon">Neón (parpadean)</option><option value="respirar">Respiran</option><option value="brillo">Brillo</option></select></div>
     <div class="fila"><span>Altura <b id="posV"></b></span><input type="range" id="pos" min="10" max="92" step="1"></div>
     <div class="fila"><span>Colores</span><div class="colores"><label><input type="color" id="cTexto">texto</label><label><input type="color" id="cClave">palabra activa</label><label><input type="color" id="cClave2">palabra clave</label></div></div>
     <div class="fila"><span>Extras</span><div><label class="chk"><input type="checkbox" id="destellos"> destellos</label> <label class="chk"><input type="checkbox" id="caja"> caja de fondo</label></div></div>
@@ -234,7 +234,8 @@ function capa(t){
       const spans=g.ids.map(j=>{let col=est.color,sc="";if(j===act||est.palabras===1){const cl=esClave(j);col=cl?est.clave2:(est.palabras===1?est.color:est.clave);if(cl)sc="transform:scale(1.12)"}
         return`<span style="color:${col};${sc}">${P[j].w.replace(/</g,"&lt;")}</span>`}).join("");
       const sp=esClave(act)&&est.destellos?`<span style="color:${est.clave}">✦</span>`:"";
-      const anim=(est.palabras===1?act:gi)!==ultimoGrupo?est.entrada:"";ultimoGrupo=est.palabras===1?act:gi;
+      const claseAnim={pop:"pop",pisoton:"pop",rebote:"pop",subir:"sube",sube:"sube",base:"sube",bajar:"sube"}[est.entrada]||"fundido";
+      const anim=(est.palabras===1?act:gi)!==ultimoGrupo?claseAnim:"";ultimoGrupo=est.palabras===1?act:gi;
       const fondo=est.caja?`background:#000a;padding:.15em .4em;border-radius:.2em;`:"";
       html+=`<div class="sub ${anim}" style="left:${(v?.46:.5)*W*k}px;top:${yPos()*H*k}px;font-family:'${est.fuente}';font-size:${tam}px;-webkit-text-stroke:${est.caja?0:est.grosor*esc*k*2}px ${est.borde};text-shadow:0 ${est.sombra*esc*k}px 0 #000a;${fondo}">${sp}${spans}${sp}</div>`;
       clave+="g"+gi+"a"+act+anim;

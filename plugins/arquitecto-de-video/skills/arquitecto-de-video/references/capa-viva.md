@@ -31,7 +31,32 @@ Cada elemento entra en una frase de la transcripción (`"en": "texto exacto"`; s
 | `lista` | `titulo`, `items` (texto o `{"texto", "frase"}` para que cada línea se escriba cuando se dice), `pos`, `dura` | tarjeta de papel escrita a mano, línea por línea |
 | `fichas` | `items`, `frases` (o `cada` en segundos), `colores` | cadena A → B → C (en vertical, en columna) |
 | `lluvia` | `simbolo`: billetes o confeti; `cantidad`, `dura` | ganancias, celebración |
-| `texto` | `texto`, `color`, `dura`, `pos`, `tam`, `entrada`: pop, maquina (se escribe letra a letra), desliza (`desde` izq/der), rebote, sello, brillo | un número o palabra enorme: "x2", "-30%", "FOMO" |
+| `texto` | `texto`, `color`, `dura`, `pos`, `tam`, `entrada` (ver abajo) | un número o palabra enorme: "x2", "-30%", "FOMO" |
+
+Entradas (`entrada` en elementos `texto`; las de línea también en `subtitulos.entrada`). Aprendidas de las 20 animaciones de texto que describe la ayuda pública de Canva y hechas con etiquetas ASS propias; se acepta el nombre en español o en inglés:
+
+| entrada | inglés | movimiento | sirve en subtítulos |
+|---|---|---|---|
+| `pop` | Pop | crece, rebota y se mueve un poco | sí |
+| `fundido` | Fade | aparece de a poco | sí |
+| `subir` / `bajar` | Rise / Shift | sube (o baja) a su lugar | sí |
+| `base` | Baseline | sale desde una línea invisible, rápido | sí |
+| `panear` / `patinar` / `deriva` | Pan / Skate / Drift | entra desde la izquierda, desde la derecha, o lento con el viento | sí |
+| `voltereta` | Tumble | gira desde cabeza abajo | sí |
+| `rebote` | Bounce | cae y rebota | sí |
+| `pisoton` | Stomp | llega gigante y golpea la pantalla | sí |
+| `album` | Scrapbook | aparece inclinado y se tuerce al otro lado | sí |
+| `neon` | Neon / Flicker | parpadea como un letrero | sí |
+| `respirar` | Breathe | late suave todo el tiempo | sí |
+| `maquina` | Typewriter | letra por letra | no |
+| `estallido` | Burst | letra por letra con un golpe | no |
+| `rodar` | Roll | letras que caen como tragamonedas | no |
+| `ascender` | Ascend | palabra por palabra hacia arriba | no |
+| `tectonico` | Tectonic | sacudida izquierda-derecha | no |
+| `bloque` | Block | un bloque de color cruza y deja el texto | no |
+| `desliza`, `sello`, `brillo` | — | propias del estudio | sí |
+
+Regla de uso (de las guías de Canva y de la práctica): animar las palabras clave, no todo; una o dos entradas por canal, siempre las mismas, para que el video tenga identidad.
 
 Posiciones: `arriba-izq`, `arriba-der`, `centro`, `izquierda`, `derecha`, `abajo-izq`, `abajo-der` o `[x, y]` en fracciones. En vertical todo queda fuera de la columna de botones de la derecha.
 
