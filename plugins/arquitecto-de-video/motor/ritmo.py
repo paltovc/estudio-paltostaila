@@ -15,13 +15,19 @@ except ImportError:
     Image = None
 
 
-def cortes(video, umbral):
-    s = run([FFMPEG, "-hide_banner", "-i", video, "-vf", f"select='gt(scene,{umbral})',showinfo", "-an", "-f", "null", "-"])
+def cortes(video, umbral, fundidos=True):
+    """Cortes secos (cuadro a cuadro) y fundidos (mirando el video a 2 cuadros por segundo: un fundido de medio segundo,
+    que cuadro a cuadro cambia muy poco, entre dos muestras ya se ve como un cambio grande; nuestros videos usan fundidos)."""
     out = []
-    for t in (float(x) for x in re.findall(r"pts_time:([\d.]+)", s)):
-        if not out or t - out[-1] > 0.25:          # destellos y fundidos dan varios cortes seguidos
-            out.append(round(t, 2))
-    return out
+    filtros = [f"select='gt(scene,{umbral})',showinfo"] + ([f"fps=2,select='gt(scene,{umbral * 0.7:.3f})',showinfo"] if fundidos else [])
+    for filtro in filtros:
+        s = run([FFMPEG, "-hide_banner", "-i", video, "-vf", filtro, "-an", "-f", "null", "-"])
+        out += [float(x) for x in re.findall(r"pts_time:([\d.]+)", s)]
+    junto = []
+    for t in sorted(out):
+        if not junto or t - junto[-1] > 0.7:       # un fundido da varias marcas seguidas: cuenta como un cambio
+            junto.append(round(t, 2))
+    return junto
 
 
 def volumen(video):
@@ -41,7 +47,7 @@ def analizar(video, salida=None, umbral=0.3):
     dur = duracion_medio(video)
     cs = cortes(video, umbral)
     # cambios suaves: saltos de corte en el mismo plano y acercamientos (punch-in), que el umbral normal no ve
-    suaves = [c for c in cortes(video, max(0.08, umbral * 0.4)) if all(abs(c - x) > 0.3 for x in cs)]
+    suaves = [c for c in cortes(video, max(0.08, umbral * 0.4), fundidos=False) if all(abs(c - x) > 0.7 for x in cs)]
     bordes = [0.0] + cs + [dur]
     planos = [round(b - a, 2) for a, b in zip(bordes, bordes[1:]) if b - a > 0.05]
     cada10 = [sum(1 for c in cs if k * 10 <= c < (k + 1) * 10) for k in range(int(dur // 10) + 1)]
