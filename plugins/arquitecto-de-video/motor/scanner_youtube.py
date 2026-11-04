@@ -119,12 +119,18 @@ def main():
         for c in get("channels", 1, part="statistics,contentDetails", id=",".join(l)).get("items", []):
             canales[c["id"]] = {"inscritos": None if c["statistics"].get("hiddenSubscriberCount") else int(c["statistics"].get("subscriberCount", 0)),
                                 "envios": c["contentDetails"]["relatedPlaylists"]["uploads"], "ultimos": []}
-    for cid, c in canales.items():
+    print(f"  {len(videos)} videos de {len(canales)} canales: leyendo los últimos envíos de cada canal...", flush=True)
+
+    def envios(c):
         try:
             r = get("playlistItems", 1, part="contentDetails", playlistId=c["envios"], maxResults=11)
             c["ultimos"] = [i["contentDetails"]["videoId"] for i in r.get("items", [])]
         except RuntimeError:
             pass
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(8) as ex:
+        list(ex.map(envios, canales.values()))
     todos = list({x for c in canales.values() for x in c["ultimos"]})
     vistas = {}
     for l in lotes(todos):
