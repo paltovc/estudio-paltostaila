@@ -132,7 +132,7 @@ def main():
     quietos = [(a, l) for a, l in r["tramos_quietos_mas_de_6s"] if not any(a <= e["a"] <= a + l for e in elementos)]
     ejes["ritmo"] = round(statistics.mean([nota(cpm, *rango), max(2, 10 - 1.5 * len(quietos))]), 1)
     for a, l in quietos[:6]:
-        mejoras.append((a, "ritmo", f"{l:.0f} s sin ningún cambio en pantalla desde {mmss(a)}: partir la escena, mover la cámara o poner un elemento."))
+        mejoras.append((a, "ritmo", f"{l:.0f} s sin cortes ni elementos desde {mmss(a)} (un zoom lento solo no alcanza): partir la escena, cambiar de plano o poner un elemento en la palabra clave."))
 
     # 3. VOZ Y AUDIO
     habla = sum(p["end"] - p["start"] for p in pals) or 1
