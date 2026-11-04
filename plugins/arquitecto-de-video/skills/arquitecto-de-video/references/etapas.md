@@ -104,3 +104,14 @@ Ver `plataformas.md`. Cortos verticales: `python cortos.py "<video>"` (propuesta
 
 ## 11. Después de publicar (`analista`)
 Con los datos que la persona comparta (capturas de YouTube Studio, TikTok Analytics) o las skills yt-retention / yt-audit si están: dónde se va la gente, qué gancho funcionó, qué repetir. Guardar en `08_PUBLICAR/aprendizajes.md` y proponer cambios a la biblia del canal (no cambiarla sin un sí).
+
+## Capa viva, sala de edición y material grabado (motor 0.6)
+
+| Qué | Comando | Notas |
+|---|---|---|
+| Probar subtítulos y elementos | `python vivo.py "<video>" --prueba 0-30 [--vertical] [--zona] [--fotos 3,10]` | sin imágenes usa un fondo neutro; `AVISO elemento sin frase` = frase mal copiada |
+| Sala de edición | `python sala.py "<video>"` (segundo plano) → `http://127.0.0.1:8765/` | la persona abre Chrome; guardar deja respaldo en `08_SALA/` |
+| Copia para el celular | `python celu.py "<video>" [archivo] [--zona]` | 720p en `07_RENDER/celu` y en Drive si existe |
+| Tomas a cámara | `python grabado.py "<video>" transcribir` → `cortar` → `armar [--borrador 60]` | luego `terminar.py` y `vertical.py` |
+
+Errores conocidos: una fuente que no está instalada en Windows hace que libass use otra parecida (revisar las fotos de prueba); los elementos de una frase que se repite en el guion necesitan `"despues"` para caer en la segunda vez.

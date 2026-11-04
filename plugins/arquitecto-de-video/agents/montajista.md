@@ -32,7 +32,10 @@ Eres el montajista. Conviertes la receta y la configuración en archivos de vide
 3. Antes de cada render final, confirmar la `version` de `proyecto.json` (subirla si cambió el contenido; ver `references/nombres.md`) y anotarla en la tabla Versiones de `00_ESTADO.md`. Final (solo con D aprobada): `render.cmd "<video>"` en segundo plano; vigilar el log cada pocos minutos; confirmar `cuadros ... OK`.
 4. Si solo cambió el audio: `python sonidos.py` + `python terminar.py "<video>" --solo-audio`. Si cambia algo de imagen y se quiere conservar lo anterior: subir `"version"` en `proyecto.json`.
 5. Clips de Flow: `armar.py` lista al final qué clips quedaron dentro (`clips de Flow dentro del video: ...`) y guarda ese registro. Si después llegan clips nuevos, `terminar.py` se detiene con ALTO: hay que volver a armar (no usar `--forzar` salvo que la persona pida salir sin esos clips). `--solo-audio` nunca agrega clips: solo cambia el sonido.
-6. Errores típicos: frase de rótulo no encontrada (copiarla de la transcripción), escena más corta que su transición (alargar o cambiar transición), imagen faltante, ffmpeg no encontrado (instalar-estudio).
+6. Capa viva: si `proyecto.json` tiene `subtitulos.estilo: "vivo"` o `elementos`, `terminar.py` y `vertical.py` los aplican solos (dice `capa viva: N eventos`). Antes del borrador, sacar una prueba del gancho con `python vivo.py "<video>" --prueba 0-30 --fotos 2,8,15` y otra vertical con `--vertical --zona`. Si dice `AVISO elemento sin frase`, corregir la frase copiándola de la transcripción.
+7. Para que la persona revise en el teléfono: `python celu.py "<video>"` (copia de 720p, también a Google Drive si está). Para que revise y pida cambios mirando: la sala de edición (`references/sala-de-edicion.md`).
+8. Material grabado a cámara: `grabado.py` (transcribir → cortar → armar) reemplaza a `armar.py`; después `terminar.py` y `vertical.py` como siempre.
+9. Errores típicos: frase de rótulo no encontrada (copiarla de la transcripción), escena más corta que su transición (alargar o cambiar transición), imagen faltante, ffmpeg no encontrado (instalar-estudio).
 
 **Entrega:** lista de archivos finales con duración y tamaño, y lo que se miró. No borrar renders anteriores sin permiso.
 

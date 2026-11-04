@@ -4,6 +4,7 @@
 #   python vertical.py "C:\ruta\video"
 import sys
 from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, slug
+import vivo
 
 pr = Proyecto()
 F = pr["subtitulos"]["fuente"]
@@ -33,12 +34,18 @@ def corte(segs, pals, v):
     dur = t1 - t0
     if not 15 <= dur <= 180:
         print(f"AVISO {v['nombre']}: dura {dur:.1f} s (lo ideal para vertical es 45-90 s)")
-    lineas = [CAB]
+    viva = vivo.Vivo(pr, pals, 1080, 1920, vertical=True) if vivo.activo(pr) else None
+    lineas = [vivo.insertar(CAB, viva.estilos()) if viva else CAB]
     if v.get("titulo"):
         lineas.append(f"Dialogue: 1,{ts(0)},{ts(dur)},Titulo,,0,0,0,,{{\\fs52\\c&H6AD15B&}}{v.get('chico', '')}\\N{{\\fs92\\c&HFFFFFF&}}{v['titulo']}\n")
-    for a, b, txt in cues(segs, 60):
-        if b > t0 and a < t1:
-            lineas.append(f"Dialogue: 0,{ts(max(a - t0, 0))},{ts(min(b, t1) - t0)},Sub,,0,0,0,,{txt}\n")
+    if viva and pr["subtitulos"].get("estilo") == "vivo":
+        lineas += [l + "\n" for l in viva.subtitulos(t0, t1)]
+    else:
+        for a, b, txt in cues(segs, 60):
+            if b > t0 and a < t1:
+                lineas.append(f"Dialogue: 0,{ts(max(a - t0, 0))},{ts(min(b, t1) - t0)},Sub,,0,0,0,,{txt}\n")
+    if viva and v.get("elementos", True):
+        lineas += [l + "\n" for l in viva.elementos(t0, t1)]
     ass = f"tmp/vertical_{v['nombre']}.ass"
     (pr.salida / ass).write_text("".join(lineas), encoding="utf-8-sig")
     if dur > 180:

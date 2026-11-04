@@ -1,6 +1,6 @@
 ---
 name: arquitecto-de-video
-description: Dirige la producción completa de un video narrado con un equipo de agentes (investigación, guion, imágenes, clips de Flow, transcripción, escenas, sonido, render, control de calidad y publicación) para YouTube, TikTok e Instagram. Usar cuando se pida "hacer un video", "nuevo video", "armar el video", "seguir con el video", "estado del video", "render", "pasar a vertical", "paquete para YouTube", o cuando se nombre al Arquitecto o al Estudio Paltostaila.
+description: Dirige la producción completa de un video narrado con un equipo de agentes (investigación, guion, imágenes, clips de Flow, transcripción, escenas, sonido, render, control de calidad y publicación) para YouTube, TikTok e Instagram. Usar cuando se pida "hacer un video", "nuevo video", "armar el video", "seguir con el video", "estado del video", "render", "pasar a vertical", "paquete para YouTube", "subtítulos dinámicos", "sala de edición", "aplica las notas de la sala", "editar mi curso" o "editar estas tomas", o cuando se nombre al Arquitecto o al Estudio Paltostaila (o Estudio Palto Style).
 ---
 
 # Arquitecto de video y audio (Estudio Paltostaila)
@@ -58,6 +58,13 @@ Lanzar agentes a la vez cuando no dependen uno del otro, y decir en una línea q
 
 Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar y dónde, y las decisiones ya aprobadas. Al recibir la entrega, leerla, marcar la etapa en `00_ESTADO.md` y anotar lo que quedó pendiente.
 
+## Estilo propio, sala de edición y material grabado
+
+- **Capa viva** (`references/capa-viva.md`): todo video sale por defecto con subtítulos dinámicos del preset de su canal y elementos que entran en la palabra (íconos, tarjeta escrita a mano, fichas en cadena, lluvia de billetes, número gigante). El `editor-de-escenas` propone los `elementos` junto con la receta (puerta B) y el `montajista` muestra una prueba con `vivo.py --prueba` antes del borrador. Todo es dibujo propio: nunca stickers, clips ni memes de otros.
+- **Sala de edición** (`references/sala-de-edicion.md`): cuando la persona quiera mirar y pedir cambios sobre el video, lanzar `sala.py` y darle la dirección; con "aplica las notas de la sala", leer `08_SALA/notas.md` y aplicar. `celu.py` deja una copia liviana para el teléfono.
+- **Personas a cámara** (cursos, clases, testimonios): `grabado.py` elige tomas por lo que se dice, saca muletillas, trabas y silencios, iguala el color y suaviza los cortes (`references/material-grabado.md`, segunda parte). Las etapas de imágenes, Flow y voz se reemplazan por: transcribir tomas → elegir tomas (puerta: la persona aprueba la lista) → cortar → armar → terminar.
+- **Videos con tomas y canción** (videos musicales, viajes): `montaje_tomas.py` (primera parte de la misma referencia).
+
 ## Reglas que no se negocian
 
 - No modificar, mover ni borrar originales de la persona (audios, imágenes, clips descargados). Todo lo nuevo va con nombre nuevo. Para borrar algo, pedir permiso y mandarlo a la Papelera.
@@ -78,9 +85,11 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 - `references/tablero.md`: plantilla de `00_ESTADO.md`.
 - `references/viralidad.md`: los principios que usan guionista, revisor, editor y publicador (gancho, ritmo, empaque, series).
 - `references/conectores.md`: qué conectores sirven y para qué (vidIQ, Notion, Drive, Sheets, Canva, Metricool, YouTube).
-- `references/material-grabado.md`: videos con tomas y fotos propias (inventario, canción y ritmo, color HDR, montaje al ritmo).
+- `references/material-grabado.md`: videos con tomas y fotos propias (inventario, canción y ritmo, color HDR, montaje al ritmo) y personas hablando a cámara (`grabado.py`: tomas por transcripción, muletillas, punch-in, J/L, color igualado).
 - `references/prompts.md`: lista para escribir prompts de Flow, Nano Banana, ChatGPT o voicertool que salgan bien al primer intento.
 - `references/reglas-motor.md`: cómo cambiar o agregar scripts al motor sin romperlo (pensar, mínimo, quirúrgico, demostrar).
+- `references/capa-viva.md`: subtítulos dinámicos (presets por canal) y elementos animados sincronizados con la voz; cómo probarlos.
+- `references/sala-de-edicion.md`: la sala local para mirar en formato celular o YouTube, cambiar estilos y dejar notas; cómo aplicar esas notas; copia para el celular.
 - `references/monetizacion.md`: reglas de YouTube que tumban canales sin rostro (contenido no auténtico, reutilizado, etiqueta de IA, licencias) y la revisión de 7 preguntas antes de publicar.
 
 Skills hermanas: **analizar-referente** (un enlace → por qué funciona y cómo aplicarlo), **buscar-tendencias** (ideas con respaldo de datos), **ficha-personaje** (imagen maestra del personaje), **instalar-estudio**, **nuevo-canal**.

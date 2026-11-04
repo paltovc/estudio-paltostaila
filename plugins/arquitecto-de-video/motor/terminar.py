@@ -7,6 +7,7 @@
 import json, os, re, sys
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes
+import vivo
 
 pr = Proyecto()
 ARG = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
@@ -34,8 +35,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def escribir_ass(ruta, rotulos, subs):
-    lineas = [CABECERA]
+def escribir_ass(ruta, rotulos, subs, extra=(), estilos=()):
+    lineas = [vivo.insertar(CABECERA, estilos) if estilos else CABECERA]
     for t0, t1, chico, grande, estilo in rotulos:
         g = round({"Rotulo": 52, "Pregunta": 56, "Definicion": 44}[estilo] * esc)
         c_chico, c_grande = ("&H3F9E3A&", "&H2B2118&") if estilo == "Definicion" else ("&H6AD15B&", "&HFFFFFF&")
@@ -43,6 +44,7 @@ def escribir_ass(ruta, rotulos, subs):
         lineas.append(f"Dialogue: 1,{ts(t0)},{ts(t1)},{estilo},,0,0,0,,{txt}\n")
     for t0, t1, txt in subs:
         lineas.append(f"Dialogue: 0,{ts(t0)},{ts(t1)},Sub,,0,0,0,,{txt}\n")
+    lineas += [l + "\n" for l in extra]
     Path(ruta).write_text("".join(lineas), encoding="utf-8-sig")
 
 
@@ -99,8 +101,17 @@ def preparar():
         if r["chico"].upper().startswith("PREGUNTA") and "estilo" not in r:
             estilo = "Pregunta"
         rotulos.append((t0, fin, r["chico"], r["grande"], estilo))
-    escribir_ass(pr.tmp / "rotulos.ass", rotulos, [])
-    escribir_ass(pr.tmp / "todo.ass", rotulos, subs)
+    if vivo.activo(pr):   # subtítulos dinámicos y/o elementos animados (vivo.py)
+        v = vivo.Vivo(pr, pals, W, H, vertical=H > W)
+        elementos = v.elementos()
+        dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []
+        escribir_ass(pr.tmp / "rotulos.ass", rotulos, [], elementos, v.estilos())
+        escribir_ass(pr.tmp / "todo.ass", rotulos, [] if dinamicos else subs, dinamicos + elementos, v.estilos())
+        print(f"capa viva: {len(dinamicos)} eventos de subtítulo, {len(elementos)} de elementos "
+              f"(preset {SUB.get('preset', 'finanzas')})", flush=True)
+    else:
+        escribir_ass(pr.tmp / "rotulos.ass", rotulos, [])
+        escribir_ass(pr.tmp / "todo.ass", rotulos, subs)
     srt = "".join(f"{i}\n{ts(a, False)} --> {ts(b, False)}\n{t}\n\n" for i, (a, b, t) in enumerate(subs, 1))
     (pr.salida / f"{pr.base_nombre}_subtitulos.srt").write_text(srt, encoding="utf-8")
     if pr["capitulos"]:

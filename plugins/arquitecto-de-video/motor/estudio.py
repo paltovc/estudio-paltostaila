@@ -295,6 +295,8 @@ def clips_pendientes(pr, video="solo_video.mp4"):
     m = manifiesto(pr, video)
     usados = (m or {}).get("clips", {})
     hasta = (m or {}).get("hasta")
+    if not pr.receta.exists():          # video sin receta de escenas (material grabado, montaje): no hay clips de Flow
+        return m, []
     inicio = {r["n"]: r["t0"] for r in pr.escenas()}
     pend = []
     for n, p in clips_disponibles(pr).items():

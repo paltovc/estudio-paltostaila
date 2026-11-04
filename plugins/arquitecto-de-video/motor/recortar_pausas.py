@@ -90,20 +90,22 @@ def main():
     nueva_tr = pr.dir / "06_RECETA" / "transcripcion_recortada.json"
     nueva_tr.parent.mkdir(exist_ok=True)
     nueva_tr.write_text(json.dumps(tr, ensure_ascii=False), encoding="utf-8")
-    # 3. receta
-    with open(pr.receta, encoding="utf-8-sig", newline="") as fh:
-        lector = csv.DictReader(fh, delimiter=";")
-        campos, filas = lector.fieldnames, list(lector)
-    inicio_viejo = {r["numero"]: t2s(r["inicio"]) for r in filas}
-    for r in filas:
-        a, b = f(t2s(r["inicio"])), f(t2s(r["fin"]))
-        r["inicio"], r["fin"], r["duracion"] = mmss(a), mmss(b), f"{b - a:.2f}"
-    filas[-1]["fin"] = mmss(nueva)
-    filas[-1]["duracion"] = f"{nueva - t2s(filas[-1]['inicio']):.2f}"
-    nueva_receta = pr.dir / "06_RECETA" / "receta_recortada.csv"
-    with open(nueva_receta, "w", encoding="utf-8-sig", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=campos, delimiter=";")
-        w.writeheader(); w.writerows(filas)
+    # 3. receta (si todavia no existe, se arma despues con los tiempos ya recortados)
+    inicio_viejo, hay_receta = {}, pr.receta.exists()
+    if hay_receta:
+        with open(pr.receta, encoding="utf-8-sig", newline="") as fh:
+            lector = csv.DictReader(fh, delimiter=";")
+            campos, filas = lector.fieldnames, list(lector)
+        inicio_viejo = {r["numero"]: t2s(r["inicio"]) for r in filas}
+        for r in filas:
+            a, b = f(t2s(r["inicio"])), f(t2s(r["fin"]))
+            r["inicio"], r["fin"], r["duracion"] = mmss(a), mmss(b), f"{b - a:.2f}"
+        filas[-1]["fin"] = mmss(nueva)
+        filas[-1]["duracion"] = f"{nueva - t2s(filas[-1]['inicio']):.2f}"
+        nueva_receta = pr.dir / "06_RECETA" / "receta_recortada.csv"
+        with open(nueva_receta, "w", encoding="utf-8-sig", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=campos, delimiter=";")
+            w.writeheader(); w.writerows(filas)
     # 4. proyecto.json (copia de respaldo primero)
     pj = pr.dir / "proyecto.json"
     shutil.copy2(pj, pr.dir / "proyecto_antes_de_recortar.json")
@@ -111,7 +113,8 @@ def main():
     cfg["audios"] = "02_VOZ_RECORTADA/voz_recortada.wav"
     cfg.setdefault("carpetas", {})
     cfg["carpetas"]["transcripcion"] = "06_RECETA/transcripcion_recortada.json"
-    cfg["carpetas"]["receta"] = "06_RECETA/receta_recortada.csv"
+    if hay_receta:
+        cfg["carpetas"]["receta"] = "06_RECETA/receta_recortada.csv"
     for n, cortes_plano in cfg.get("planos", {}).items():
         for p in cortes_plano:
             p[0] = f(p[0]) if p[0] else 0.0
@@ -128,12 +131,13 @@ def main():
         rc[n] = round(f(t0 + float(d)) - f(t0), 3)
     cfg["recorte"] = {"umbral": UMBRAL, "deja": DEJA, "pausas": len(cs), "ahorro_s": round(ahorro, 1)}
     pj.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-    cortas = [r["numero"] for r in filas if float(r["duracion"]) < 1.2]
+    cortas = [r["numero"] for r in filas if float(r["duracion"]) < 1.2] if hay_receta else []
     print("listo: voz en 02_VOZ_RECORTADA, transcripcion y receta recortadas, proyecto.json actualizado")
     print("respaldo: proyecto_antes_de_recortar.json")
     if cortas:
         print("AVISO escenas que quedaron muy cortas (revisar o unir):", ", ".join(cortas))
-    print("Siguiente: python frases.py --validar y un borrador antes del render completo")
+    print("Siguiente: python frases.py --validar y un borrador antes del render completo" if hay_receta else
+          "Siguiente: armar la receta de escenas (frases.py) sobre la voz ya recortada")
 
 
 if __name__ == "__main__":

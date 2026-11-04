@@ -1,0 +1,41 @@
+# Capa viva: subtítulos dinámicos y elementos animados (vivo.py)
+
+Lo que hace que un video no se vea "editado igual que todos": subtítulos que entran palabra por palabra con el estilo propio del canal y elementos que aparecen justo en la palabra que los nombra. Todo sale del motor como dibujo vectorial ASS (libass): no se usan stickers, clips ni memes de terceros (contenido reutilizado y derechos, ver `monetizacion.md`).
+
+## Cuándo se activa
+- `"subtitulos": {"estilo": "vivo"}` en `proyecto.json` → `_con-subtitulos.mp4` y los Shorts llevan subtítulos dinámicos (el `.srt` para subir a YouTube sigue saliendo igual).
+- `"elementos": [...]` → los elementos salen en **las dos** versiones (`_youtube.mp4` y `_con-subtitulos.mp4`) y en los Shorts que los incluyan (en un corte vertical `"elementos": false` los apaga).
+- Sin ninguno de los dos, el motor hace lo mismo de antes.
+
+## Estilo de subtítulos
+```json
+"subtitulos": {"estilo": "vivo", "preset": "finanzas", "palabras": 3,
+               "palabras_clave": ["urgencia", "fondo de emergencia"],
+               "posicion": 0.84, "posicion_vertical": 0.70,
+               "fuente_viva": "Arial Black", "tamano_vivo": 78,
+               "color_texto": "FFFFFF", "color_clave": "FFD23F", "color_clave2": "6AD15B",
+               "entrada": "pop", "destellos": true, "caja": false}
+```
+- Presets: `finanzas` (blanco, palabra activa amarilla, clave verde con destellos, 3 palabras), `rosa` (1 palabra, rosa, estilo reel), `bachata` (cálido, sube), `curso` (caja de fondo, celeste, sobrio), `documental` (serif, 4 palabras, fundido). Cualquier campo de arriba pisa el preset.
+- `palabras`: 1 a 4 a la vez. Los grupos se cortan también en la puntuación y en pausas de más de 0,35 s; en vertical como máximo 14 caracteres por grupo.
+- Palabras clave: las de la lista (también frases de varias palabras) y todo número, % o $ salen en `color_clave2`, un poco más grandes y con destellos.
+- Posición: fracción del alto (0 = arriba). En vertical se fuerza la zona segura (entre 0,14 y 0,76) y el tamaño se multiplica por 1,25. En cursos con la cara al centro, subir o bajar para no tapar la boca.
+- Cada canal debería tener su preset en la biblia (`nuevo-canal`); no usar el mismo estilo en todos.
+
+## Elementos
+Cada elemento entra en una frase de la transcripción (`"en": "texto exacto"`; si la frase se repite en el guion: `{"frase": "...", "despues": "otra frase anterior"}`; también `{"segundo": 42.5}` o `"desfase": 0.4`).
+
+| tipo | campos | uso |
+|---|---|---|
+| `icono` | `icono`: reloj, dinero, alerta, check, corazon, flecha (`giro` en grados), avion, lupa, destello, estrella; `pos`, `dura`, `tam`, `color` | subrayar una idea en 1-2 s |
+| `lista` | `titulo`, `items` (texto o `{"texto", "frase"}` para que cada línea se escriba cuando se dice), `pos`, `dura` | tarjeta de papel escrita a mano, línea por línea |
+| `fichas` | `items`, `frases` (o `cada` en segundos), `colores` | cadena A → B → C (en vertical, en columna) |
+| `lluvia` | `simbolo`: billetes o confeti; `cantidad`, `dura` | ganancias, celebración |
+| `texto` | `texto`, `color`, `dura`, `pos` | un número o palabra enorme: "x2", "-30%", "FOMO" |
+
+Posiciones: `arriba-izq`, `arriba-der`, `centro`, `izquierda`, `derecha`, `abajo-izq`, `abajo-der` o `[x, y]` en fracciones. En vertical todo queda fuera de la columna de botones de la derecha.
+
+Ritmo: un elemento cada 15-40 s en videos largos (más seguido en el gancho y en los cierres de bloque); en Shorts y reels, algo nuevo cada 2-4 s. No poner un elemento donde ya hay un rótulo.
+
+## Probar sin renderizar todo
+`python vivo.py "<proyecto>" --prueba 90-140 [--vertical] [--zona] [--fotos 97,101]` → `07_RENDER/<ID>_<v>_vivo-prueba(-9x16).mp4` con la voz, sobre el armado si existe o sobre un fondo neutro si todavía no hay imágenes. Sirve para elegir el estilo antes de tener las imágenes. Si una frase no se encuentra, sale `AVISO elemento sin frase` y ese elemento se salta.
