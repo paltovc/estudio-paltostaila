@@ -52,11 +52,21 @@ def detectar(im, con_texto=True):
             continue
         x, y, bw, bh = cv2.boundingRect(cnt)
         per = cv2.arcLength(cnt, True) or 1
+        # ojos: 1 a 4 manchas oscuras medianas dentro de la mancha blanca (un globo con texto tiene muchas y chicas)
+        sub = a[y:y + bh, x:x + bw]
+        dentro = np.zeros((bh, bw), np.uint8)
+        cv2.drawContours(dentro, [cnt - [x, y]], -1, 255, -1)
+        oscuro = ((cv2.cvtColor(sub, cv2.COLOR_RGB2GRAY) < 70) & (dentro > 0)).astype(np.uint8)
+        k, _, est, _ = cv2.connectedComponentsWithStats(oscuro)
+        medianas = [e for e in est[1:] if 0.002 * area < e[4] < 0.08 * area]
+        chicas = [e for e in est[1:] if e[4] <= 0.002 * area]
+        con_ojos = 1 <= len(medianas) <= 4 and len(chicas) < 12
         circ = 4 * math.pi * area / per ** 2
         proporcion = bw / max(bh, 1)
         lleno = area / max(bw * bh, 1)
         # cabeza redonda (los ojos y la boca bajan la redondez medida: se acepta también lo casi cuadrado y bien lleno)
-        if (circ > 0.62 and 0.65 < proporcion < 1.5 and lleno > 0.65) or (0.72 < proporcion < 1.38 and lleno > 0.6 and circ > 0.35):
+        if (circ > 0.62 and 0.65 < proporcion < 1.5 and lleno > 0.65) or (0.72 < proporcion < 1.38 and lleno > 0.6 and circ > 0.35) \
+                or (con_ojos and lleno > 0.45):
             m = 0.18
             out.append((((x - bw * m) / w, (y - bh * m) / h, (x + bw * (1 + m)) / w, (y + bh * (1 + m)) / h), PESO_CARA, "cabeza"))
         elif frac > 0.01:                                                   # globo, nube, cartel blanco

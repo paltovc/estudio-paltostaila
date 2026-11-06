@@ -222,7 +222,11 @@ class Vivo:
         reg = self.mapa.regiones(a, b)
         if not reg:
             return x, y
-        pen = lambda p: caras.castigo(caja(*p), reg)
+        def pen(p):                     # tapar algo importante, más salirse del cuadro (se cortaría el texto)
+            c = caja(*p)
+            area = max(1.0, (c[2] - c[0]) * (c[3] - c[1]))
+            dentro = max(0, min(c[2], self.W) - max(c[0], 0)) * max(0, min(c[3], self.H) - max(c[1], 0))
+            return caras.castigo(c, reg) + 30 * (1 - dentro / area)
         p0 = pen((x, y))
         if p0 < 0.05:
             return x, y
@@ -419,7 +423,7 @@ class Vivo:
             x0 = int(min(max(x - ancho // 2, 0.03 * self.W), 0.97 * self.W - ancho))
             y0 = int(min(max(y - alto // 2, 0.04 * self.H), 0.74 * self.H - alto))
             return (x0, y0, x0 + ancho, y0 + alto)
-        cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.25, 0.40, 0.55) for fx in (0.20, 0.50, 0.80)]
+        cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.20, 0.32, 0.44, 0.56) for fx in (0.18, 0.34, 0.50, 0.66, 0.82)]
         x, y = self._lugar(d, "derecha" if not self.vertical else "centro", t0 + a, t0 + b, caja_lista, cands)
         x0, y0 = x - ancho // 2, y - alto // 2
         if self.vertical:   # dentro de la zona segura: sin tocar la columna de botones de la derecha
