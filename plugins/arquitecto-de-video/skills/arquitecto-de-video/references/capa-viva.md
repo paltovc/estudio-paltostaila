@@ -64,3 +64,17 @@ Ritmo: un elemento cada 15-40 s en videos largos (más seguido en el gancho y en
 
 ## Probar sin renderizar todo
 `python vivo.py "<proyecto>" --prueba 90-140 [--vertical] [--zona] [--fotos 97,101]` → `07_RENDER/<ID>_<v>_vivo-prueba(-9x16).mp4` con la voz, sobre el armado si existe o sobre un fondo neutro si todavía no hay imágenes. Sirve para elegir el estilo antes de tener las imágenes. Si una frase no se encuentra, sale `AVISO elemento sin frase` y ese elemento se salta.
+
+## No tapar caras (0.11.1)
+`terminar.py` mira el video armado (`tmp/solo_video.mp4`) al inicio, a la mitad y al final de cada elemento con `caras.py`. Busca tres cosas:
+- caras reales;
+- cabezas del personaje dibujado (círculos blancos);
+- globos y texto de la imagen.
+
+Si la posición pedida tapa algo de eso, el elemento se corre a la zona libre más cercana. Lo que se movió queda en `tmp/capa_viva_lugares.txt`.
+- **Fijar un elemento:** `"fijo": true` lo deja exactamente donde se pidió.
+- **Apagarlo todo:** `"subtitulos": {"evitar_caras": false}`.
+- **Ignorar el texto de la imagen:** `"evitar_texto": false` hace que solo se eviten caras y cabezas.
+- **Revisar a mano un cuadro:** `python caras.py "<video>" 12.5` deja una imagen con lo que encontró marcado.
+
+Por ahora se aplica en el video 16:9. En los Shorts, los elementos van en la columna central de la zona segura; revisar los cuadros igual.

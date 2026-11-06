@@ -119,7 +119,13 @@ def preparar():
         rotulos.append((t0, fin, r["chico"], r["grande"], estilo))
     if vivo.activo(pr):   # subtítulos dinámicos y/o elementos animados (vivo.py)
         v = vivo.Vivo(pr, pals, W, H, vertical=H > W)
+        if SUB.get("evitar_caras", True) and pr.cfg.get("elementos"):   # no tapar caras, cabezas, globos ni texto
+            v.usar_mapa(pr.tmp / "solo_video.mp4", SUB.get("evitar_texto", True))
         elementos = v.elementos()
+        if v.movidos:
+            rep = [f"{a:7.1f} s  {tipo:7s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in v.movidos]
+            (pr.tmp / "capa_viva_lugares.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
+            print(f"capa viva: {len(v.movidos)} elementos corridos para no tapar caras o texto (tmp/capa_viva_lugares.txt)", flush=True)
         dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []
         escribir_ass(pr.tmp / "rotulos.ass", rotulos, [], elementos, v.estilos())
         escribir_ass(pr.tmp / "todo.ass", rotulos, [] if dinamicos else subs, dinamicos + elementos, v.estilos())

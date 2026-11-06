@@ -13,6 +13,7 @@
 #     {"tipo": "lluvia", "simbolo": "billetes", "en": {"frase": "ganó miles"}, "dura": 2.5},
 #     {"tipo": "texto", "texto": "x2", "en": {"frase": "el precio se duplica"}, "dura": 1.5}]
 # Presets de estilo: finanzas, rosa, bachata, curso, documental (cada proyecto puede cambiar color, fuente y posición).
+from pathlib import Path
 import math, random, re, unicodedata
 from estudio import buscar, ts, norm as tokens
 
@@ -204,6 +205,36 @@ class Vivo:
             self.y = min(max(self.y, 0.14), 0.76)
         self.x = 0.46 if vertical else 0.5
         self.rand = random.Random(7)
+        self.mapa, self.movidos = None, []
+
+    def usar_mapa(self, video, con_texto=True):
+        """Activa "no tapar caras": cada elemento se corre a donde no cubra cabezas, caras, globos ni texto de la imagen."""
+        import caras
+        if Path(video).exists() and not self.vertical:
+            self.mapa = caras.Mapa(video, self.W, self.H, con_texto)
+
+    def _lugar(self, d, defecto, a, b, caja, candidatos=None):
+        """Posición del elemento: la pedida si no tapa nada importante; si tapa, la mejor alternativa cercana."""
+        x, y = self._pos(d.get("pos"), defecto)
+        if self.mapa is None or d.get("fijo"):
+            return x, y
+        import caras
+        reg = self.mapa.regiones(a, b)
+        if not reg:
+            return x, y
+        pen = lambda p: caras.castigo(caja(*p), reg)
+        p0 = pen((x, y))
+        if p0 < 0.05:
+            return x, y
+        if candidatos is None:
+            candidatos = [(round(fx * self.W), round(fy * self.H)) for fy in (0.16, 0.30, 0.45, 0.60)
+                          for fx in (0.14, 0.30, 0.50, 0.70, 0.86)]
+        diag = math.hypot(self.W, self.H)
+        mejor = min(candidatos, key=lambda p: pen(p) + 0.6 * math.hypot(p[0] - x, p[1] - y) / diag)
+        if pen(mejor) < p0 * 0.6:
+            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), round(pen(mejor), 2)))
+            return mejor
+        return x, y
 
     # estilos que se agregan a la cabecera ASS
     def estilos(self):
@@ -338,8 +369,8 @@ class Vivo:
     def icono(self, d, t0):
         a = self._t(d["en"]) - t0
         b = a + float(d.get("dura", 2.0))
-        x, y = self._pos(d.get("pos"))
         r = round(float(d.get("tam", 0.07)) * (self.W if self.vertical else self.H * 1.1))
+        x, y = self._lugar(d, "arriba-izq", t0 + a, t0 + b, lambda x, y: (x - r, y - r, x + r, y + r))
         nombre, ev = d.get("icono", "estrella"), []
         col = d.get("color")
         base = f"Dialogue: 6,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an5\\pos({x},{y}){self._pop(0)}"
@@ -384,13 +415,18 @@ class Vivo:
         s = self.esc
         ancho = round((0.56 if self.vertical else 0.34) * self.W)
         alto = round((110 + 62 * len(items)) * s)
-        x, y = self._pos(d.get("pos"), "derecha" if not self.vertical else "centro")
+        def caja_lista(x, y):
+            x0 = int(min(max(x - ancho // 2, 0.03 * self.W), 0.97 * self.W - ancho))
+            y0 = int(min(max(y - alto // 2, 0.04 * self.H), 0.74 * self.H - alto))
+            return (x0, y0, x0 + ancho, y0 + alto)
+        cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.25, 0.40, 0.55) for fx in (0.20, 0.50, 0.80)]
+        x, y = self._lugar(d, "derecha" if not self.vertical else "centro", t0 + a, t0 + b, caja_lista, cands)
         x0, y0 = x - ancho // 2, y - alto // 2
         if self.vertical:   # dentro de la zona segura: sin tocar la columna de botones de la derecha
             x0 = int(min(max(x0, 0.05 * self.W), 0.84 * self.W - ancho))
             y0 = int(min(max(y0, 0.14 * self.H), 0.78 * self.H - alto))
         else:
-            x0 = int(min(max(x0, 0.03 * self.W), 0.97 * self.W - ancho))
+            x0, y0 = caja_lista(x, y)[:2]
         giro = d.get("giro", -3)
         ev = [f"Dialogue: 2,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0 + 8},{y0 + 10})\\frz{giro}\\1c{c('000000')}\\1a&HA0&\\bord0\\fad(200,250)\\p1}}{rect(ancho, alto, 18)}{{\\p0}}",
               f"Dialogue: 3,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0},{y0})\\frz{giro}\\1c{c(d.get('color', 'FFFDF5'))}\\3c{c('E0D6C2')}\\bord2\\fad(200,250)\\p1}}{rect(ancho, alto, 18)}{{\\p0}}"]
@@ -415,7 +451,10 @@ class Vivo:
         anchos = [round((len(t) * 0.62 * 40 + 60) * s) for t in items]
         alto = round(70 * s)
         sep = round(70 * s)
-        cy = self._pos(d.get("pos"), "centro")[1]
+        total_h = sum(anchos) + (len(items) - 1) * sep
+        caja_f = lambda x, y: (self.W // 2 - total_h // 2, y - alto // 2, self.W // 2 + total_h // 2, y + alto // 2)
+        cands = [(self.W // 2, round(fy * self.H)) for fy in (0.08, 0.16, 0.26, 0.38, 0.50, 0.62, 0.72)]
+        cy = self._lugar(d, "centro", t0 + a, t0 + b, caja_f, cands)[1]
         if self.vertical:   # en columna
             total = len(items) * alto + (len(items) - 1) * sep
             ys = [cy - total // 2 + k * (alto + sep) for k in range(len(items))]
@@ -473,10 +512,11 @@ class Vivo:
         (más desliza, sello y brillo)."""
         a = self._t(d["en"]) - t0
         b = a + float(d.get("dura", 1.6))
-        x, y = self._pos(d.get("pos"), "centro")
-        color = d.get("color", self.e["clave"])
         tam, bord = round(d.get("tam", 150) * self.esc), round(10 * self.esc)
         txt = limpio(d["texto"])
+        mw, mh = len(txt) * tam * 0.31 + bord, tam * 0.6 + bord
+        x, y = self._lugar(d, "centro", t0 + a, t0 + b, lambda x, y: (x - mw, y - mh, x + mw, y + mh))
+        color = d.get("color", self.e["clave"])
         estilo = f"\\fs{tam}\\c{c(color)}\\bord{bord}"
         n = nombre_animacion(d.get("entrada", "pop"))
         linea = lambda ini, fin, tags, texto: f"Dialogue: 6,{ts(ini)},{ts(fin)},Vivo,,0,0,0,,{{\\an5{tags}{estilo}}}{texto}"

@@ -57,8 +57,8 @@ textarea{width:100%;min-height:54px;resize:vertical}
 footer{border-top:1px solid var(--linea);background:var(--panel);min-width:0}
 #controles{display:flex;gap:10px;align-items:center;padding:8px 16px}
 #tiempo{font:600 14px Consolas,monospace;min-width:130px}
-#linea{position:relative;width:100%;overflow-x:auto;overflow-y:hidden;height:196px;border-top:1px solid var(--linea)}
-#pista{position:relative;height:100%}
+#linea{position:relative;width:100%;overflow:auto;height:auto;max-height:42vh;border-top:1px solid var(--linea)}
+#pista{position:relative;min-height:100%}
 .carril{position:absolute;left:0;right:0;height:24px;border-bottom:1px solid #20262e}
 .carril-nombre{position:sticky;left:0;z-index:3;display:inline-block;width:96px;height:24px;line-height:24px;padding-left:8px;font-size:11px;color:var(--suave);background:var(--panel)}
 .blq{position:absolute;top:3px;height:18px;border-radius:4px;font-size:10px;line-height:18px;padding:0 4px;overflow:hidden;white-space:nowrap;cursor:pointer;color:#111}
@@ -66,7 +66,14 @@ footer{border-top:1px solid var(--linea);background:var(--panel);min-width:0}
 #cabezal{position:absolute;top:0;bottom:0;width:2px;background:var(--acento);z-index:4;pointer-events:none}
 #regla{position:absolute;top:0;height:16px;left:0;right:0;font-size:10px;color:var(--suave)}
 #regla i{position:absolute;top:0;border-left:1px solid #3a424d;height:16px;padding-left:3px;font-style:normal}
-@media (max-width:900px){main{grid-template-columns:1fr}aside{border-left:0;border-top:1px solid var(--linea)}}
+/* pantalla angosta, con zoom o poco alta: la página entera se desplaza hacia abajo y el visor guarda su espacio */
+@media (max-width:1000px),(max-height:700px){
+  body{height:auto;min-height:100vh;overflow:auto;display:flex;flex-direction:column}
+  main{display:contents}                       /* orden: visor, línea de tiempo, y abajo los paneles de estilo */
+  header{order:0} #escenario{order:1} footer{order:2} aside{order:3}
+  #escenario{height:62vh;min-height:300px}
+  aside{border-left:0;border-top:1px solid var(--linea);overflow:visible}
+  #linea{max-height:none}}
 </style>
 </head>
 <body>
@@ -192,10 +199,12 @@ document.querySelectorAll("#formato button").forEach(b=>b.onclick=()=>ponerForma
 function dims(){return formato==="celular"?[1080,1920]:[1920,1080]}
 function medir(){
   const [W,H]=dims(), caja=$("#escenario").getBoundingClientRect();
-  const k=Math.min((caja.width-40)/W,(caja.height-40)/H); const m=$("#marco");
+  const alto=caja.height>160?caja.height:Math.max(300,innerHeight*0.6);   // si el visor quedó sin alto, se le da uno
+  const k=Math.max(0.05,Math.min((caja.width-40)/W,(alto-40)/H)); const m=$("#marco");
   m.style.width=W*k+"px";m.style.height=H*k+"px";m.classList.toggle("yt",formato!=="celular");
 }
 addEventListener("resize",()=>{medir();zona()});
+if(window.ResizeObserver)new ResizeObserver(()=>medir()).observe($("#escenario"));
 function zona(){const z=$("#zona");z.style.display=$("#verZona").checked&&formato==="celular"?"block":"none";
   z.innerHTML=[[0,0,100,12],[0,80,100,20],[86,38,14,42]].map(([x,y,w,h])=>`<div style="left:${x}%;top:${y}%;width:${w}%;height:${h}%"></div>`).join("")}
 $("#verZona").addEventListener("change",zona);
@@ -285,6 +294,7 @@ function linea(){
     c.onclick=ev=>{const blq=ev.target.closest(".blq");const x=ev.clientX-$("#pista").getBoundingClientRect().left-100;
       if(blq){const b=datos[blq.dataset.c][blq.dataset.i];ir(b.a);if(b.el){$("#detalle").style.display="block";$("#detalle").textContent=JSON.stringify(b.el.datos,null,1)}}
       else if(x>0)ir(x/pps)};P.appendChild(c)});
+  P.style.height=(16+CARRILES.length*25+8)+"px";   // todos los carriles caben y se puede bajar a verlos
   $("#resumen").textContent=`${D.escenas.length} escenas · ${grupos.length} grupos de subtítulo · ${D.elementos.length} elementos · ${notas.length} notas`;
 }
 $("#zoom").addEventListener("input",linea);
