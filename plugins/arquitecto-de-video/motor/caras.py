@@ -14,7 +14,7 @@ try:
 except Exception:
     FFMPEG = "ffmpeg"
 
-PESO_CARA, PESO_GLOBO, PESO_TEXTO = 10.0, 4.0, 3.0
+PESO_CARA, PESO_GLOBO, PESO_TEXTO = 10.0, 1.5, 2.0      # una cara pesa mucho más: antes se tapa un globo que una cara
 ANCHO = 640
 
 
@@ -106,10 +106,12 @@ class Mapa:
         return self.cache[k]
 
     def regiones(self, a, b):
-        ts = [a + 0.25, (a + b) / 2, max(a + 0.3, b - 0.3)] if b - a > 1 else [(a + b) / 2]
+        # un cuadro por segundo (máximo 8): si el elemento sigue en pantalla cuando cambia la escena, también se mira la siguiente
+        n = max(1, min(8, int(b - a) + 1))
+        ts = [a + 0.25 + (b - a - 0.5) * i / max(1, n - 1) for i in range(n)] if b - a > 1 else [(a + b) / 2]
         out = []
-        for t in ts:
-            out += self.en(t)
+        for t in ts:                      # promedio entre cuadros: el castigo no crece con la cantidad de cuadros mirados
+            out += [(r, p / len(ts), tipo) for r, p, tipo in self.en(t)]
         return out
 
 

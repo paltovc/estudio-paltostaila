@@ -238,6 +238,8 @@ class Vivo:
         if pen(mejor) < p0 * 0.6:
             self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), round(pen(mejor), 2)))
             return mejor
+        if p0 >= 0.5:        # no hubo un lugar mejor: queda anotado para revisarlo a mano (terminado.py lo marca)
+            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), (x, y), round(p0, 2), round(p0, 2)))
         return x, y
 
     # estilos que se agregan a la cabecera ASS
