@@ -6,7 +6,7 @@
 #   python terminar.py "C:\ruta\video" --solo-audio     rehace el audio y lo cambia sin recodificar la imagen
 import json, os, re, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes, apartar_anterior
 import vivo
 
 pr = Proyecto()
@@ -122,9 +122,9 @@ def preparar():
         if SUB.get("evitar_caras", True) and pr.cfg.get("elementos"):   # no tapar caras, cabezas, globos ni texto
             v.usar_mapa(pr.tmp / "solo_video.mp4", SUB.get("evitar_texto", True))
         elementos = v.elementos()
-        if v.movidos:
+        if SUB.get("evitar_caras", True) and pr.cfg.get("elementos"):    # el registro se escribe siempre, aunque nada se haya movido
             rep = [f"{a:7.1f} s  {tipo:7s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in v.movidos]
-            rep.insert(0, "# segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras o cabezas)")
+            rep.insert(0, f"# version: {pr.base_nombre} · segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras o cabezas)")
             (pr.tmp / "capa_viva_lugares.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
             print(f"capa viva: {len(v.movidos)} elementos corridos para no tapar caras o texto (tmp/capa_viva_lugares.txt)", flush=True)
         dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []
@@ -183,12 +183,19 @@ def main():
         return
     finales = ((f"{pr.base_nombre}_youtube.mp4", "tmp/rotulos.ass"),                # sin subtitulos (el .srt se sube aparte)
                (f"{pr.base_nombre}_con-subtitulos.mp4", "tmp/todo.ass"))
+    ya = [n for n, _ in finales if (pr.salida / n).exists()]
+    if ya and "--rehacer" not in sys.argv and "--solo-audio" not in sys.argv:
+        sys.exit(f"Ya existe {', '.join(ya)}: sube \"version\" en proyecto.json para una versión nueva, "
+                 f"o agrega --rehacer (la entrega anterior queda guardada como *_anterior-<fecha>.mp4)")
     if "--solo-audio" in sys.argv:
         for nombre, _ in finales:
             parcial = nombre.replace(".mp4", ".parcial.mp4")
             run([FFMPEG, "-v", "error", "-y", "-i", nombre, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
                  "-c", "copy", "-movflags", "+faststart", parcial], cwd=pr.salida)
-            (pr.salida / parcial).replace(pr.salida / nombre)
+            guardada = apartar_anterior(pr.salida / nombre)
+            if guardada:
+                print("la entrega anterior quedó como", guardada.name, flush=True)
+            (pr.salida / parcial).rename(pr.salida / nombre)
             print("audio cambiado:", nombre, flush=True)
         return
     fades = f"fade=t=in:d=0.5,fade=t=out:st={dur - 1.2:.3f}:d=1.2"
@@ -200,7 +207,10 @@ def main():
         parcial = nombre.replace(".mp4", ".parcial.mp4")
         run([FFMPEG, "-v", "error", "-y", "-i", solo, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
              "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", "-movflags", "+faststart", parcial], cwd=pr.salida)
-        (pr.salida / parcial).replace(pr.salida / nombre)
+        guardada = apartar_anterior(pr.salida / nombre)
+        if guardada:
+            print("la entrega anterior quedó como", guardada.name, flush=True)
+        (pr.salida / parcial).rename(pr.salida / nombre)
         print("listo:", pr.salida / nombre, flush=True)
     print("LISTO", flush=True)
 

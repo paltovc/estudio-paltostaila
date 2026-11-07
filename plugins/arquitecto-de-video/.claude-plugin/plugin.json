@@ -1,6 +1,6 @@
 {
   "name": "arquitecto-de-video",
-  "version": "0.11.2",
+  "version": "0.12.0",
   "description": "Estudio de video y audio con 15 agentes: tendencias y análisis de videos exitosos, guion, imágenes con personaje constante, clips de Flow, voz, subtítulos dinámicos y elementos animados, sala de edición, edición de tomas a cámara, diseño de miniaturas, evaluación con nota y clasificación antes de publicar, render y paquete para YouTube, TikTok e Instagram.",
   "author": {
     "name": "Estudio Paltostaila"

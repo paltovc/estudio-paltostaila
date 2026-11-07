@@ -335,14 +335,14 @@ function paquete(){
   return{subtitulos:s,estilo_cambiado:estiloCambiado,notas,borradas,autor:$("#autor").value.trim(),medio:medio&&medio.nombre,formato};
 }
 async function guardar(){
-  const r=await fetch("/guardar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(paquete())});const j=await r.json();
+  const r=await fetch("/guardar",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign(paquete(),{proyecto:D.ruta}))});const j=await r.json();
   if(j.ok){sinGuardar=false;estiloCambiado=false;borradas=[];notas=j.notas;dibujarNotas();linea();
     estado(`Guardado${j.respaldo?" (respaldo del proyecto en "+j.respaldo+")":""}. Las notas de todos quedaron juntas. Dile a Claude: "aplica las notas de la sala".`)}
   else estado("Error al guardar: "+j.error);return j.ok;
 }
 $("#btnGuardar").onclick=guardar;
 $("#btnPrueba").onclick=async()=>{if(!(await guardar()))return;const t=ahora();estado("Renderizando 12 s con el motor… (unos 20–40 s)");$("#btnPrueba").disabled=true;
-  try{const r=await fetch("/prueba",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({t,formato,segundos:10})});const j=await r.json();
+  try{const r=await fetch("/prueba",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({t,formato,segundos:10,proyecto:D.ruta})});const j=await r.json();
     if(!j.ok)throw new Error(j.error);const m={nombre:"Prueba real "+fmt(t),tipo:"video",ruta:j.ruta+"?v="+Date.now(),con_subtitulos:true,desde:j.desde};
     D.medios.unshift(m);$("#medio").innerHTML=D.medios.map((m,i)=>`<option value="${i}">${m.nombre}</option>`).join("");$("#medio").value=0;elegirMedio(0);
     vid.addEventListener("loadedmetadata",()=>{vid.currentTime=Math.max(0,t-j.desde-.5);vid.play()},{once:true});estado("Prueba real cargada: esto es exactamente lo que saldrá en el render.")}

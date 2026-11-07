@@ -19,9 +19,10 @@ def punto(n, obligatorio, texto, ok, detalle=""):
 
 
 def ff(*a):
+    """stderr de un análisis de ffmpeg; None si ffmpeg falló (entonces el punto queda «no comprobado», nunca aprobado)."""
     r = subprocess.run([str(FFMPEG), "-hide_banner", *map(str, a), "-f", "null", "-"], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
-    return r.stderr
+    return None if r.returncode else r.stderr
 
 
 yt = pr.salida / f"{base}_youtube.mp4"
@@ -35,28 +36,38 @@ if yt.exists():
     dv, dz = duracion_medio(yt), pr.duracion()
     punto(2, True, "La duración calza con la voz (±1,5 s)", abs(dv - dz) <= 1.5, f"video {dv:.1f} s · voz {dz:.1f} s")
     # 3. volumen
-    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", ff("-i", yt, "-af", "ebur128", "-vn"))
+    e = ff("-i", yt, "-af", "ebur128", "-vn")
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", e or "")
     lufs = float(m[-1]) if m else None
-    punto(3, True, "Volumen -14 LUFS (±1)", lufs is not None and abs(lufs + 14) <= 1, f"{lufs} LUFS")
+    punto(3, True, "Volumen -14 LUFS (±1)", None if lufs is None else abs(lufs + 14) <= 1,
+          f"{lufs} LUFS" if lufs is not None else "no se pudo medir")
     # 4. negros
-    negros = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)",
-                                                         ff("-i", yt, "-vf", "blackdetect=d=0.4:pix_th=0.08", "-an"))]
-    medio = [(a, b) for a, b in negros if a > 1.0 and b < dv - 1.5]
-    punto(4, True, "Sin pantallas negras en medio del video", not medio, ", ".join(f"{a:.1f}-{b:.1f} s" for a, b in medio))
+    e = ff("-i", yt, "-vf", "blackdetect=d=0.4:pix_th=0.08", "-an")
+    if e is None:
+        punto(4, True, "Sin pantallas negras en medio del video", None, "ffmpeg no pudo analizar el video")
+    else:
+        negros = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", e)]
+        medio = [(a, b) for a, b in negros if a > 1.0 and b < dv - 1.5]
+        punto(4, True, "Sin pantallas negras en medio del video", not medio, ", ".join(f"{a:.1f}-{b:.1f} s" for a, b in medio))
 else:
     for n, t in ((2, "La duración calza con la voz"), (3, "Volumen -14 LUFS"), (4, "Sin pantallas negras")):
         punto(n, True, t, False, "no hay video")
 # 5. capa viva sin tapar caras
 lug = pr.tmp / "capa_viva_lugares.txt"
 if pr.cfg.get("elementos"):
-    malos = []
-    if lug.exists():
-        for l in lug.read_text(encoding="utf-8").splitlines():
+    txt = lug.read_text(encoding="utf-8") if lug.exists() else ""
+    if not lug.exists():
+        punto(5, True, "La capa viva no tapa caras ni texto de la imagen", None, "sin registro: no se comprobó (render sin evitar_caras)")
+    elif f"version: {base}" not in txt.splitlines()[0] if txt else True:
+        punto(5, True, "La capa viva no tapa caras ni texto de la imagen", None, "el registro es de otra versión: volver a correr terminar.py")
+    else:
+        malos = []
+        for l in txt.splitlines():
             m = re.search(r"^\s*([\d.]+) s\s+(\w+).*ahora ([\d.]+)\)", l)
             if m and float(m.group(3)) >= 1:
                 malos.append(f"{m.group(2)} en {m.group(1)} s")
-    punto(5, True, "La capa viva no tapa caras ni texto de la imagen", not malos,
-          ("revisar a mano: " + ", ".join(malos)) if malos else ("sin conflictos" if lug.exists() else "sin registro (render sin evitar_caras)"))
+        punto(5, True, "La capa viva no tapa caras ni texto de la imagen", not malos,
+              ("revisar a mano: " + ", ".join(malos)) if malos else "sin conflictos")
 else:
     punto(5, True, "La capa viva no tapa caras ni texto de la imagen", True, "sin elementos")
 # 6. versión anterior conservada
@@ -87,11 +98,14 @@ if pr.cfg.get("vertical"):
 else:
     punto(10, False, "Shorts de esta versión", True, "no se pidieron")
 
-ok = all(r[3] for r in R if r[1])
-lineas = [f"# ¿Terminado? {base}", "", f"**{'SÍ: lo obligatorio pasa' if ok else 'NO: falla algo obligatorio'}**", "",
+ok = all(r[3] is True for r in R if r[1])          # «no comprobado» (None) no cuenta como aprobado
+nc = [str(r[0]) for r in R if r[1] and r[3] is None]
+lineas = [f"# ¿Terminado? {base}", "", f"**{'SÍ: lo obligatorio pasa' if ok else 'NO: falla algo obligatorio' + (' o no se pudo comprobar (' + ', '.join(nc) + ')' if nc else '')}**", "",
+          "✓ aprobado · ✗ falla · ? no comprobado (cuenta como no terminado) · – recomendado que falta", "",
           "| # | punto | | detalle |", "|---|---|---|---|"]
 for n, ob, t, k, d in R:
-    lineas.append(f"| {n} | {t}{'' if ob else ' (recomendado)'} | {'✓' if k else ('✗' if ob else '–')} | {d} |")
+    marca = "?" if k is None else ("✓" if k else ("✗" if ob else "–"))
+    lineas.append(f"| {n} | {t}{'' if ob else ' (recomendado)'} | {marca} | {d} |")
 sal = pr.salida / f"terminado_{base}.md"
 sal.write_text("\n".join(lineas) + "\n", encoding="utf-8")
 print("\n".join(lineas[2:]), flush=True)

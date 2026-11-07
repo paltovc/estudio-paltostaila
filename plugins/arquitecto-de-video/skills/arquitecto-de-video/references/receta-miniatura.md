@@ -9,5 +9,5 @@ Se mide qué hace funcionar una miniatura y se escribe una receta propia: reglas
    - Reglas (5-8 líneas, con los números medidos).
    - Prompt para ChatGPT o Nano Banana con la ficha maestra del personaje adjunta (ver `prompts.md`): escena, expresión, objeto, fondo y paleta en hex, espacio libre donde irá el texto. El texto se pone después (Canva o `miniatura.py`), no dentro del generador.
    - 3 variantes de texto (en el idioma del canal) para "Probar y comparar" de YouTube.
-5. **Armar:** con `diseno.py` (plantilla `miniatura-lado` o `miniatura-centro` con el kit de marca del canal; ver `diseno-local.md`), con `miniatura.py`, o en una **copia** del diseño en Canva con el conector (nunca en el original de la pareja). Exportar 1280x720 y revisar a 160 px de ancho (como se ve en el celular): el texto se tiene que leer.
+5. **Armar:** con `diseno.py` (plantilla `miniatura-lado` o `miniatura-centro` con el kit de marca del canal; ver `diseno-local.md`), con `miniatura.py`, o, si la persona lo pide, en una **copia** del diseño en Canva con el conector (nunca en el original de la pareja ni sin permiso). Exportar 1280x720 y revisar a 160 px de ancho (como se ve en el celular): el texto se tiene que leer.
 6. Entregar la receta al publicador para el paquete y guardarla en la biblia del canal si se repite en varios videos.

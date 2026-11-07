@@ -1,5 +1,6 @@
-# Prueba del motor: crea un video de 12 s con datos inventados en una carpeta temporal,
-# lo arma completo y revisa el resultado. No toca nada fuera de esa carpeta.
+# Prueba del motor: primero pruebas rápidas de las protecciones (sin render); después crea un video de 12 s con datos
+# inventados en una carpeta temporal, lo arma completo (con transiciones de cuadros impares) y revisa el resultado.
+# No toca nada fuera de esa carpeta.
 #   python prueba.py            (borra la carpeta al terminar si todo salio bien)
 import json, shutil, subprocess, sys, tempfile
 from pathlib import Path
@@ -23,6 +24,38 @@ def paso(*args):
     return r.stdout
 
 
+def paso_falla(texto, *args):
+    """El paso debe negarse (código distinto de 0) y decir `texto`."""
+    r = subprocess.run([py, *args], cwd=AQUI, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    sal = r.stdout + r.stderr
+    bien = r.returncode != 0 and texto in sal
+    print(("OK   " if bien else "FALLA") + f" {args[0]} se niega: {texto}")
+    if not bien:
+        print(sal[-1200:])
+        sys.exit(f"La protección de {args[0]} no funcionó. Carpeta conservada: {carpeta}")
+
+
+# ---- pruebas rápidas (sin render) ----
+from estudio import nombre_libre, destino
+tmp = Path(tempfile.mkdtemp(prefix="prueba_rapida_"))
+f = tmp / "a.mp4"; f.write_bytes(b"x")
+assert nombre_libre(tmp / "b.mp4") == tmp / "b.mp4"
+assert nombre_libre(f) == tmp / "a_2.mp4", nombre_libre(f)
+assert destino(f) == tmp / "a_2.mp4"
+try:
+    destino(f, f); raise AssertionError("destino aceptó escribir sobre la entrada")
+except SystemExit:
+    pass
+print("OK   nombre_libre / destino: nunca se pisa un archivo ni la entrada")
+import revisar_idioma as ri
+assert ri.sospechosas("BILL $$$") == ["BILL"] and ri.sospechosas("FEES") == ["FEES"]
+assert ri.sospechosas("Comisiones que podrían evitarse") == [] and ri.sospechosas("CREENCIAS antes de invertir") == []
+print("OK   revisar_idioma: reconoce inglés y deja pasar el español")
+seg = tmp / "v_doblaje"; seg.mkdir()
+(seg / "segmentos.json").write_text(json.dumps({"video": str(f), "segmentos": [{"id": 1, "traduccion": "hola"}]}), encoding="utf-8")
+paso_falla("no se borran", "doblaje.py", "preparar", str(f), "--carpeta", str(seg))
+shutil.rmtree(tmp, ignore_errors=True)
+
 paso("nuevo_proyecto.py", str(carpeta), "--nombre", "VideoPrueba")
 for i, color in enumerate([(36, 99, 166), (64, 182, 107)], 1):
     im = Image.new("RGB", (1536, 1024), color)
@@ -43,15 +76,27 @@ for w in texto:
     "2;img_2.png;0:06.00;0:12.00;6;Si ves este video;imagen;;\n", encoding="utf-8-sig")
 cfg = json.loads((carpeta / "proyecto.json").read_text(encoding="utf-8"))
 cfg.update({"escenas_capitulo": [2],
+            "transiciones": {"normal": ["fade", 13], "capitulo": ["smoothleft", 17], "plano": ["fade", 7]},   # impares a propósito
             "rotulos": [{"frase": "Si ves este video", "chico": "PRUEBA", "grande": "El motor funciona", "segundos": 3}],
             "vertical": [{"nombre": "Short_Prueba", "desde": "Esta es una prueba", "titulo": "Prueba"}]})
 (carpeta / "proyecto.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
+receta = carpeta / "06_RECETA" / "receta.csv"
+contenido = receta.read_text(encoding="utf-8-sig")
+receta.write_text("numero;archivo;inicio;fin;duracion;frase;tipo;origen;nota\n", encoding="utf-8-sig")
+paso_falla("no tiene escenas", "frases.py", str(carpeta), "--validar")
+receta.write_text(contenido, encoding="utf-8-sig")
 paso("frases.py", str(carpeta), "--validar")
 paso("armar.py", str(carpeta))
 paso("sonidos.py", str(carpeta))
 paso("terminar.py", str(carpeta))
+paso_falla("Ya existe", "terminar.py", str(carpeta))
+paso("terminar.py", str(carpeta), "--rehacer")
+if not list((carpeta / "07_RENDER").glob("*_anterior-*.mp4")):
+    sys.exit(f"--rehacer no guardó la entrega anterior. Carpeta conservada: {carpeta}")
+print("OK   terminar.py --rehacer guarda la entrega anterior")
 paso("vertical.py", str(carpeta))
+paso("terminado.py", str(carpeta))
 informe = paso("revisar.py", str(carpeta))
 if "0 puntos a revisar" in informe:
     shutil.rmtree(carpeta.parent, ignore_errors=True)

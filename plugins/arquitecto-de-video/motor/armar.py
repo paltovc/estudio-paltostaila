@@ -78,11 +78,13 @@ def tomas():
         else:
             lista.append(dict(n=n, tipo="img", src=img, a=a, b=b, cam=escalar(MOVS[k % len(MOVS)], (b - a) / FPS), t=t_escena))
         k += 1
+    if not lista:
+        sys.exit("La receta no tiene escenas: revisa 06_RECETA\\receta.csv (python frases.py --validar)")
     lista[0]["t"] = None
     for i, s in enumerate(lista):   # medias transiciones antes y despues de cada toma
         d_in = s["t"][1] if s["t"] else 0
         d_out = lista[i + 1]["t"][1] if i + 1 < len(lista) else 0
-        s["pre"], s["post"] = d_in // 2, d_out // 2
+        s["pre"], s["post"] = d_in // 2, d_out - d_out // 2      # pre + post de la siguiente = transición completa (también si es impar)
         s["ea"] = s["a"] - s["pre"]
         s["ne"] = (s["b"] + s["post"]) - s["ea"]
         if s["b"] - s["a"] < s["pre"] + s["post"] + 2:
@@ -164,6 +166,8 @@ def main():
     n = int(run([FFPROBE, "-v", "error", "-count_packets", "-select_streams", "v", "-show_entries",
                  "stream=nb_read_packets", "-of", "csv=p=0", salida]).strip())
     print(f"cuadros: {n} (esperados {total}) {'OK' if n == total else 'REVISAR'}", flush=True)
+    if abs(n - total) > 2:
+        sys.exit(f"ERROR: el video armado tiene {n} cuadros y debían ser {total}: la imagen se desfasa de la voz. No seguir con terminar.py")
     clips = {}
     for s in lista:
         if s["tipo"] == "clip" and s["clave"] not in clips:

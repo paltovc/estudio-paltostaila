@@ -113,6 +113,10 @@ def main():
     if not a:
         sys.exit("Uso: ver el encabezado de audio.py")
     op = lambda k, d=None: a[a.index(k) + 1] if k in a else d
+    from estudio import destino
+    k = {"limpiar": 2, "normalizar": 2, "efecto": 2, "mezclar": 3}.get(a[0])
+    if k is not None and len(a) > k:
+        a[k] = str(destino(a[k], *a[1:k]))
     if a[0] == "medir":
         lufs, pico, ruido = medir(a[1])
         print(f"volumen {lufs:.1f} LUFS (objetivo -14) · pico {pico:.1f} dBFS · ruido de fondo {ruido if ruido is not None else '?'} dB")

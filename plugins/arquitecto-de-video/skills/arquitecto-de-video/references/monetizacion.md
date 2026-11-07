@@ -18,7 +18,7 @@ Los videos del estudio son narración con imágenes: justo el formato que más v
 4. Variedad real entre videos de una serie: el formato puede repetirse, el contenido no. Si dos guiones de la serie dicen casi lo mismo, el revisor lo marca.
 5. Voz con licencia de uso comercial (la página de voz del canal; edge-tts no la da explícita).
 6. Ningún trozo de video, audio, música o texto de otro canal. El material de referentes se estudia, no se usa.
-7. Imágenes de banco o de archivo: licencia anotada en `03_IMAGENES/licencias.csv` (archivo; fuente; licencia; pide crédito sí/no; enlace). Pexels permite uso comercial sin crédito pero prohíbe mostrar a personas identificables de forma ofensiva o como si respaldaran algo; en Wikimedia Commons cada archivo tiene su licencia y CC BY pide crédito en la descripción.
+7. Imágenes de banco o de archivo (solo si la persona lo pide; por defecto, imágenes propias): licencia anotada en `03_IMAGENES/licencias.csv` (archivo; fuente; licencia; pide crédito sí/no; enlace). Pexels permite uso comercial sin crédito pero prohíbe mostrar a personas identificables de forma ofensiva o como si respaldaran algo; en Wikimedia Commons cada archivo tiene su licencia y CC BY pide crédito en la descripción.
 8. Música propia (como las canciones del canal de bachata): confirmar que el servicio con que se crearon da derechos comerciales y guardar el comprobante.
 9. Menores de edad: si aparece un niño o niña real, la persona decide si sale en un video público. Al subir, YouTube pide declarar si el video es "para niños"; que aparezcan niños es uno de los factores que YouTube considera, así que revisarlo en su página de ayuda antes de responder.
 

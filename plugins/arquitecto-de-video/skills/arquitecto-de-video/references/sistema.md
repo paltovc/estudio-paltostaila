@@ -22,3 +22,8 @@ Cuando la persona corrige lo mismo dos veces:
 3. ¿El chat ya era muy largo? Abrir uno nuevo dentro del Proyecto: el documento vivo guarda el estado.
 4. ¿Se dieron las reglas esta vez?
 5. ¿Había cómo saber que terminó bien? Correr `terminado.py`.
+
+
+## Estados de terminado (0.12)
+
+✓ aprobado · ✗ falla · ? no comprobado (falta el registro, el registro es de otra versión o ffmpeg falló: **cuenta como no terminado**) · – recomendado que falta. El registro de la capa viva (`tmp/capa_viva_lugares.txt`) se escribe siempre y lleva en la primera línea la versión a la que pertenece.

@@ -55,6 +55,8 @@ def validar():
     filas = pr.escenas()
     dur = pr.duracion()
     errores, avisos = [], []
+    if not filas:
+        errores.append("la receta no tiene escenas")
     for i, r in enumerate(filas):
         if not r["archivo"] or not (pr.imagenes / r["archivo"]).exists():
             errores.append(f"escena {r['n']}: falta la imagen '{r['archivo']}'")

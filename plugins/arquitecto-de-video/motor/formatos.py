@@ -38,7 +38,8 @@ def video(ruta, formatos="1x1,4x5,9x16", modo="relleno", cx=0.5):
         else:
             fc = (f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}:(iw-{W})*{cx}:(ih-{H})/2,"
                   f"setsar=1,format=yuv420p[v]")
-        sal = ruta.with_name(f"{ruta.stem}_{fm}.mp4")
+        from estudio import destino
+        sal = destino(ruta.with_name(f"{ruta.stem}_{fm}.mp4"), ruta)
         run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-c:v", "libx264",
              "-preset", "veryfast", "-crf", "18", "-c:a", "copy", "-movflags", "+faststart", sal])
         print("listo:", sal, flush=True)
@@ -135,7 +136,8 @@ def main():
             k, v = x.split("=", 1)
             datos[k] = v.replace("\\n", "\n")
         base = Path(op("--base") or (Path(op("--datos")).parent if op("--datos") else Path.cwd()))
-        sal = Path(op("--salida") or base / f"{pl.stem}_animada.mp4")
+        from estudio import destino
+        sal = destino(op("--salida") or base / f"{pl.stem}_animada.mp4")
         animar(plantilla, datos, base, sal, float(op("--dur", 4)), op("--estilo", "subir"), op("--canal"))
         print("LISTO", sal)
 

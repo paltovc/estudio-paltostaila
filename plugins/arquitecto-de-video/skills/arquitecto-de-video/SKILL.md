@@ -35,10 +35,10 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 | 4 | Voz | la persona (su página de voz) | audios en `02_VOZ` | — |
 | 5 | Transcripción | `transcriptor` | `06_RECETA/transcripcion.json`, correcciones en `proyecto.json` | — |
 | 5b | Recorte de pausas | `transcriptor` | `02_VOZ_RECORTADA/`, tiempos reajustados (`recortar_pausas.py`) | sí de la persona la primera vez por canal |
-| 6 | Receta de escenas | `editor-de-escenas` | `06_RECETA/receta.csv`, planos y rótulos en `proyecto.json` | **B: aprobar receta** |
+| 6 | Receta de escenas | `editor-de-escenas` | `06_RECETA/receta.csv`, planos y rótulos en `proyecto.json` | **B: revisar receta** (en la sala, después de la primera versión) |
 | 7 | Movimiento (Flow) | `director-de-movimiento` | `04_CLIPS_FLOW/PLAN_MOVIMIENTO.md` y texto para el agente de Flow | **C: gastar créditos** (la persona genera) |
 | 8 | Sonido | `sonidista` | efectos en `proyecto.json`, `tmp/efectos.wav` | — |
-| 9 | Montaje y render | `montajista` | borrador 60 s → **D: aprobar borrador** → finales en `07_RENDER` | **D** |
+| 9 | Montaje y render | `montajista` | primera versión completa en `07_RENDER` → **D: revisar en la sala** → versión nueva con las notas | **D** (después, no antes) |
 | 9b | Control de calidad | `control-de-calidad` | `07_RENDER/revision/informe.txt` + hallazgos + `terminado_<ID>_<versión>.md` (`python terminado.py`) | **E: escuchar y aprobar** |
 | 9c | Evaluación y potencial | `evaluador` | `06_RECETA/evaluacion_<video>_final.md`: nota por ejes, clase A/B/C, potencial, 5 mejoras con minuto, momentos para Shorts | parte de **E** (con clase C no se publica) |
 | 10 | Publicación | `publicador` | `08_PUBLICAR/<plataforma>/` (3 variantes para "Probar y comparar", descripción, capítulos, 3 Shorts, comentario fijado) | **F: publicar** (lo hace la persona) |
@@ -46,7 +46,7 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 
 Regla de clips: si llegan clips de Flow después de un armado, volver a armar (versión nueva) antes de entregar; nunca entregar un final cuyo informe de revisión no diga OK en todos los clips.
 
-Puertas: mostrar un resumen corto de lo que se aprueba (no el archivo entero) y esperar un sí. Si la persona no está, dejar la pregunta en `00_ESTADO.md` y avanzar solo con trabajo que no dependa de esa respuesta.
+Puertas: A (guion), C (créditos), E (escuchar) y F (publicar) esperan un sí **antes** de seguir. B (receta) y D (borrador) **no frenan** la primera versión: se revisan después en la sala de edición y sus notas entran en la versión siguiente (así lo pidió Patricio). Para cada puerta, mostrar un resumen corto de lo que se aprueba (no el archivo entero). Si la persona no está, dejar la pregunta en `00_ESTADO.md` y avanzar solo con trabajo que no dependa de esa respuesta.
 
 ## Trabajo en paralelo
 
@@ -62,7 +62,8 @@ Cada encargo a un agente incluye: carpeta del video, canal, etapa, qué entregar
 ## Estilo propio, sala de edición y material grabado
 
 - **Capa viva** (`references/capa-viva.md`): todo video sale por defecto con subtítulos dinámicos del preset de su canal y elementos que entran en la palabra (íconos, tarjeta escrita a mano, fichas en cadena, lluvia de billetes, número gigante). El `editor-de-escenas` propone los `elementos` junto con la receta (puerta B) y el `montajista` muestra una prueba con `vivo.py --prueba` antes del borrador. Todo es dibujo propio: nunca stickers, clips ni memes de otros.
-- **Nunca decir "listo" sin `terminado.py`:** la lista de terminado se revisa con sí o no y se entrega tal cual. Si algo se corrige dos veces, proponer la regla que faltó (`references/sistema.md`) y esperar el sí de la persona antes de agregarla.
+- **Nunca decir "listo" sin `terminado.py`:** la lista de terminado se revisa con sí o no y se entrega tal cual. Un punto con `?` (no comprobado) cuenta como no terminado. Para repetir el render de la misma versión hay que pasar `--rehacer` a `terminar.py` (la entrega anterior queda como `*_anterior-<fecha>.mp4`); lo normal es subir `"version"` en `proyecto.json`.
+- **Videos editados fuera del estudio (CapCut):** antes de darlos por buenos, `revisar_idioma.py` busca texto en inglés dentro de la imagen; las imágenes se traducen (`texto_imagen.py`, o Codex/ChatGPT con el sí de la persona porque gasta su plan) y se cambian con `reemplazar_imagen.py` en una versión nueva. Si algo se corrige dos veces, proponer la regla que faltó (`references/sistema.md`) y esperar el sí de la persona antes de agregarla.
 - **Herramientas propias aprendidas de CapCut y Canva** (`references/herramientas-propias.md`): traducir el texto dentro de las imágenes (`texto_imagen.py`), gráficos animados con la marca (`graficos.py`), audio limpio y música con ducking (`audio.py`), efectos de imagen (`efectos.py`), pantalla verde / persona en una esquina / pantalla dividida / máscaras (`capas.py`), PDF o PowerPoint a curso (`presentacion.py`), seguimiento de movimiento (`seguimiento.py`), formatos 1:1-4:5-9:16 y portada animada (`formatos.py`), mejorar resolución (`mejorar.py`) y doblaje EN→ES (`doblaje.py`). Ofrecerlas cuando sirvan: gráficos cuando el guion da cifras, `texto_imagen.py` cuando una imagen trae texto en otro idioma, `audio.py` en material grabado.
 - **Primera versión automática + sala de edición** (`references/sala-de-edicion.md`): después de aprobado el guion (puerta A), Claude hace solo la primera versión completa: receta, capa viva, sonido y render, sin pedir opinión de estilo en el camino. Las puertas B y D se revisan en la sala: Patricio o su pareja la abren con doble clic en "Sala de edición" del escritorio, eligen el proyecto, cambian estilos y dejan notas con su nombre. Con "aplica las notas de la sala", leer `08_SALA/notas.md` y aplicar. Siguen igual de obligatorias las puertas de gastar créditos (C), escuchar (E) y publicar (F). `celu.py` deja una copia liviana para el teléfono.
 - **Personas a cámara** (cursos, clases, testimonios): `grabado.py` elige tomas por lo que se dice, saca muletillas, trabas y silencios, iguala el color y suaviza los cortes (`references/material-grabado.md`, segunda parte). Las etapas de imágenes, Flow y voz se reemplazan por: transcribir tomas → elegir tomas (puerta: la persona aprueba la lista) → cortar → armar → terminar.

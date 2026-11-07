@@ -234,8 +234,10 @@ def main():
         if not r:
             print(f"AVISO escena {g['escena']} no existe en la receta"); continue
         sal = pr.clips / f"escena_{r['n']:03d}.mp4"
-        if sal.exists() and "--rehacer" not in a:
-            print(f"escena {r['n']}: ya hay un clip ({sal.name}); no lo piso. Usa --rehacer para reemplazar uno hecho por graficos.py")
+        marca = sal.with_suffix(".graficos.json")             # constancia de que el clip lo hizo graficos.py
+        if sal.exists() and ("--rehacer" not in a or not marca.exists()):
+            print(f"escena {r['n']}: ya hay un clip ({sal.name}); no lo piso. "
+                  + ("Usa --rehacer para reemplazar uno hecho por graficos.py" if marca.exists() else "No lo hizo graficos.py (puede ser de Flow): no se reemplaza nunca"))
             continue
         retraso = 0.0
         if g.get("empieza_en"):
@@ -246,6 +248,7 @@ def main():
                 print(f"AVISO escena {r['n']}: no encontré la frase «{g['empieza_en']}»; parte al inicio")
         dur = r["t1"] - r["t0"] + 1.0                                   # margen para las transiciones
         render(g, dur, sal, pr.ancho, pr.alto, pr.fps, canal, retraso)
+        marca.write_text(json.dumps(g, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"escena {r['n']}: {g['tipo']} {dur:.1f} s -> {sal.name}", flush=True)
     print("LISTO", flush=True)
 

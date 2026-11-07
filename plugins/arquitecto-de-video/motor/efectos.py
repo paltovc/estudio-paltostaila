@@ -94,7 +94,8 @@ def aplicar(entrada, salida, efectos=None, desde=None, hasta=None, cong=None, le
 
 
 def muestra(entrada, salida=None):
-    salida = salida or str(Path(entrada).with_name(Path(entrada).stem + "_efectos.jpg"))
+    from estudio import destino
+    salida = str(destino(salida or Path(entrada).with_name(Path(entrada).stem + "_efectos.jpg"), entrada))
     nombres = list(EFECTOS)
     es_img = Path(entrada).suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}
     ent = (["-loop", "1", "-t", "1"] if es_img else ["-ss", "1"]) + ["-i", entrada]

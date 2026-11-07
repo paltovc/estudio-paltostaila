@@ -80,7 +80,8 @@ def imagen(ruta, escala=2, metodo="ia", salida=None):
 def video(ruta, escala=2, alto=None):
     ruta = Path(ruta)
     esc = f"scale=-2:{alto}:flags=lanczos" if alto else f"scale=iw*{escala}:ih*{escala}:flags=lanczos"
-    sal = ruta.with_name(f"{ruta.stem}_{'%dp' % alto if alto else 'x%d' % escala}.mp4")
+    from estudio import destino
+    sal = destino(ruta.with_name(f"{ruta.stem}_{'%dp' % alto if alto else 'x%d' % escala}.mp4"), ruta)
     r = subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(ruta), "-vf", f"hqdn3d=1.5:1.5:4:4,{esc},unsharp=5:5:0.8:3:3:0.3",
                         "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-c:a", "copy",
                         "-movflags", "+faststart", str(sal)], capture_output=True, text=True)

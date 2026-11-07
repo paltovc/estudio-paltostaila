@@ -19,7 +19,7 @@ import asyncio, json, re, shutil, subprocess, sys
 from pathlib import Path
 
 try:
-    from estudio import FFMPEG, FFPROBE
+    from estudio import FFMPEG, FFPROBE, nombre_libre, apartar_anterior
 except Exception:
     FFMPEG, FFPROBE = "ffmpeg", "ffprobe"
 
@@ -89,6 +89,13 @@ def preparar(video, idioma="en", carpeta=None):
     video = Path(video)
     c = Path(carpeta) if carpeta else video.with_name(video.stem + "_doblaje")
     c.mkdir(parents=True, exist_ok=True)
+    viejo = c / "segmentos.json"
+    if viejo.exists():
+        hechas = [s for s in json.loads(viejo.read_text(encoding="utf-8")).get("segmentos", []) if s.get("traduccion")]
+        if hechas and "--rehacer" not in sys.argv:
+            sys.exit(f"{viejo} ya tiene {len(hechas)} traducciones: no se borran. Usa --rehacer para transcribir de nuevo "
+                     "(el archivo actual queda guardado como segmentos_anterior-<fecha>.json)")
+        apartar_anterior(viejo)
     wav = c / "audio_16k.wav"
     run([FFMPEG, "-v", "error", "-y", "-i", video, "-vn", "-ac", 1, "-ar", 16000, wav])
     print("transcribiendo (puede tardar unos minutos por minuto de video)...", flush=True)
@@ -130,7 +137,7 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
     vdir = c / "voces"
     vdir.mkdir(exist_ok=True)
     total = dur(d["video"])
-    partes, avisos = [], []
+    partes, avisos, solapes = [], [], []
     for i, s in enumerate(segs):
         hueco = (segs[i + 1]["inicio"] if i + 1 < len(segs) else total) - s["inicio"]
         espacio = s["fin"] - s["inicio"]
@@ -153,11 +160,19 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
         tempo = 1.0
         if largo > hueco:                                       # ni acelerada cabe antes de la frase siguiente
             tempo = min(1.25, largo / hueco)
-            avisos.append(f"frase {s['id']} ({s['inicio']:.1f} s): la traducción es larga; acórtala (va {tempo:.2f}x)")
+            if largo / tempo > hueco + 0.1:
+                solapes.append(f"frase {s['id']} ({s['inicio']:.1f} s): dura {largo / tempo:.1f} s y hay {hueco:.1f} s; acórtala")
+            else:
+                avisos.append(f"frase {s['id']} ({s['inicio']:.1f} s): la traducción es larga; acórtala (va {tempo:.2f}x)")
         elif largo > espacio:
             avisos.append(f"frase {s['id']} ({s['inicio']:.1f} s): usa {largo - espacio:.1f} s de la pausa siguiente")
         partes.append((s["inicio"], src, tempo))
         print(f"  {s['id']:03d} {largo:.1f}/{espacio:.1f} s{' +%d%%' % vel if vel else ''}", flush=True)
+    if solapes and "--permitir-solapes" not in sys.argv:
+        (c / "frases_largas.txt").write_text("\n".join(solapes) + "\n", encoding="utf-8")
+        print(*solapes, sep="\n")
+        sys.exit(f"{len(solapes)} frases se montan sobre la siguiente (lista en frases_largas.txt): acórtalas en segmentos.json "
+                 "y vuelve a correr voz (o usa --permitir-solapes)")
     # línea de tiempo: cada frase en su segundo
     ins, filtros = [], []
     for k, (t0, src, tempo) in enumerate(partes):
@@ -187,7 +202,7 @@ def mezclar(c, original="-16", quemar=False):
     c = Path(c)
     d = cargar(c)
     video = Path(d["video"])
-    sal = c / f"{video.stem}_ES.mp4"
+    sal = nombre_libre(c / f"{video.stem}_ES.mp4")
     if original == "sin":
         fc = "[1:a]anull[aud]"
     else:

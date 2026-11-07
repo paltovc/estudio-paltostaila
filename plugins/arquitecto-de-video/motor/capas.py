@@ -208,6 +208,10 @@ def main():
         sys.exit("Uso: ver el encabezado de capas.py")
     op = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     f = lambda k: float(op(k)) if op(k) is not None else None
+    from estudio import destino
+    k = {"verde": 3, "pip": 3, "dividir": 3, "mascara": 2}.get(a[0])
+    if k is not None and len(a) > k:
+        a[k] = str(destino(a[k], *a[1:k]))
     if a[0] == "verde":
         verde(a[1], a[2], a[3], op("--color", "00FF00"), float(op("--similitud", 0.16)), float(op("--escala", 1.0)),
               op("--x", "centro"), op("--y", "abajo"))

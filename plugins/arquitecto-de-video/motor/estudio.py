@@ -306,3 +306,40 @@ def clips_pendientes(pr, video="solo_video.mp4"):
         if not u or abs(u["mtime"] - p.stat().st_mtime) > 1 or u["archivo"] != p.name:
             pend.append((n, p.name, "nuevo" if not u else "cambió"))
     return m, pend
+
+
+def nombre_libre(p):
+    """Devuelve la misma ruta si no existe; si existe, la siguiente libre (_2, _3...). Nunca se pisa una entrega."""
+    p = Path(p)
+    if not p.exists():
+        return p
+    k = 2
+    while (p.with_name(f"{p.stem}_{k}{p.suffix}")).exists():
+        k += 1
+    return p.with_name(f"{p.stem}_{k}{p.suffix}")
+
+
+def apartar_anterior(p):
+    """Si p existe, lo renombra a <nombre>_anterior-<fecha>.<ext> (queda guardado) y devuelve esa ruta; si no, None."""
+    from datetime import datetime as _dt
+    p = Path(p)
+    if not p.exists():
+        return None
+    dest = nombre_libre(p.with_name(f"{p.stem}_anterior-{_dt.now():%Y%m%d-%H%M%S}{p.suffix}"))
+    p.rename(dest)
+    return dest
+
+
+def destino(salida, *entradas):
+    """Ruta de salida segura para las herramientas: nunca igual a una entrada y nunca encima de un archivo existente."""
+    sal = Path(salida)
+    for e in entradas:
+        try:
+            if e and Path(e).exists() and sal.resolve() == Path(e).resolve():
+                sys.exit(f"La salida {sal.name} es el mismo archivo de entrada: elige otro nombre (los originales no se tocan)")
+        except OSError:
+            pass
+    libre = nombre_libre(sal)
+    if libre != sal:
+        print(f"{sal.name} ya existe; se guarda como {libre.name}", flush=True)
+    return libre

@@ -14,7 +14,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, unquote
-from estudio import Proyecto, palabras, buscar
+from estudio import Proyecto, palabras, buscar, nombre_libre
 import vivo
 
 ESTUDIO = Path.home() / "EstudioPaltostaila"
@@ -135,13 +135,13 @@ def guardar(cuerpo):
     with CANDADO:
         SALA = sala_dir()
         SALA.mkdir(exist_ok=True)
-        marca = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        marca = datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")      # con microsegundos: dos guardados seguidos no chocan
         autor = str(cuerpo.get("autor") or "sin nombre")[:40]
         archivo = pr.dir / "proyecto.json"
         estilo = {k: v for k, v in (cuerpo.get("subtitulos") or {}).items() if k in CLAVES_ESTILO}
         cfg = json.loads(archivo.read_text(encoding="utf-8"))
         if cuerpo.get("estilo_cambiado") and estilo:
-            shutil.copy(archivo, SALA / f"proyecto_{marca}.json")      # respaldo: nunca se pisa una versión
+            shutil.copy2(archivo, nombre_libre(SALA / f"proyecto_{marca}.json"))      # respaldo: nunca se pisa una versión
             cfg.setdefault("subtitulos", {}).update(estilo)
             archivo.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
             with open(SALA / "historial.txt", "a", encoding="utf-8") as h:
@@ -258,6 +258,9 @@ class Sala(BaseHTTPRequestHandler):
         largo = int(self.headers.get("Content-Length", 0))
         try:
             cuerpo = json.loads(self.rfile.read(largo).decode("utf-8") or "{}")
+            if ruta in ("/guardar", "/prueba") and cuerpo.get("proyecto") and cuerpo["proyecto"] != str(pr.dir):
+                return self._json({"error": f"La sala cambió al proyecto {pr.id} en otra pestaña o aparato. "
+                                            "Vuelve a elegir tu proyecto arriba y guarda de nuevo (no se guardó nada)."}, 409)
             if ruta == "/guardar":
                 return self._json(guardar(cuerpo))
             if ruta == "/prueba":
