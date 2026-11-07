@@ -23,7 +23,7 @@ PUERTO = int(ARG("--puerto", 8765))
 HTML = Path(__file__).with_name("sala.html")
 RED = "--red" in sys.argv
 CLAVE = secrets.token_urlsafe(9) if RED else ""
-CANDADO = threading.Lock()
+CANDADO = threading.RLock()        # reentrante: verificar proyecto + guardar en una sola operación
 CLAVES_ESTILO = {"estilo", "preset", "palabras", "posicion", "posicion_vertical", "palabras_clave", "fuente_viva",
                  "tamano_vivo", "color_texto", "color_clave", "color_clave2", "entrada", "destellos", "caja"}
 
@@ -258,9 +258,12 @@ class Sala(BaseHTTPRequestHandler):
         largo = int(self.headers.get("Content-Length", 0))
         try:
             cuerpo = json.loads(self.rfile.read(largo).decode("utf-8") or "{}")
-            if ruta in ("/guardar", "/prueba") and cuerpo.get("proyecto") and cuerpo["proyecto"] != str(pr.dir):
-                return self._json({"error": f"La sala cambió al proyecto {pr.id} en otra pestaña o aparato. "
-                                            "Vuelve a elegir tu proyecto arriba y guarda de nuevo (no se guardó nada)."}, 409)
+            if ruta in ("/guardar", "/prueba"):
+                with CANDADO:            # nadie puede cambiar de proyecto entre la verificación y el guardado
+                    if cuerpo.get("proyecto") and cuerpo["proyecto"] != str(pr.dir):
+                        return self._json({"error": f"La sala cambió al proyecto {pr.id} en otra pestaña o aparato. "
+                                                    "Vuelve a elegir tu proyecto arriba y guarda de nuevo (no se guardó nada)."}, 409)
+                    return self._json(guardar(cuerpo) if ruta == "/guardar" else prueba_real(cuerpo))
             if ruta == "/guardar":
                 return self._json(guardar(cuerpo))
             if ruta == "/prueba":
@@ -270,7 +273,8 @@ class Sala(BaseHTTPRequestHandler):
                 validas = {p["ruta"] for p in proyectos()}
                 if cuerpo.get("ruta") not in validas:
                     return self._json({"error": "ese proyecto no está en la lista"}, 400)
-                pr = Proyecto(cuerpo["ruta"])
+                with CANDADO:
+                    pr = Proyecto(cuerpo["ruta"])
                 return self._json({"ok": True, "id": pr.id})
             self._json({"error": "no existe"}, 404)
         except Exception as ex:

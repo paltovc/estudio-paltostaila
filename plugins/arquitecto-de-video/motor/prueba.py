@@ -50,6 +50,7 @@ print("OK   nombre_libre / destino: nunca se pisa un archivo ni la entrada")
 import revisar_idioma as ri
 assert ri.sospechosas("BILL $$$") == ["BILL"] and ri.sospechosas("FEES") == ["FEES"]
 assert ri.sospechosas("Comisiones que podrían evitarse") == [] and ri.sospechosas("CREENCIAS antes de invertir") == []
+assert ri.sospechosas("Un plan basado únicamente") == [] and ri.sospechosas("Sale caro") == []
 print("OK   revisar_idioma: reconoce inglés y deja pasar el español")
 seg = tmp / "v_doblaje"; seg.mkdir()
 (seg / "segmentos.json").write_text(json.dumps({"video": str(f), "segmentos": [{"id": 1, "traduccion": "hola"}]}), encoding="utf-8")
@@ -87,10 +88,18 @@ receta.write_text("numero;archivo;inicio;fin;duracion;frase;tipo;origen;nota\n",
 paso_falla("no tiene escenas", "frases.py", str(carpeta), "--validar")
 receta.write_text(contenido, encoding="utf-8-sig")
 paso("frases.py", str(carpeta), "--validar")
-paso("armar.py", str(carpeta))
+sal_armar = paso("armar.py", str(carpeta))
+linea = next((l for l in sal_armar.splitlines() if l.startswith("cuadros:")), "")
+if not linea.endswith("OK"):
+    sys.exit(f"armar.py no dio los cuadros exactos con transiciones impares ({linea}). Carpeta conservada: {carpeta}")
+print("OK   armar.py: cuadros exactos con transiciones impares (" + linea + ")")
 paso("sonidos.py", str(carpeta))
 paso("terminar.py", str(carpeta))
+srts = {q: q.stat().st_mtime_ns for q in (carpeta / "07_RENDER").glob("*.srt")}
 paso_falla("Ya existe", "terminar.py", str(carpeta))
+if any(q.stat().st_mtime_ns != m for q, m in srts.items()):
+    sys.exit(f"terminar.py se negó pero igual reescribió el .srt. Carpeta conservada: {carpeta}")
+print("OK   terminar.py se niega antes de escribir nada (el .srt no cambió)")
 paso("terminar.py", str(carpeta), "--rehacer")
 if not list((carpeta / "07_RENDER").glob("*_anterior-*.mp4")):
     sys.exit(f"--rehacer no guardó la entrega anterior. Carpeta conservada: {carpeta}")

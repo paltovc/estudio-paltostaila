@@ -234,10 +234,17 @@ def main():
         if not r:
             print(f"AVISO escena {g['escena']} no existe en la receta"); continue
         sal = pr.clips / f"escena_{r['n']:03d}.mp4"
-        marca = sal.with_suffix(".graficos.json")             # constancia de que el clip lo hizo graficos.py
-        if sal.exists() and ("--rehacer" not in a or not marca.exists()):
+        marca = sal.with_suffix(".graficos.json")             # constancia de que el clip lo hizo graficos.py (con su hash)
+        propio = False
+        if sal.exists() and marca.exists():
+            import hashlib
+            try:
+                propio = json.loads(marca.read_text(encoding="utf-8")).get("sha256") == hashlib.sha256(sal.read_bytes()).hexdigest()
+            except (ValueError, OSError):
+                propio = False
+        if sal.exists() and ("--rehacer" not in a or not propio):
             print(f"escena {r['n']}: ya hay un clip ({sal.name}); no lo piso. "
-                  + ("Usa --rehacer para reemplazar uno hecho por graficos.py" if marca.exists() else "No lo hizo graficos.py (puede ser de Flow): no se reemplaza nunca"))
+                  + ("Usa --rehacer para reemplazar uno hecho por graficos.py" if propio else "No lo hizo graficos.py o cambió desde entonces (puede ser de Flow): no se reemplaza"))
             continue
         retraso = 0.0
         if g.get("empieza_en"):
@@ -248,7 +255,8 @@ def main():
                 print(f"AVISO escena {r['n']}: no encontré la frase «{g['empieza_en']}»; parte al inicio")
         dur = r["t1"] - r["t0"] + 1.0                                   # margen para las transiciones
         render(g, dur, sal, pr.ancho, pr.alto, pr.fps, canal, retraso)
-        marca.write_text(json.dumps(g, ensure_ascii=False, indent=1), encoding="utf-8")
+        import hashlib
+        marca.write_text(json.dumps({"sha256": hashlib.sha256(sal.read_bytes()).hexdigest(), "grafico": g}, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"escena {r['n']}: {g['tipo']} {dur:.1f} s -> {sal.name}", flush=True)
     print("LISTO", flush=True)
 

@@ -71,6 +71,8 @@ def fluido(fps):
 
 
 def aplicar(entrada, salida, efectos=None, desde=None, hasta=None, cong=None, lento=None, fps=30):
+    from estudio import destino
+    salida = str(destino(salida, entrada))
     fx = cadena(efectos)
     pasos = []
     if lento:
@@ -123,7 +125,7 @@ def main():
     if a[0] == "muestra":
         print("LISTO", muestra(a[1], op("--salida")))
     elif a[0] == "aplicar":
-        aplicar(a[1], a[2], op("--efectos"), float(op("--desde")) if op("--desde") else None,
+        a[2] = aplicar(a[1], a[2], op("--efectos"), float(op("--desde")) if op("--desde") else None,
                 float(op("--hasta")) if op("--hasta") else None, op("--congelar"), float(op("--fluido")) if op("--fluido") else None,
                 int(op("--fps", 30)))
         print("LISTO", a[2])

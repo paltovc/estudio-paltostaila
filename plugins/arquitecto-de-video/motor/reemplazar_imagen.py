@@ -7,7 +7,9 @@
 #   {"video": "...\\FIN-001_v1_youtube.mp4", "salida": "...\\FIN-001_v3_youtube.mp4" (opcional),
 #    "carpeta_imagenes": "...\\traducidas_codex", "trabajo": "...\\carpeta para muestras" (opcional),
 #    "cambios": [{"t": 43, "imagen": "red_es.png", "conservar": ["titulo"]}, ...],         # un segundo dentro de cada tramo
-#    "letreros": [{"desde": 44.2, "hasta": 50, "referencia": 43, "textos": {"BILL": "CUENTA"}}]}  # tramos animados
+#    "letreros": [{"desde": 44.2, "hasta": 50, "referencia": 43, "textos": {"BILL": "CUENTA"}, "siempre": true}]}
+#   letreros = tramos animados; los cuadros que son un cruce con otra escena no se tocan, salvo "siempre": true
+#   (úsese cuando en ese tramo no hay cruces, solo la misma escena girando o desenfocada)
 # Cómo funciona: busca el tramo donde se ve la imagen vieja (la misma imagen con zoom/desplazamiento; ORB), pone la nueva
 # con el mismo movimiento y vuelve a dibujar encima, desde el cuadro original, los subtítulos quemados y los rótulos de la
 # edición ("titulo" = texto negro arriba a la izquierda, "numero" = número azul arriba). En tramos animados cambia solo los
@@ -29,7 +31,7 @@ NUEVAS = Path(PLAN.get("carpeta_imagenes") or Path(ARGS[0]).parent)
 SAL = Path(PLAN["salida"]) if PLAN.get("salida") else V.with_name(V.stem + "_imagenes-es.mp4")
 TRAB = Path(PLAN.get("trabajo") or Path(ARGS[0]).parent)
 CAMBIOS = [(c["t"], c["imagen"], c.get("conservar", []), *([c["umbral"]] if c.get("umbral") else [])) for c in PLAN.get("cambios", [])]
-PARCHES = [(p["desde"], p["hasta"], p["referencia"], p["textos"]) for p in PLAN.get("letreros", [])]
+PARCHES = [(p["desde"], p["hasta"], p["referencia"], p["textos"], p.get("siempre", False)) for p in PLAN.get("letreros", [])]
 FUENTE = PLAN.get("fuente", "C:/Windows/Fonts/arialbd.ttf")
 LW, LH = 480, 270
 UMBRAL = 9
@@ -217,20 +219,45 @@ def copiar_rotulos(nuevo, org, tipos):
     return nuevo
 
 
+def _dist(a, b):
+    """distancia de edición (para aceptar una letra mal leída por el OCR)"""
+    d = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        prev, d[0] = d[0], i
+        for j, cb in enumerate(b, 1):
+            prev, d[j] = d[j], min(d[j] + 1, d[j - 1] + 1, prev + (ca != cb))
+    return d[-1]
+
+
+def parecida(txt, cambios):
+    import re as _re
+    for tok in _re.findall(r"[A-Za-zÁÉÍÓÚÑ]+", txt.upper()):
+        for k in cambios:
+            if tok == k.upper() or (len(k) >= 4 and _dist(tok, k.upper()) <= 1):
+                return k
+    return None
+
+
 def preparar_parches(fps, W, H, ocupados):
     from rapidocr_onnxruntime import RapidOCR
     from PIL import Image, ImageDraw, ImageFont
     ocr = RapidOCR()
     out = {}
-    for a, b, tref, cambios in PARCHES:
+    for a, b, tref, cambios, siempre in PARCHES:
         r = subprocess.run([str(FFMPEG), "-v", "error", "-ss", str(tref), "-i", str(V), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
                            capture_output=True)
         ref = np.frombuffer(r.stdout, np.uint8).reshape(H, W, 3).copy()
         res, _ = ocr(ref[:, :, ::-1])
+        res = list(res or [])
+        if any(not any(parecida(x[1], {k: 1}) for x in res) for k in cambios):     # palabra chica: probar también reducida (como revisar_idioma)
+            k_ = 1280 / W
+            res2, _ = ocr(cv2.resize(ref, (1280, int(H * k_)), interpolation=cv2.INTER_AREA)[:, :, ::-1])
+            res += [([[q[0] / k_, q[1] / k_] for q in caja], txt, conf) for caja, txt, conf in (res2 or [])
+                    if not any(parecida(txt, {k: 1}) and parecida(x[1], {k: 1}) for x in res for k in cambios)]
         letreros = []
         for caja, txt, conf in res or []:
-            t = txt.strip().upper()
-            if t in cambios:
+            t = parecida(txt, cambios)
+            if t:
                 xs, ys = [q[0] for q in caja], [q[1] for q in caja]
                 x0, y0, x1, y1 = min(xs) - 3, min(ys) - 3, max(xs) + 3, max(ys) + 3
                 anillo = np.concatenate([ref[int(y0) - 4:int(y0) - 1, int(x0):int(x1)].reshape(-1, 3), ref[int(y1) + 1:int(y1) + 4, int(x0):int(x1)].reshape(-1, 3)])
@@ -257,7 +284,7 @@ def preparar_parches(fps, W, H, ocupados):
                 letreros.append(np.array(capa)[:, :, [2, 1, 0, 3]])
                 print(f"  letrero {t} -> {cambios[t]} en {int(x0)},{int(y0)} ({int(w0)}x{int(h0)})")
         if not letreros:
-            print("  no encontré los letreros en", tref); continue
+            print("  no encontré los letreros en", tref, "· leí:", ", ".join(x[1] for x in res or [])[:200]); continue
         capa = letreros[0]
         for l in letreros[1:]:
             m = l[:, :, 3:] > 0
@@ -270,7 +297,7 @@ def preparar_parches(fps, W, H, ocupados):
         c = leer_bajo(n0, n1 - n0, fps)
         k = W / LW
         S = np.diag([k, k, 1.0]); Si = np.diag([1 / k, 1 / k, 1.0])
-        bien = 0
+        bien = saltados = 0
         for j, f in enumerate(c):
             i = n0 + j
             if any(p0 <= i <= p1 for p0, p1 in ocupados) or f.mean() > 225:
@@ -285,8 +312,23 @@ def preparar_parches(fps, W, H, ocupados):
             Hm, inl = cv2.findHomography(p0, p1, cv2.RANSAC, 3.0)
             if Hm is None or inl.sum() < 40:
                 continue
-            out[i] = (capa, S @ Hm @ Si); bien += 1
-        print(f"  parche {a}-{b} s: {bien} cuadros con letreros cambiados")
+            # ¿el cuadro es la imagen de referencia (quizás con un fundido a un color) o un cruce con otra escena?
+            wr = cv2.warpPerspective(refb, Hm, (LW, LH)).astype(np.float32)
+            dentro = (m > 0) & (cv2.warpPerspective(np.full_like(refb, 255), Hm, (LW, LH)) > 0)
+            x, y = wr[dentro], f.astype(np.float32)[dentro]
+            if x.size < 500:
+                continue
+            (al, be), *_ = np.linalg.lstsq(np.vstack([x, np.ones_like(x)]).T, y, rcond=None)
+            if al < 0.2:                                                # casi todo fundido (destello, negro): no se dibuja
+                saltados += 1
+                continue
+            if np.median(np.abs(y - (al * x + be))) > 6:                # cruce con otra escena (cambia toda la imagen)
+                if not siempre:                                         # "siempre": la misma escena animada (giro, desenfoque)
+                    saltados += 1
+                    continue
+                al, be = 1.0, 0.0
+            out[i] = (capa, S @ Hm @ Si, float(al), float(be)); bien += 1
+        print(f"  parche {a}-{b} s: {bien} cuadros con letreros cambiados ({saltados} en cruces con otra escena, sin tocar)", flush=True)
     return out
 
 
@@ -311,13 +353,22 @@ def main():
         plan.append((a, b, Tfull, Z, nueva, tipos))
     parches = preparar_parches(fps, W, H, [(p[0], p[1]) for p in plan])
     if "--muestras" in sys.argv:
-        TRAB.mkdir(parents=True, exist_ok=True)          # cuadros de prueba con los letreros, sin renderizar todo
-        for i in list(parches)[::12]:
+        TRAB.mkdir(parents=True, exist_ok=True)
+        for a, b, Tf, Z, nueva, tipos in plan:      # un cuadro al medio de cada imagen reemplazada
+            i = (a + b) // 2
             r = subprocess.run([str(FFMPEG), "-v", "error", "-ss", f"{i / fps:.4f}", "-i", str(V), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], capture_output=True)
             org = np.frombuffer(r.stdout, np.uint8).reshape(H, W, 3)
-            capa, Hf = parches[i]
+            A = (np.vstack([Tf[i], [0, 0, 1]]) @ Z)[:2]
+            nuevo = copiar_rotulos(cv2.warpAffine(nueva, A, (W, H), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE), org, tipos)
+            cv2.imwrite(str(TRAB / f"muestra_cambio_{i / fps:.1f}.jpg"), cv2.resize(np.hstack([org, nuevo]), (1920, 540)))          # cuadros de prueba con los letreros, sin renderizar todo
+        ks = sorted(parches)
+        for i in sorted(set(ks[::12] + ks[-1:] + [k for j, k in enumerate(ks) if j and ks[j - 1] != k - 1])):
+            r = subprocess.run([str(FFMPEG), "-v", "error", "-ss", f"{i / fps:.4f}", "-i", str(V), "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], capture_output=True)
+            org = np.frombuffer(r.stdout, np.uint8).reshape(H, W, 3)
+            capa, Hf, ga, gb = parches[i]
             w = cv2.warpPerspective(capa, Hf, (W, H)); al = w[:, :, 3:4].astype(np.float32) / 255
-            cv2.imwrite(str(TRAB / f"muestra_parche_{i / fps:.1f}.jpg"), cv2.resize((org * (1 - al) + w[:, :, :3] * al).astype(np.uint8), (960, 540)))
+            col = np.clip(w[:, :, :3].astype(np.float32) * ga + gb, 0, 255)
+            cv2.imwrite(str(TRAB / f"muestra_parche_{i / fps:.1f}.jpg"), cv2.resize((org * (1 - al) + col * al).astype(np.uint8), (960, 540)))
         return
     if "--analizar" in sys.argv or "--solo-analisis" in sys.argv or not (plan or parches):
         return
@@ -345,12 +396,13 @@ def main():
                 buf = copiar_rotulos(nuevo, org, tipos).tobytes()
                 break
         if i in parches:
-            capa, Hf = parches[i]
+            capa, Hf, ga, gb = parches[i]
             org = np.frombuffer(buf, np.uint8).reshape(H, W, 3)
             w = cv2.warpPerspective(capa, Hf, (W, H), flags=cv2.INTER_LINEAR)
             al = w[:, :, 3:4].astype(np.float32) / 255
             if al.any():
-                fr = org.astype(np.float32) * (1 - al) + w[:, :, :3].astype(np.float32) * al
+                col = np.clip(w[:, :, :3].astype(np.float32) * ga + gb, 0, 255)      # mismo fundido que la imagen
+                fr = org.astype(np.float32) * (1 - al) + col * al
                 buf = fr.astype(np.uint8).tobytes()
         enc.stdin.write(buf)
         i += 1
@@ -363,7 +415,7 @@ def main():
                                       "stream=nb_read_packets", "-of", "csv=p=0", str(V)], capture_output=True, text=True).stdout.strip() or 0))
     n_sal = int(float(subprocess.run([FFPROBE, "-v", "error", "-count_packets", "-select_streams", "v", "-show_entries",
                                       "stream=nb_read_packets", "-of", "csv=p=0", str(parcial)], capture_output=True, text=True).stdout.strip() or 0))
-    if n_esp and abs(n_esp - n_sal) > 1:
+    if not n_esp or not n_sal or abs(n_esp - n_sal) > 1:
         sys.exit(f"ERROR: el video nuevo tiene {n_sal} cuadros y el original {n_esp}; quedó como {parcial.name} (no es una entrega)")
     parcial.rename(sal)
     informe = sal.with_suffix(".cambios.json")

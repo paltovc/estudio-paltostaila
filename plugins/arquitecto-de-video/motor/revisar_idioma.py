@@ -17,7 +17,7 @@ THE AND FOR WITH YOUR YOU OUR FROM THIS THAT WHAT WHEN HOW WHY NOT ARE IS IT IN 
 BILL BILLS FEE FEES BANK BANKS PAYCHECK PAY PAID SALARY STOCK STOCKS STCK SHARES BOND BONDS FUND FUNDS SAVINGS SAVE
 INCOME WEALTH RICH POOR DEBT DEBTS LOAN LOANS RENT TAX TAXES CASH MONEY BUDGET SPENDING EXPENSES EXPENSE COST COSTS
 CREDIT CARD CARDS INTEREST RATE INVEST INVESTING INVESTMENT RETIREMENT EMERGENCY INSURANCE MORTGAGE PROFIT LOSS
-PRICE SALE SHOP STORE MARKET WALLET SUBSCRIPTION SUBSCRIPTIONS STATEMENT RECEIPT INVOICE GOAL GOALS PLAN
+PRICE SHOP STORE MARKET WALLET SUBSCRIPTION SUBSCRIPTIONS STATEMENT RECEIPT INVOICE GOAL GOALS
 WORK WORKPLACE JOB OFFICE CLOSED OPEN EXIT STOP HELP HOME HOUSE CAR BOOK NEWS SALES FREE NEW OLD BIG SMALL
 TODAY NOW TIME YEAR YEARS MONTH WEEK DAY LIFE FAMILY FUTURE STEP STEPS TIP TIPS RULE RULES WARNING ALERT
 """.split())
@@ -48,12 +48,15 @@ def main():
     hasta = float(op("--hasta", 0)) or dur
     from rapidocr_onnxruntime import RapidOCR
     ocr = RapidOCR()
-    hallazgos = []
+    hallazgos, leidos, fallidos = [], 0, 0
     t = desde
     while t < hasta:
         r = subprocess.run([str(FFMPEG), "-v", "error", "-ss", f"{t:.2f}", "-i", str(v), "-frames:v", "1", "-vf", "scale=1280:-2",
                             "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True)
-        if r.stdout:
+        if r.returncode or not r.stdout:
+            fallidos += 1
+        else:
+            leidos += 1
             im = Image.open(io.BytesIO(r.stdout)).convert("RGB")
             res, _ = ocr(np.array(im))
             malas = []
@@ -67,8 +70,10 @@ def main():
                 hallazgos.append((t, malas, im))
                 print(f"{int(t // 60)}:{t % 60:04.1f}  " + " | ".join(f"{x[0]} -> {', '.join(x[1])}" for x in malas), flush=True)
         t += cada
+    if not leidos or fallidos > max(2, 0.05 * (leidos + fallidos)):
+        sys.exit(f"ERROR: solo se pudieron leer {leidos} de {leidos + fallidos} cuadros; la revisión no es válida")
     txt = nombre_libre(v.with_name(v.stem + "_idioma.txt"))
-    lineas = [f"# Texto que parece en inglés en {v.name} (revisado cada {cada:g} s; confirmar a ojo: hay falsos positivos)", ""]
+    lineas = [f"# Texto que parece en inglés en {v.name} (revisado cada {cada:g} s, {leidos} cuadros leídos; confirmar a ojo: hay falsos positivos)", ""]
     for t, malas, _ in hallazgos:
         lineas.append(f"{int(t // 60)}:{t % 60:04.1f}\t" + " | ".join(f"{x[0]}  [{', '.join(x[1])}]" for x in malas))
     if not hallazgos:

@@ -58,7 +58,7 @@ if pr.cfg.get("elementos"):
     txt = lug.read_text(encoding="utf-8") if lug.exists() else ""
     if not lug.exists():
         punto(5, True, "La capa viva no tapa caras ni texto de la imagen", None, "sin registro: no se comprobó (render sin evitar_caras)")
-    elif f"version: {base}" not in txt.splitlines()[0] if txt else True:
+    elif not (txt.splitlines() or [""])[0].startswith(f"# version: {base} ·"):
         punto(5, True, "La capa viva no tapa caras ni texto de la imagen", None, "el registro es de otra versión: volver a correr terminar.py")
     else:
         malos = []

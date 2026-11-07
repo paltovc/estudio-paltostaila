@@ -159,6 +159,11 @@ def revisar_clips(video):
 
 
 def main():
+    if not (ARG("--muestras") or ARG("--borrador") or "--solo-audio" in sys.argv or "--rehacer" in sys.argv):
+        ya = [n for n in (f"{pr.base_nombre}_youtube.mp4", f"{pr.base_nombre}_con-subtitulos.mp4") if (pr.salida / n).exists()]
+        if ya:          # se revisa antes de escribir nada (srt, capítulos, registro de la capa viva)
+            sys.exit(f"Ya existe {', '.join(ya)}: sube \"version\" en proyecto.json para una versión nueva, "
+                     f"o agrega --rehacer (la entrega anterior queda guardada como *_anterior-<fecha>.mp4)")
     if not ARG("--muestras"):
         revisar_clips(f"solo_video_borrador_{int(float(ARG('--borrador')))}s.mp4" if ARG("--borrador") else "solo_video.mp4")
     preparar()
@@ -183,10 +188,6 @@ def main():
         return
     finales = ((f"{pr.base_nombre}_youtube.mp4", "tmp/rotulos.ass"),                # sin subtitulos (el .srt se sube aparte)
                (f"{pr.base_nombre}_con-subtitulos.mp4", "tmp/todo.ass"))
-    ya = [n for n, _ in finales if (pr.salida / n).exists()]
-    if ya and "--rehacer" not in sys.argv and "--solo-audio" not in sys.argv:
-        sys.exit(f"Ya existe {', '.join(ya)}: sube \"version\" en proyecto.json para una versión nueva, "
-                 f"o agrega --rehacer (la entrega anterior queda guardada como *_anterior-<fecha>.mp4)")
     if "--solo-audio" in sys.argv:
         for nombre, _ in finales:
             parcial = nombre.replace(".mp4", ".parcial.mp4")
