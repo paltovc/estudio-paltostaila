@@ -124,6 +124,7 @@ def preparar():
         elementos = v.elementos()
         if v.movidos:
             rep = [f"{a:7.1f} s  {tipo:7s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in v.movidos]
+            rep.insert(0, "# segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras o cabezas)")
             (pr.tmp / "capa_viva_lugares.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
             print(f"capa viva: {len(v.movidos)} elementos corridos para no tapar caras o texto (tmp/capa_viva_lugares.txt)", flush=True)
         dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []

@@ -235,11 +235,14 @@ class Vivo:
                           for fx in (0.14, 0.30, 0.50, 0.70, 0.86)]
         diag = math.hypot(self.W, self.H)
         mejor = min(candidatos, key=lambda p: pen(p) + 0.6 * math.hypot(p[0] - x, p[1] - y) / diag)
+        # lo que se anota como "ahora" es solo lo que sigue tapando caras o cabezas (globos y texto pesan menos)
+        solo_caras = [r for r in reg if r[2] in ("cara", "cabeza")]
+        en_caras = lambda p: round(caras.castigo(caja(*p), solo_caras), 2)
         if pen(mejor) < p0 * 0.6:
-            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), round(pen(mejor), 2)))
+            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), en_caras(mejor)))
             return mejor
         if p0 >= 0.5:        # no hubo un lugar mejor: queda anotado para revisarlo a mano (terminado.py lo marca)
-            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), (x, y), round(p0, 2), round(p0, 2)))
+            self.movidos.append((round(a, 1), d.get("tipo"), (x, y), (x, y), round(p0, 2), en_caras((x, y))))
         return x, y
 
     # estilos que se agregan a la cabecera ASS
