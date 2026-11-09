@@ -2,10 +2,10 @@
 #   python terminado.py "<proyecto>" [--version v8]
 # Deja 07_RENDER\terminado_<ID>_<version>.md con cada punto (✓ / ✗ / –) y termina con código 0 solo si todo lo
 # obligatorio pasa. Claude la corre antes de decir "listo" y entrega el resultado tal cual.
-# Obligatorio: 1-6. Recomendado: 7-10 (si falla, se avisa pero no bloquea).
+# Obligatorio: 1-6 y 11. Recomendado: 7-10 y 12 (si falla, se avisa pero no bloquea).
 import json, re, subprocess, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, duracion_medio
+from estudio import Proyecto, FFMPEG, duracion_medio, metadatos_personales, formato_plataformas
 
 pr = Proyecto()
 args = sys.argv[1:]
@@ -97,6 +97,28 @@ if pr.cfg.get("vertical"):
     punto(10, False, "Shorts de esta versión", not falta, "faltan: " + ", ".join(falta) if falta else f"{len(pr.cfg['vertical'])} listos")
 else:
     punto(10, False, "Shorts de esta versión", True, "no se pidieron")
+
+# 11. perfil bajo: los videos que salen no llevan GPS, celular ni fecha del original (T1, 08-11-2026)
+salen = sorted({p for p in (*pr.salida.glob(f"{base}_*.mp4"), *(pr.salida / "celu").glob(f"{base}_*.mp4"))
+                if ".parcial" not in p.name and "_anterior-" not in p.name})
+if not salen:
+    punto(11, True, "Sin metadatos personales (GPS, celular, fecha)", False, "no hay videos que revisar")
+else:
+    leidos = {p.name: metadatos_personales(p) for p in salen}
+    sin_leer = [k for k, v in leidos.items() if v is None]
+    con = [f"{k}: {', '.join(v)}" for k, v in leidos.items() if v]
+    punto(11, True, "Sin metadatos personales (GPS, celular, fecha)",
+          None if sin_leer and not con else not con,
+          ("quedan: " + "; ".join(con)) if con else (("no se pudo leer: " + ", ".join(sin_leer)) if sin_leer else f"{len(salen)} videos limpios"))
+
+# 12. formato ideal para YouTube, TikTok e Instagram (recomendado: las plataformas igual lo aceptan, pero lo recodifican peor)
+if salen:
+    difs = {p.name: formato_plataformas(p) for p in salen}
+    con = [f"{k}: {'; '.join(v)}" for k, v in difs.items() if v]
+    sin_leer = [k for k, v in difs.items() if v is None]
+    punto(12, False, "Formato para las plataformas (MP4, H.264 4:2:0, AAC-LC 48 kHz estéreo, fast start)",
+          None if sin_leer and not con else not con,
+          ("distinto: " + " | ".join(con)) if con else (("no se pudo leer: " + ", ".join(sin_leer)) if sin_leer else f"{len(salen)} videos en el formato ideal"))
 
 ok = all(r[3] is True for r in R if r[1])          # «no comprobado» (None) no cuenta como aprobado
 nc = [str(r[0]) for r in R if r[1] and r[3] is None]

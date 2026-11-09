@@ -10,6 +10,7 @@ Basado en "No es el modelo" (tododeia). Cada chat parte en blanco: lo que hace q
 | Examen | `examen` en el documento del Proyecto: 5 tareas fijas para comparar al cambiar de modelo |
 
 ## Correcciones que se convierten en reglas
+Toda corrección queda escrita palabra por palabra, con fecha, quién y video, en "Correcciones de la persona" de la biblia del canal **del PC** (no se borra; única excepción: tapar como [omitido] una clave o un dato personal, anotando la fecha); lo técnico, en `aprendizajes.md` del canal. Así una corrección no depende de que el próximo chat la recuerde.
 Cuando la persona corrige lo mismo dos veces:
 1. escribir en una línea qué se hizo y qué quería;
 2. proponer una regla corta que lo evite;
@@ -23,6 +24,15 @@ Cuando la persona corrige lo mismo dos veces:
 4. ¿Se dieron las reglas esta vez?
 5. ¿Había cómo saber que terminó bien? Correr `terminado.py`.
 
+
+## Perfil bajo en los archivos (T1, 08-11-2026)
+Todo comando de ffmpeg que escribe un archivo lleva `*SIN_METADATOS` (de `estudio.py`) **antes** del archivo de salida. `prueba.py` falla si falta o si queda como último elemento del comando; no detecta todos los casos (por ejemplo, la lista después de la salida pero seguida de otras opciones, o comandos armados en variables), así que al escribir un comando nuevo hay que ponerla justo antes de la salida. Como red de seguridad, `prueba_camara.py` (corre dentro de `prueba.py`) pasa tomas con GPS por grabado, montaje y doblaje; `terminado.py` punto 11 (obligatorio) revisa con ffprobe todos los videos de la versión y las copias para el celular; `montaje_tomas.py` y `doblaje.py` terminan con error si su entrega queda con metadatos. Para lo que sale de otro camino (exporte de CapCut): `python estudio.py metadatos "<archivo o carpeta>"`.
+
+## Formato para las plataformas (09-11-2026)
+YouTube, TikTok e Instagram piden lo mismo: MP4, H.264 High 4:2:0 (yuv420p), AAC-LC 48 kHz estéreo, índice al principio (fast start), hasta 60 fps; vertical 1080×1920. El video YouTube, el con subtítulos y los Shorts ya salen así (comprobado en FIN-002 v13). Falta (lote siguiente): ffmpeg escribe listas de edición (edit lists) en los MP4, que la ayuda de YouTube pide evitar; el doblaje subtitulado sale sin fast start; el montaje sale mono si la canción es mono. `terminado.py` punto 12 (recomendado) comprueba códec, color, audio y fast start en cada entrega; para un archivo suelto: `python estudio.py formato "<archivo o carpeta>"`. Lo que entra puede venir en cualquier formato (MOV del iPhone, MKV, WEBM): el motor lo lee y lo entrega en MP4.
+
+## Licencias (T8, 09-11-2026)
+`%USERPROFILE%\EstudioPaltostaila\licencias\registro.md` lista cada recurso ajeno (sonidos, fuentes, voz, imágenes, clips, modelos, música) con su licencia y su estado (✓ claro, ⚠ dudoso, ? por confirmar). Antes de usar un recurso nuevo en un video, se agrega su fila; un recurso con ⚠ o ? se avisa antes de pedir la aprobación para publicar. Las huellas de los archivos registrados se rehacen con `python licencias\huellas.py`.
 
 ## Estados de terminado (0.12)
 

@@ -105,9 +105,9 @@ class Mapa:
                                                    for (x0, y0, x1, y1), p, tipo in detectar(im, self.con_texto)]
         return self.cache[k]
 
-    def regiones(self, a, b):
-        # un cuadro por segundo (máximo 8): si el elemento sigue en pantalla cuando cambia la escena, también se mira la siguiente
-        n = max(1, min(8, int(b - a) + 1))
+    def regiones(self, a, b, maximo=8):
+        # un cuadro por segundo (máximo 8; los elementos largos piden más): si el elemento sigue en pantalla cuando cambia la escena, también se mira la siguiente
+        n = max(1, min(maximo, int(b - a) + 1))
         ts = [a + 0.25 + (b - a - 0.5) * i / max(1, n - 1) for i in range(n)] if b - a > 1 else [(a + b) / 2]
         out = []
         for t in ts:                      # promedio entre cuadros: el castigo no crece con la cantidad de cuadros mirados
@@ -121,9 +121,39 @@ def cruce(c, r):
     return max(0.0, w) * max(0.0, h)
 
 
-def castigo(caja, regiones):
+BASE = {"cara": PESO_CARA, "cabeza": PESO_CARA, "globo": PESO_GLOBO, "texto": PESO_TEXTO}
+TAPAR = {"cara": 10.0, "cabeza": 10.0, "texto": 4.0}     # costo de tapar ENTERA una cara o un texto (medido sobre ellos)
+
+
+def _frac(caja, r):
+    return min(1.0, cruce(caja, r) / max(1.0, (r[2] - r[0]) * (r[3] - r[1])))
+
+
+def castigo(caja, regiones, por_region=False):
+    """Cuánto tapa la caja. Base: la parte de la CAJA que queda sobre algo (una tarjeta grande que cubre una cabeza chica
+    casi no suma). Con por_region=True se suma también la parte de cada cara o texto que queda tapada, medida sobre ESA
+    cara o ese texto: tapar entera una cabeza chica o una palabra dibujada cuesta lo mismo que una grande."""
     area = max(1.0, (caja[2] - caja[0]) * (caja[3] - caja[1]))
-    return sum(p * cruce(caja, r) / area for r, p, _ in regiones)
+    total = sum(p * cruce(caja, r) / area for r, p, _ in regiones)
+    if por_region:
+        total += sum(TAPAR[t] * (p / BASE[t]) * _frac(caja, r) for r, p, t in regiones if t in TAPAR)
+    return total
+
+
+def cubierto(caja, regiones, tipos=("cara", "cabeza", "texto")):
+    """Parte tapada de esas regiones, medida sobre cada una y promediada entre los cuadros mirados
+    (1.0 = una cara o un texto tapado entero todo el tiempo; dos tapadas enteras = 2.0)."""
+    return sum((p / BASE[t]) * _frac(caja, r) for r, p, t in regiones if t in tipos)
+
+
+def tapa(caja, regiones):
+    """≥ 1 cuando la caja tapa algo importante, con la peor de dos medidas: sobre lo tapado (un 20 % de una cara o
+    cabeza, o la mitad de un texto de la imagen) o sobre la caja (como antes: la caja queda en buena parte sobre una
+    cara grande o un cartel de texto). Es lo que se anota como «ahora» en capa_viva_lugares.txt y lo que revisa
+    terminado.py (punto 5)."""
+    sobre_lo_tapado = 5 * cubierto(caja, regiones, ("cara", "cabeza")) + 2 * cubierto(caja, regiones, ("texto",))
+    sobre_la_caja = castigo(caja, [r for r in regiones if r[2] in TAPAR])
+    return max(sobre_lo_tapado, sobre_la_caja)
 
 
 def main():
@@ -136,7 +166,9 @@ def main():
     for (x0, y0, x1, y1), p, tipo in detectar(im):
         d.rectangle([x0 * im.width, y0 * im.height, x1 * im.width, y1 * im.height], outline=colores[tipo], width=3)
         d.text((x0 * im.width + 3, y0 * im.height + 2), tipo, fill=colores[tipo])
-    sal = video.with_name(f"{video.stem}_caras_{t}.jpg")
+    sal, k = video.with_name(f"{video.stem}_caras_{t}.jpg"), 2
+    while sal.exists():                           # nunca encima de otra imagen
+        sal = video.with_name(f"{video.stem}_caras_{t}_{k}.jpg"); k += 1
     im.save(sal, quality=88)
     print("LISTO", sal)
 

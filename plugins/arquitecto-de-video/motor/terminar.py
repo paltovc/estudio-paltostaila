@@ -6,8 +6,12 @@
 #   python terminar.py "C:\ruta\video" --solo-audio     rehace el audio y lo cambia sin recodificar la imagen
 import json, os, re, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes, apartar_anterior
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes, apartar_anterior, escribir_entrega
 import vivo
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 ARG = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
@@ -68,24 +72,24 @@ def audio(dur):
     lim = "alimiter=limit=0.89:attack=5:release=80:level=0"
     run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex",
          f"{base},volume={ganancia:.2f}dB,{lim},aresample=48000,aformat=channel_layouts=stereo",
-         "-t", f"{dur:.3f}", pr.tmp / "voz_paso.wav"])
+         "-t", f"{dur:.3f}", *SIN_METADATOS, pr.tmp / "voz_paso.wav"])
     for _ in range(3):
         med = run([FFMPEG, "-hide_banner", "-i", pr.tmp / "voz_paso.wav", "-af", "ebur128", "-f", "null", "-"])
         actual = float(re.findall(r"I:\s+(-?[\d.]+) LUFS", med)[-1])
         if abs(actual - L) <= 0.3:
             break
-        run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af", f"volume={L - actual:.2f}dB,{lim}",
+        run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af", f"volume={L - actual:.2f}dB,{lim}", *SIN_METADATOS,
              pr.tmp / "voz_paso2.wav"])
         (pr.tmp / "voz_paso2.wav").replace(pr.tmp / "voz_paso.wav")
     run([FFMPEG, "-v", "error", "-y", "-i", pr.tmp / "voz_paso.wav", "-af",
-         f"afade=t=in:d=0.3,afade=t=out:st={dur - 1.2:.3f}:d=1.2", pr.tmp / "voz.wav"])
+         f"afade=t=in:d=0.3,afade=t=out:st={dur - 1.2:.3f}:d=1.2", *SIN_METADATOS, pr.tmp / "voz.wav"])
     mus = pr.cfg.get("musica") or {}
     voz_final = pr.tmp / "voz.wav"                 # voz.wav queda siempre solo con la voz (paquete de CapCut, doblaje)
     if mus.get("archivo"):                         # música bajo la voz, con ducking (audio.py)
         con_mus = pr.tmp / "voz_musica.wav"
         _au.mezclar(pr.tmp / "voz.wav", pr.ruta(mus["archivo"]), con_mus, mus.get("volumen", -20), mus.get("ducking", True),
                     mus.get("desde", 0.0))
-        run([FFMPEG, "-v", "error", "-y", "-i", con_mus, "-af", f"afade=t=out:st={dur - 2.0:.3f}:d=2.0", "-t", f"{dur:.3f}",
+        run([FFMPEG, "-v", "error", "-y", "-i", con_mus, "-af", f"afade=t=out:st={dur - 2.0:.3f}:d=2.0", "-t", f"{dur:.3f}", *SIN_METADATOS,
              pr.tmp / "voz_musica2.wav"])
         voz_final = pr.tmp / "voz_musica2.wav"
         print(f"audio: música bajo la voz ({mus.get('volumen', -20)} dB, ducking {'sí' if mus.get('ducking', True) else 'no'})", flush=True)
@@ -93,10 +97,10 @@ def audio(dur):
     if efectos.exists() and pr["sonidos"]["activar"] and os.environ.get("SIN_EFECTOS") != "1":
         run([FFMPEG, "-v", "error", "-y", "-i", voz_final, "-i", efectos, "-filter_complex",
              "[0:a][1:a]amix=inputs=2:normalize=0:dropout_transition=0,alimiter=limit=0.89:level=0",
-             "-t", f"{dur:.3f}", "-c:a", "aac", "-b:a", "192k", pr.tmp / "narracion.m4a"])
+             "-t", f"{dur:.3f}", "-c:a", "aac", "-b:a", "192k", *SIN_METADATOS, pr.tmp / "narracion.m4a"])
         print("audio: voz + efectos", flush=True)
     else:
-        run([FFMPEG, "-v", "error", "-y", "-i", voz_final, "-c:a", "aac", "-b:a", "192k", pr.tmp / "narracion.m4a"])
+        run([FFMPEG, "-v", "error", "-y", "-i", voz_final, "-c:a", "aac", "-b:a", "192k", *SIN_METADATOS, pr.tmp / "narracion.m4a"])
         print("audio: solo voz", flush=True)
 
 
@@ -124,7 +128,7 @@ def preparar():
         elementos = v.elementos()
         if SUB.get("evitar_caras", True) and pr.cfg.get("elementos"):    # el registro se escribe siempre, aunque nada se haya movido
             rep = [f"{a:7.1f} s  {tipo:7s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in v.movidos]
-            rep.insert(0, f"# version: {pr.base_nombre} · segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras o cabezas)")
+            rep.insert(0, f"# version: {pr.base_nombre} · segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras, cabezas o texto; ≥ 1 = revisar a mano)")
             (pr.tmp / "capa_viva_lugares.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
             print(f"capa viva: {len(v.movidos)} elementos corridos para no tapar caras o texto (tmp/capa_viva_lugares.txt)", flush=True)
         dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []
@@ -136,11 +140,11 @@ def preparar():
         escribir_ass(pr.tmp / "rotulos.ass", rotulos, [])
         escribir_ass(pr.tmp / "todo.ass", rotulos, subs)
     srt = "".join(f"{i}\n{ts(a, False)} --> {ts(b, False)}\n{t}\n\n" for i, (a, b, t) in enumerate(subs, 1))
-    (pr.salida / f"{pr.base_nombre}_subtitulos.srt").write_text(srt, encoding="utf-8")
+    escribir_entrega(pr.salida / f"{pr.base_nombre}_subtitulos.srt", srt)      # el .srt anterior (quizá aprobado) queda guardado
     if pr["capitulos"]:
         caps = [(0.0 if i == 0 else buscar(pals, c["frase"]), c["titulo"]) for i, c in enumerate(pr["capitulos"])]
         txt = "\n".join(f"{int(t // 60)}:{int(t % 60):02d} {titulo}" for t, titulo in caps)
-        (pr.salida / f"{pr.base_nombre}_capitulos.txt").write_text(txt + "\n", encoding="utf-8")
+        escribir_entrega(pr.salida / f"{pr.base_nombre}_capitulos.txt", txt + "\n")
         print(txt, flush=True)
     print(f"{len(subs)} subtitulos, {len(rotulos)} rotulos", flush=True)
     for t0, _, chico, grande, _ in rotulos:
@@ -172,7 +176,7 @@ def main():
     if ARG("--muestras"):
         for t in [float(x) for x in ARG("--muestras").split(",")]:
             run([FFMPEG, "-v", "error", "-y", "-copyts", "-ss", t, "-i", solo, "-vf", "ass=tmp/todo.ass",
-                 "-frames:v", "1", "-q:v", "3", f"tmp/muestra_{int(t)}s.jpg"], cwd=pr.salida)
+                 "-frames:v", "1", "-q:v", "3", *SIN_METADATOS, f"tmp/muestra_{int(t)}s.jpg"], cwd=pr.salida)
         print("MUESTRAS en", pr.tmp, flush=True)
         return
     audio(dur)
@@ -183,7 +187,7 @@ def main():
              "-map", "0:v", "-map", "1:a", "-vf",
              (lambda l: (l + "," if l else "") + "ass=tmp/todo.ass,fade=t=in:d=0.5")(__import__("efectos").cadena(pr.cfg.get("efectos_video"))),
              *ENCODE, "-c:a", "aac",
-             "-shortest", "-movflags", "+faststart", nombre], cwd=pr.salida)
+             "-shortest", *SIN_METADATOS, "-movflags", "+faststart", nombre], cwd=pr.salida)
         print("LISTO", pr.salida / nombre, flush=True)
         return
     finales = ((f"{pr.base_nombre}_youtube.mp4", "tmp/rotulos.ass"),                # sin subtitulos (el .srt se sube aparte)
@@ -192,7 +196,7 @@ def main():
         for nombre, _ in finales:
             parcial = nombre.replace(".mp4", ".parcial.mp4")
             run([FFMPEG, "-v", "error", "-y", "-i", nombre, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
-                 "-c", "copy", "-movflags", "+faststart", parcial], cwd=pr.salida)
+                 "-c", "copy", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
             guardada = apartar_anterior(pr.salida / nombre)
             if guardada:
                 print("la entrega anterior quedó como", guardada.name, flush=True)
@@ -207,7 +211,7 @@ def main():
     for nombre, ass in finales:
         parcial = nombre.replace(".mp4", ".parcial.mp4")
         run([FFMPEG, "-v", "error", "-y", "-i", solo, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
-             "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", "-movflags", "+faststart", parcial], cwd=pr.salida)
+             "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
         guardada = apartar_anterior(pr.salida / nombre)
         if guardada:
             print("la entrega anterior quedó como", guardada.name, flush=True)

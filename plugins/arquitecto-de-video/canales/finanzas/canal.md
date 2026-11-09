@@ -4,6 +4,11 @@ Código de los videos: `FIN` (FIN-002 = Video 2 "creencias antes de invertir").
 Nombre: "Dinero con Sentido" es **provisional**. No ponerlo en los materiales sin confirmación.
 Fuente: reglas del proyecto del canal (AGENTS.md y guía de voz del 01-10-2026) y lo aprendido en el Video 2 (noviembre de 2026). Si existe la carpeta del proyecto del canal en el PC (`Documents\Codex\Canal-Finanzas-Principiantes`), sus `AGENTS.md` y `.claude\brand-voice-guidelines.md` mandan sobre esta copia.
 
+## Estado del estilo
+- Estado: **en prueba** · Versión del estilo: 1 (08-11-2026).
+- Video de referencia aprobado: ninguno todavía. FIN-002 v13 es la candidata (8,7/10, clase B) y espera el visto bueno de Patricio.
+- Pasa a **aprobado** solo cuando Patricio diga que un video sale como lo quiere; se anota cuál y se sube la versión. Las reglas de esta biblia mandan sobre lo que proponga un agente cuando choquen.
+
 ## Público y formato
 - Personas que empiezan con sus finanzas personales y la inversión, en español. País objetivo sin definir: usar ejemplos generales y declarar moneda y país cuando importe.
 - YouTube horizontal como formato principal, de 8 a 10 minutos sin alargar artificialmente. Cortes verticales para Shorts y TikTok.
@@ -48,12 +53,28 @@ Fuente: reglas del proyecto del canal (AGENTS.md y guía de voz del 01-10-2026) 
 - Más ritmo visual: cambio cada 3-5 s.
 - Comentario fijado con aviso contra estafas.
 
+## Lo que NO va
+Lo leen todos los agentes antes de proponer algo.
+- Textos, tarjetas ni listas de la capa viva sobre la cara o la cabeza del personaje, ni sobre el texto dibujado en la imagen.
+- Repetir en la capa viva un texto que ya está dibujado en la imagen.
+- Humanos semirrealistas mezclados con los dibujos.
+- Textos en inglés dentro de las imágenes.
+- Clips, memes ni stickers de otros: todo elemento es dibujo propio.
+- Promesas de ganancia, urgencia artificial, culpa o vergüenza por los ingresos (ver Reglas de contenido).
+
+## Falta herramienta
+- Cuando no hay lugar libre (primer plano de la cara o pantalla llena de tarjetas), la lista de la capa viva se oculta (FIN-002 v13: lista entera en 0:36, tercer punto en 3:44). Falta una forma de mostrarla sin tapar, por ejemplo en otra escena cercana o como rótulo, que Patricio elija.
+
 ## Decisiones abiertas
 - Nombre definitivo del canal.
 - País objetivo.
 - Imagen maestra del personaje y paleta exacta.
 - Música de fondo (por ahora no).
 
+## Correcciones de la persona
+Se anotan **solo en la biblia del PC** (`%USERPROFILE%\EstudioPaltostaila\canales\finanzas\canal.md`), nunca en esta copia del plugin, que va al repositorio. Formato en la skill nuevo-canal.
+
 ## Historial
 - 01-10-2026: pilares del canal (Patricio).
 - 02-11-2026: biblia creada desde el proyecto del canal y el Video 2.
+- 08-11-2026: se agregan Estado del estilo, Lo que NO va, Falta herramienta, Correcciones de la persona y `aprendizajes.md` (T2, aprobado por Patricio).

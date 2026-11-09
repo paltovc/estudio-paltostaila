@@ -31,6 +31,7 @@ Cada elemento entra en una frase de la transcripción (`"en": "texto exacto"`; s
 | `lista` | `titulo`, `items` (texto o `{"texto", "frase"}` para que cada línea se escriba cuando se dice), `pos`, `dura` | tarjeta de papel escrita a mano, línea por línea |
 | `fichas` | `items`, `frases` (o `cada` en segundos), `colores` | cadena A → B → C (en vertical, en columna) |
 | `lluvia` | `simbolo`: billetes o confeti; `cantidad`, `dura` | ganancias, celebración |
+| `progreso` | `actual`, `total`, `etiqueta` (CREENCIA, PREGUNTA, PASO), `en` y `hasta` (frases: dura todo el bloque), `tarjeta` (true: 1,2 s el número grande al centro, encima del video), `pos` | videos con lista o pasos: «CREENCIA 2 DE 4» chico en una esquina con puntos de avance. Evita caras y texto como los demás; en los Shorts aparece aunque el bloque haya empezado antes del corte. Si un rótulo ya dice «CREENCIA 2», que el contador entre después (`"en": {"frase": …, "desfase": 5.2}`): no repetir un texto que ya está en pantalla |
 | `texto` | `texto`, `color`, `dura`, `pos`, `tam`, `entrada` (ver abajo) | un número o palabra enorme: "x2", "-30%", "FOMO" |
 
 Entradas (`entrada` en elementos `texto`; las de línea también en `subtitulos.entrada`). Aprendidas de las 20 animaciones de texto que describe la ayuda pública de Canva y hechas con etiquetas ASS propias; se acepta el nombre en español o en inglés:

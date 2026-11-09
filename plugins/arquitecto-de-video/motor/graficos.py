@@ -25,6 +25,10 @@ try:
 except Exception:
     FFMPEG = "ffmpeg"
 from diseno import marca, color, fuente
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 SS = 2            # se dibuja al doble y se achica: bordes suaves
 
@@ -198,7 +202,7 @@ def render(g, dur, sal, W=1920, H=1080, fps=30, canal=None, retraso=0.0):
     anim = g.get("duracion_animacion", min(3.0, max(1.2, dur - retraso - 0.8)))
     proc = subprocess.Popen([str(FFMPEG), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
                              "-r", str(fps), "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16",
-                             "-pix_fmt", "yuv420p", str(sal)], stdin=subprocess.PIPE)
+                             "-pix_fmt", "yuv420p", *SIN_METADATOS, str(sal)], stdin=subprocess.PIPE)
     ultimo, clave = None, None
     for i in range(n):
         t = i / fps
@@ -220,7 +224,8 @@ def main():
     if "--spec" in a:
         g = json.loads(Path(op("--spec")).read_text(encoding="utf-8-sig"))
         W, H = (1080, 1920) if "--vertical" in a else (1920, 1080)
-        s = render(g, float(op("--dur", 6)), op("--salida", "grafico.mp4"), W, H, 30, op("--canal"))
+        from estudio import destino                     # nunca encima de un archivo existente
+        s = render(g, float(op("--dur", 6)), str(destino(op("--salida", "grafico.mp4"), op("--spec"))), W, H, 30, op("--canal"))
         print("LISTO", s)
         return
     from estudio import Proyecto, palabras, buscar

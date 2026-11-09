@@ -11,6 +11,10 @@
 #   python transiciones.py --catalogo [carpeta]    un video con cada transición rotulada, para elegir mirando
 import subprocess, sys
 from pathlib import Path
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 # nombre -> (equivalente de ffmpeg xfade o "propia:<efecto>", nombre parecido en CapCut, descripción)
 CATALOGO = {
@@ -166,11 +170,11 @@ def catalogo(carpeta, ffmpeg="ffmpeg", W=1280, H=720, fps=30, d=18):
               f"[b2]trim=end_frame={d},setpts=PTS-STARTPTS[q];" + cadena(k, d, fps, W, H, "p", "q", "t") +
               f";[t]drawtext=text='{txt}':fontcolor=white:fontsize=34:x=(w-tw)/2:y=h-70:box=1:boxcolor=black@0.6:boxborderw=12[v]")
         r = subprocess.run([ffmpeg, "-v", "error", "-y", "-filter_complex", fc, "-map", "[v]", "-frames:v", str(d),
-                            "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)], capture_output=True, text=True)
+                            "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", *SIN_METADATOS, str(out)], capture_output=True, text=True)
         if r.returncode:     # sin fontconfig (drawtext): igual se genera, sin el rótulo
             fc = fc.rsplit(";[t]drawtext", 1)[0].replace("[t]", "[v]")
             r = subprocess.run([ffmpeg, "-v", "error", "-y", "-filter_complex", fc, "-map", "[v]", "-frames:v", str(d),
-                                "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", str(out)], capture_output=True, text=True)
+                                "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", *SIN_METADATOS, str(out)], capture_output=True, text=True)
         if r.returncode:
             print(f"  FALLÓ {k}: {r.stderr[-200:]}", flush=True)
             continue
@@ -178,7 +182,7 @@ def catalogo(carpeta, ffmpeg="ffmpeg", W=1280, H=720, fps=30, d=18):
         print(f"  {k}", flush=True)
     (carpeta / "_lista.txt").write_text("".join(f"file '{x.name}'\n" for x in piezas), encoding="utf-8")
     final = carpeta / "catalogo_transiciones.mp4"
-    subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(carpeta / "_lista.txt"), "-c", "copy", str(final)])
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(carpeta / "_lista.txt"), "-c", "copy", *SIN_METADATOS, str(final)])
     for x in piezas:
         x.unlink(missing_ok=True)
     (carpeta / "_lista.txt").unlink(missing_ok=True)

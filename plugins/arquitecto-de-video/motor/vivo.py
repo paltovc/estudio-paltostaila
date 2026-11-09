@@ -16,6 +16,10 @@
 from pathlib import Path
 import math, random, re, unicodedata
 from estudio import buscar, ts, norm as tokens
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 PRESETS = {
     "finanzas":   dict(fuente="Arial Black", tam=78, color="FFFFFF", clave="FFD23F", clave2="6AD15B", borde="101010", grosor=7,
@@ -206,6 +210,8 @@ class Vivo:
         self.x = 0.46 if vertical else 0.5
         self.rand = random.Random(7)
         self.mapa, self.movidos = None, []
+        self.ocupado = []          # (desde, hasta, caja) de lo que ya está fijo en pantalla (contador): los demás lo evitan
+        self._pos_progreso = None
 
     def usar_mapa(self, video, con_texto=True):
         """Activa "no tapar caras": cada elemento se corre a donde no cubra cabezas, caras, globos ni texto de la imagen."""
@@ -213,20 +219,23 @@ class Vivo:
         if Path(video).exists() and not self.vertical:
             self.mapa = caras.Mapa(video, self.W, self.H, con_texto)
 
-    def _lugar(self, d, defecto, a, b, caja, candidatos=None):
-        """Posición del elemento: la pedida si no tapa nada importante; si tapa, la mejor alternativa cercana."""
-        x, y = self._pos(d.get("pos"), defecto)
-        if self.mapa is None or d.get("fijo"):
+    def _lugar(self, d, defecto, a, b, caja, candidatos=None, muestras=8, pos=None):
+        """Posición del elemento: la pedida si no tapa nada importante; si tapa, la mejor alternativa cercana.
+        También evita lo que ya quedó fijo en pantalla en ese momento (el contador de progreso)."""
+        x, y = pos if pos else self._pos(d.get("pos"), defecto)
+        if d.get("fijo"):
             return x, y
         import caras
-        reg = self.mapa.regiones(a, b)
-        if not reg:
+        occ = [o for oa, ob, o in self.ocupado if oa < b and ob > a]
+        reg = self.mapa.regiones(a, b, muestras) if self.mapa is not None else []
+        if not reg and not occ:
             return x, y
-        def pen(p):                     # tapar algo importante, más salirse del cuadro (se cortaría el texto)
+        def pen(p):                     # tapar algo importante o el contador, más salirse del cuadro (se cortaría el texto)
             c = caja(*p)
             area = max(1.0, (c[2] - c[0]) * (c[3] - c[1]))
             dentro = max(0, min(c[2], self.W) - max(c[0], 0)) * max(0, min(c[3], self.H) - max(c[1], 0))
-            return caras.castigo(c, reg) + 30 * (1 - dentro / area)
+            # tapar el contador se mide sobre el contador (una fila ancha de fichas que lo cruza en una punta igual lo tapa)
+            return caras.castigo(c, reg, por_region=True) + sum(10 * caras.cruce(c, o) / max(1.0, (o[2] - o[0]) * (o[3] - o[1])) for o in occ) + 30 * (1 - dentro / area)
         p0 = pen((x, y))
         if p0 < 0.05:
             return x, y
@@ -235,9 +244,8 @@ class Vivo:
                           for fx in (0.14, 0.30, 0.50, 0.70, 0.86)]
         diag = math.hypot(self.W, self.H)
         mejor = min(candidatos, key=lambda p: pen(p) + 0.6 * math.hypot(p[0] - x, p[1] - y) / diag)
-        # lo que se anota como "ahora" es solo lo que sigue tapando caras o cabezas (globos y texto pesan menos)
-        solo_caras = [r for r in reg if r[2] in ("cara", "cabeza")]
-        en_caras = lambda p: round(caras.castigo(caja(*p), solo_caras), 2)
+        # lo que se anota como "ahora" es lo que sigue tapando caras, cabezas o texto de la imagen (≥ 1 = revisar a mano)
+        en_caras = lambda p: round(caras.tapa(caja(*p), reg), 2)
         if pen(mejor) < p0 * 0.6:
             self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), en_caras(mejor)))
             return mejor
@@ -412,10 +420,39 @@ class Vivo:
             dib(estrella(r), col or "FFD23F", "101010", 4)
         return ev
 
+    def _tramos_escena(self, a_abs, b_abs, minimo=1.5, ultimo_item=None):
+        """Divide [a_abs, b_abs] en tramos por los cortes de escena (para elementos largos que cruzan cortes).
+        Un tramo de menos de `minimo` s se une al anterior; si el último corte cae a menos de `minimo` s del final,
+        el elemento termina en ese corte (así no queda encima de la escena nueva). Devuelve (tramos, b_abs)."""
+        ultimo_item = a_abs if ultimo_item is None else ultimo_item
+        cortes = []
+        try:
+            cortes = sorted(float(r["t0"]) for r in self.pr.escenas() if a_abs + 0.2 < float(r["t0"]) < b_abs - 0.2)
+        except Exception:
+            return [(a_abs, b_abs)], b_abs
+        if cortes and b_abs - cortes[-1] < minimo and cortes[-1] > ultimo_item + 0.5:
+            b_abs = cortes.pop()
+        bordes = [a_abs] + cortes + [b_abs]
+        tramos = []
+        for p, q in zip(bordes, bordes[1:]):
+            if tramos and q - p < minimo:
+                tramos[-1] = (tramos[-1][0], q)
+            else:
+                tramos.append((p, q))
+        if len(tramos) > 1 and tramos[0][1] - tramos[0][0] < minimo:     # primer tramo muy corto: se une al siguiente
+            tramos[1] = (tramos[0][0], tramos[1][1])
+            tramos.pop(0)
+        return tramos, b_abs
+
     def lista(self, d, t0):
-        """Tarjeta de papel que se va escribiendo item por item."""
+        """Tarjeta de papel que se va escribiendo item por item. Si la tarjeta cruza cortes de escena (cada item con su
+        imagen), su lugar se revisa en cada corte como el contador: se queda si no tapa caras ni texto de la imagen, se
+        mueve con el corte si tapa, y si en una escena no hay lugar libre se oculta en esa escena antes que tapar. Vale
+        también para una tarjeta de una sola escena: si no hay lugar libre, no se muestra (queda anotado «lista oculta»)."""
         a = self._t(d["en"]) - t0
-        items = [i if isinstance(i, dict) else {"texto": i} for i in d["items"]]
+        items = [i if isinstance(i, dict) else {"texto": i} for i in d.get("items") or []]
+        if not items:
+            return []
         cada = float(d.get("cada", 0.9))
         tiempos = []
         for k, it in enumerate(items):
@@ -429,22 +466,84 @@ class Vivo:
             y0 = int(min(max(y - alto // 2, 0.04 * self.H), 0.74 * self.H - alto))
             return (x0, y0, x0 + ancho, y0 + alto)
         cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.20, 0.32, 0.44, 0.56) for fx in (0.18, 0.34, 0.50, 0.66, 0.82)]
-        x, y = self._lugar(d, "derecha" if not self.vertical else "centro", t0 + a, t0 + b, caja_lista, cands)
-        x0, y0 = x - ancho // 2, y - alto // 2
-        if self.vertical:   # dentro de la zona segura: sin tocar la columna de botones de la derecha
-            x0 = int(min(max(x0, 0.05 * self.W), 0.84 * self.W - ancho))
-            y0 = int(min(max(y0, 0.14 * self.H), 0.78 * self.H - alto))
+        defecto = "derecha" if not self.vertical else "centro"
+        if self.mapa is None or self.vertical or d.get("fijo"):
+            tramos = [(t0 + a, t0 + b)]
         else:
-            x0, y0 = caja_lista(x, y)[:2]
+            tramos, b_abs = self._tramos_escena(t0 + a, t0 + b, ultimo_item=t0 + max(tiempos))
+            b = b_abs - t0
+        lugares = []                       # (desde, hasta, (x0, y0) o None si en ese tramo se oculta), en segundos absolutos
+        if self.mapa is None or self.vertical or d.get("fijo"):
+            x, y = self._lugar(d, defecto, t0 + a, t0 + b, caja_lista, cands)
+            if self.vertical:   # dentro de la zona segura: sin tocar la columna de botones de la derecha
+                x0 = int(min(max(x - ancho // 2, 0.05 * self.W), 0.84 * self.W - ancho))
+                y0 = int(min(max(y - alto // 2, 0.14 * self.H), 0.78 * self.H - alto))
+            else:
+                x0, y0 = caja_lista(x, y)[:2]
+            lugares.append((t0 + a, t0 + b, (x0, y0)))
+        else:
+            import caras
+            pedido = None
+            for p, q in tramos:
+                m = max(3, min(8, int(q - p) + 1))
+                reg_t = self.mapa.regiones(p, q, m)
+                antes_mov = len(self.movidos)
+                x, y = self._lugar(d, defecto, p, q, caja_lista, cands, muestras=m, pos=pedido)
+                if caras.tapa(caja_lista(x, y), reg_t) >= 1:
+                    # el mejor lugar «por costo» todavía tapa: antes de ocultar, probar cualquier candidato que no tape
+                    # (ni el contador), el más cercano al lugar pedido
+                    occ = [o for oa, ob, o in self.ocupado if oa < q and ob > p]
+                    libres = [c_ for c_ in cands if caras.tapa(caja_lista(*c_), reg_t) < 1
+                              and not any(caras.cruce(caja_lista(*c_), o) for o in occ)]
+                    if libres:
+                        x, y = min(libres, key=lambda c_: math.hypot(c_[0] - x, c_[1] - y))
+                        del self.movidos[antes_mov:]
+                        self.movidos.append((round(p, 1), d.get("tipo"), pedido or self._pos(d.get("pos"), defecto), (x, y), 0,
+                                             round(caras.tapa(caja_lista(x, y), reg_t), 2)))
+                # ningún lugar libre de caras ni de texto de la imagen en esta escena (aunque sea la única): se oculta
+                if caras.tapa(caja_lista(x, y), reg_t) >= 1:
+                    del self.movidos[antes_mov:]
+                    self.movidos.append((round(p, 1), "lista oculta", (x, y), None, 0, 0.0))
+                    lugares.append((p, q, None))
+                    continue
+                pedido = (x, y)
+                lugares.append((p, q, caja_lista(x, y)[:2]))
+            # lo que se pierde por ocultar queda anotado con «ahora 1.0» para que terminado.py pida revisarlo a mano
+            visibles = [(p, q) for p, q, pos in lugares if pos is not None]
+            if not visibles:
+                self.movidos.append((round(t0 + a, 1), "lista_entera_oculta", None, None, 0, 1.0))
+            else:
+                for it, t in zip(items, tiempos):
+                    if not any(q > t + t0 for p, q in visibles):      # ni en su escena ni en una posterior
+                        self.movidos.append((round(t + t0, 1), "item_sin_mostrar", None, None, 0, 1.0))
         giro = d.get("giro", -3)
-        ev = [f"Dialogue: 2,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0 + 8},{y0 + 10})\\frz{giro}\\1c{c('000000')}\\1a&HA0&\\bord0\\fad(200,250)\\p1}}{rect(ancho, alto, 18)}{{\\p0}}",
-              f"Dialogue: 3,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0},{y0})\\frz{giro}\\1c{c(d.get('color', 'FFFDF5'))}\\3c{c('E0D6C2')}\\bord2\\fad(200,250)\\p1}}{rect(ancho, alto, 18)}{{\\p0}}"]
-        if d.get("titulo"):
-            ev.append(f"Dialogue: 4,{ts(a)},{ts(b)},VivoMano,,0,0,0,,{{\\an7\\pos({x0 + round(30 * s)},{y0 + round(22 * s)})\\frz{giro}\\fs{round(52 * s)}\\c{c('C23B3B')}\\fad(200,250)}}{limpio(d['titulo'])}")
-        for k, (it, t) in enumerate(zip(items, tiempos)):
-            yy = y0 + round((92 + 62 * k) * s)
-            ev.append(f"Dialogue: 4,{ts(t)},{ts(b)},VivoMano,,0,0,0,,{{\\an7\\pos({x0 + round(36 * s)},{yy})\\frz{giro}\\fad(180,250)"
-                      f"\\clip({x0},{yy - 10},{x0 + 20},{yy + 80})\\t(0,500,\\clip({x0},{yy - 10},{x0 + ancho},{yy + 80}))}}• {limpio(it['texto'])}")
+        color = c(d.get("color", "FFFDF5"))
+        ev = []
+        for n, (p, q, pos) in enumerate(lugares):
+            if pos is None:
+                continue
+            x0, y0 = pos
+            A, B = p - t0, q - t0
+            if B <= A + 0.1:
+                continue
+            ant = lugares[n - 1][2] if n else None
+            sig = lugares[n + 1][2] if n + 1 < len(lugares) else None
+            fi = 200 if (n == 0 or ant is None) else 0       # entra con fundido al empezar o al volver; en los cortes salta con la imagen
+            fo = 250 if (sig is None) else 0
+            fad = f"\\fad({fi},{fo})"
+            ev += [f"Dialogue: 2,{ts(A)},{ts(B)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0 + 8},{y0 + 10})\\frz{giro}\\1c{c('000000')}\\1a&HA0&\\bord0{fad}\\p1}}{rect(ancho, alto, 18)}{{\\p0}}",
+                   f"Dialogue: 3,{ts(A)},{ts(B)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0},{y0})\\frz{giro}\\1c{color}\\3c{c('E0D6C2')}\\bord2{fad}\\p1}}{rect(ancho, alto, 18)}{{\\p0}}"]
+            if d.get("titulo"):
+                ev.append(f"Dialogue: 4,{ts(A)},{ts(B)},VivoMano,,0,0,0,,{{\\an7\\pos({x0 + round(30 * s)},{y0 + round(22 * s)})\\frz{giro}\\fs{round(52 * s)}\\c{c('C23B3B')}{fad}}}{limpio(d['titulo'])}")
+            for k, (it, t) in enumerate(zip(items, tiempos)):
+                if t >= B or ts(max(t, A)) == ts(B):     # no cabe en este tramo (o quedaría con duración cero al redondear)
+                    continue
+                yy = y0 + round((92 + 62 * k) * s)
+                if t >= A:      # el item aparece en esta escena: se escribe
+                    ev.append(f"Dialogue: 4,{ts(t)},{ts(B)},VivoMano,,0,0,0,,{{\\an7\\pos({x0 + round(36 * s)},{yy})\\frz{giro}\\fad(180,{fo})"
+                              f"\\clip({x0},{yy - 10},{x0 + 20},{yy + 80})\\t(0,500,\\clip({x0},{yy - 10},{x0 + ancho},{yy + 80}))}}• {limpio(it['texto'])}")
+                else:           # ya estaba escrito: sigue en la tarjeta, en su nuevo lugar
+                    ev.append(f"Dialogue: 4,{ts(A)},{ts(B)},VivoMano,,0,0,0,,{{\\an7\\pos({x0 + round(36 * s)},{yy})\\frz{giro}{fad}}}• {limpio(it['texto'])}")
         return ev
 
     def fichas(self, d, t0):
@@ -551,6 +650,119 @@ class Vivo:
         tags = re.sub(r"\\fad\((\d+),0\)", r"\\fad(\1,250)", tags) if "\\fad(" in tags else tags + "\\fad(0,250)"
         return [linea(a, b, tags, txt)]
 
+    def _fin_progreso(self, d, a):
+        if "hasta" in d:
+            return self._t(d["hasta"], a) - float(d.get("antes", 0.3))   # se va un poco antes del bloque siguiente
+        return a + float(d.get("dura", 8))
+
+    def progreso(self, d, t0, t1=1e9):
+        """Contador «N DE M» fijo en una esquina durante un bloque (ej. CREENCIA 2 DE 4), con puntos de avance.
+        {"tipo": "progreso", "en": <frase o segundo>, "hasta": <frase siguiente>, "actual": 2, "total": 4,
+         "etiqueta": "CREENCIA", "tarjeta": false, "pos": [0.87, 0.09], "pos_vertical": [0.30, 0.31]}. Con "tarjeta": true,
+        al empezar muestra 1,2 s el número grande al centro (encima del video, sin agregar tiempo). Evita caras y texto de
+        la imagen; queda en la misma esquina que el contador anterior si ahí no tapa nada; los demás elementos lo evitan."""
+        actual, total = int(d.get("actual", 1)), int(d.get("total", 1))
+        if not (1 <= actual <= total):
+            raise ValueError(f"progreso: actual {actual} fuera de 1..{total}")
+        a_abs = self._t(d["en"])
+        b_abs = self._fin_progreso(d, a_abs)
+        if b_abs <= a_abs + 0.3:
+            raise ValueError(f"progreso {actual}/{total}: termina antes de empezar (revisa 'hasta')")
+        if b_abs <= t0 or a_abs >= t1:
+            return []
+        s, ev = self.esc, []
+        fin_tramo = min(b_abs, t1) - t0
+        txt = f"{limpio(d.get('etiqueta', 'PASO')).upper()} {actual} DE {total}"
+        clave = c(d.get("color", self.e["clave"]))
+        if d.get("tarjeta") and a_abs >= t0:      # número grande al centro, 1,2 s, con velo oscuro detrás
+            ta, tb = a_abs - t0, min(a_abs - t0 + 1.2, fin_tramo)
+            if tb > ta + 0.2:
+                ev.append(f"Dialogue: 8,{ts(ta)},{ts(tb)},VivoDibujo,,0,0,0,,{{\\an7\\pos(0,0)\\1c{c('000000')}\\1a&H60&\\bord0\\fad(150,200)\\p1}}{rect(self.W, self.H)}{{\\p0}}")
+                ev.append(f"Dialogue: 9,{ts(ta)},{ts(tb)},Vivo,,0,0,0,,{{\\an5\\pos({self.W // 2},{self.H // 2})\\fs{round((90 if self.vertical else 120) * s)}\\c{clave}\\bord{round(8 * s)}"
+                          f"{self._pop(1200)}}}{txt}")
+            a_abs += 1.2
+        tam = round(float(d.get("tam", 40)) * s)
+        pad, sep = round(18 * s), round(10 * s)
+        ancho = round(len(txt) * tam * 0.70) + 2 * pad
+        punto = min(round(14 * s), max(4, (ancho - 2 * pad - (total - 1) * sep) // total))
+        if total * punto + (total - 1) * sep > ancho - 2 * pad:
+            sep = max(2, (ancho - 2 * pad - total * punto) // max(1, total - 1))
+        alto = tam + punto + 3 * pad // 2 + round(6 * s)
+        defecto = d.get("pos_vertical", [0.30, 0.31]) if self.vertical else d.get("pos", [0.87, 0.09])
+        caja = lambda x, y: (x - ancho // 2, y - alto // 2, x + ancho // 2, y + alto // 2)
+        if self.vertical:          # debajo del título del Short y fuera de la columna de botones
+            cands = [(round(0.30 * self.W), round(0.31 * self.H)), (round(0.30 * self.W), round(0.62 * self.H))]
+        else:
+            cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.09, 0.20, 0.62) for fx in (0.13, 0.87)]
+        pedido = (round(defecto[0] * self.W), round(defecto[1] * self.H))
+        if self._pos_progreso and "pos" not in d and not self.vertical:
+            pedido = self._pos_progreso                 # misma esquina que el contador anterior: el video se ve ordenado
+        # el lugar se revisa en cada cambio de escena: se queda si no tapa nada y solo se mueve en un corte
+        bordes = [a_abs, b_abs]
+        try:
+            bordes += [float(r["t0"]) for r in self.pr.escenas() if a_abs + 1.5 < float(r["t0"]) < b_abs - 1.5]
+        except Exception:
+            pass
+        bordes = sorted(set(bordes))
+        tramos = []
+        for p, q in zip(bordes, bordes[1:]):
+            if tramos and q - p < 1.5:                  # escenas muy cortas: siguen con el lugar del tramo anterior
+                tramos[-1] = (tramos[-1][0], q)
+            else:
+                tramos.append((p, q))
+        import caras
+        ajustar = lambda x, y: (min(max(x, ancho // 2 + round(0.02 * self.W)), self.W - ancho // 2 - round(0.02 * self.W)),
+                                min(max(y, alto // 2 + round(0.02 * self.H)), round(0.78 * self.H) - alto // 2))
+        cands = [ajustar(*q) for q in cands]
+        pedido = ajustar(*pedido)
+        lugares = []
+        for p, q in tramos:
+            m = max(3, min(8, int(q - p)))
+            reg_t = self.mapa.regiones(p, q, m) if self.mapa is not None else []
+            tapa = lambda pos: caras.tapa(caja(*pos), reg_t)
+            if tapa(pedido) < 0.3:
+                x, y = pedido                     # se queda: solo tapar una cara o un texto de la imagen obliga a moverlo (rozarlos no)
+            else:
+                antes_mov = len(self.movidos)
+                x, y = ajustar(*self._lugar(d, "arriba-der", p, q, caja, cands, muestras=m, pos=pedido))
+                if tapa((x, y)) >= 1:             # ningún lugar libre de caras en este tramo: se oculta antes que tapar
+                    del self.movidos[antes_mov:]  # oculto no tapa nada: no queda anotado para revisar
+                    lugares.append((p, q, None))
+                    continue
+            if lugares and lugares[-1][2] == (x, y):
+                lugares[-1] = (lugares[-1][0], q, (x, y))
+            else:
+                lugares.append((p, q, (x, y)))
+            pedido = (x, y)
+            self.ocupado.append((p, q, caja(x, y)))
+        visibles = [l for l in lugares if l[2] is not None]
+        if not visibles:
+            return ev
+        lugares = visibles
+        if not self.vertical:
+            self._pos_progreso = lugares[-1][2]
+        total_w = total * punto + (total - 1) * sep
+        for n, (p, q, (x, y)) in enumerate(lugares):
+            A, B = max(p, t0) - t0, min(q, t1) - t0
+            if B <= A + 0.2:
+                continue
+            antes = lugares[n - 1][1] if n else None
+            despues = lugares[n + 1][0] if n + 1 < len(lugares) else None
+            fi = 250 if ((n == 0 and p >= t0) or (antes is not None and p - antes > 0.05)) else 0   # entra con fundido al empezar o al volver
+            fo = 250 if (despues is None or despues - q > 0.05) else 0     # y se va con fundido al terminar u ocultarse; en los cortes salta con la imagen
+            fad = f"\\fad({fi},{fo})"
+            x0, y0 = x - ancho // 2, y - alto // 2
+            ev.append(f"Dialogue: 5,{ts(A)},{ts(B)},VivoDibujo,,0,0,0,,{{\\an7\\pos({x0},{y0})\\1c{c('101010')}\\1a&H30&\\3c{clave}\\bord{max(2, round(3 * s))}{fad}\\p1}}{rect(ancho, alto, round(alto * 0.28))}{{\\p0}}")
+            ev.append(f"Dialogue: 6,{ts(A)},{ts(B)},Vivo,,0,0,0,,{{\\an8\\pos({x},{y0 + pad // 2})\\fs{tam}\\c{c('FFFFFF')}\\bord0\\shad0{fad}}}{txt}")
+            px0, py = x - total_w // 2, y0 + pad // 2 + tam + round(8 * s)
+            for k in range(total):
+                col = clave if k < actual else c("FFFFFF")
+                alfa = "\\1a&H00&" if k < actual else "\\1a&HA0&"
+                pop = "\\fscx0\\fscy0\\t(250,450,\\fscx130\\fscy130)\\t(450,600,\\fscx100\\fscy100)" if k == actual - 1 and fi else ""
+                cx, cy = px0 + k * (punto + sep) + punto // 2, py + punto // 2      # \\an5: el punto crece desde su centro
+                ev.append(f"Dialogue: 6,{ts(A)},{ts(B)},VivoDibujo,,0,0,0,,{{\\an5\\pos({cx},{cy})\\1c{col}{alfa}\\bord0{fad}{pop}\\p1}}{circulo(punto / 2)}{{\\p0}}")
+        return ev
+
     def linea_de_tiempo(self):
         """Tiempos de cada elemento (para la sala de edición): inicio, fin y momentos de sus partes."""
         out = []
@@ -578,19 +790,33 @@ class Vivo:
                 except ValueError:
                     partes = [a + j * cada for j in range(len(d["items"]))]
                 b = max(partes) + float(d.get("dura", 2.5))
+            elif tipo == "progreso":
+                try:
+                    b = self._fin_progreso(d, a)
+                except ValueError as ex:          # igual que en el render: sin 'hasta' no se dibuja
+                    out.append({"n": k, "tipo": tipo, "error": str(ex), "datos": d})
+                    continue
             else:
                 b = a + float(d.get("dura", {"lluvia": 2.5, "texto": 1.6}.get(tipo, 2.0)))
             out.append({"n": k, "tipo": tipo, "a": round(a, 3), "b": round(b, 3), "partes": [round(x, 3) for x in partes],
-                        "pos": list(self._pos(d.get("pos"), "derecha" if tipo == "lista" and not self.vertical else "centro")), "datos": d})
+                        "pos": list(self._pos(d.get("pos", [0.87, 0.09] if tipo == "progreso" else None), "derecha" if tipo == "lista" and not self.vertical else "centro")), "datos": d})
         return out
 
     def elementos(self, t0=0.0, t1=1e9):
         out = []
-        for d in self.pr.cfg.get("elementos", []):
+        self.ocupado, self._pos_progreso = [], None
+        todos = self.pr.cfg.get("elementos", [])
+        for d in [e for e in todos if e.get("tipo") == "progreso"] + [e for e in todos if e.get("tipo") != "progreso"]:
             try:
                 t = self._t(d["en"])
             except ValueError as ex:
                 print("AVISO elemento sin frase:", ex)
+                continue
+            if d.get("tipo") == "progreso":     # dura todo un bloque: entra si se cruza con el tramo (también en un Short)
+                try:
+                    out += self.progreso(d, t0, t1)
+                except ValueError as ex:
+                    print("AVISO progreso:", ex)
                 continue
             if not (t0 - 0.5 <= t <= t1):
                 continue
@@ -660,10 +886,10 @@ def prueba():
     nombre = f"{pr.base_nombre}_vivo-prueba{sufijo}.mp4"
     run([FFMPEG, "-v", "error", "-y", *fondo, "-ss", f"{a:.3f}", "-t", f"{dur:.3f}", "-i", str(pr.audios()[0]),
          "-filter_complex", vf, "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", f"../{nombre}"], cwd=pr.tmp)
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", f"../{nombre}"], cwd=pr.tmp)
     print("LISTO", pr.salida / nombre, f"({len(lineas)} eventos)", flush=True)
     for t in [float(x) for x in (arg("--fotos") or "").split(",") if x]:
-        run([FFMPEG, "-v", "error", "-y", "-ss", f"{t - a:.3f}", "-i", str(pr.salida / nombre), "-frames:v", "1", "-q:v", "3",
+        run([FFMPEG, "-v", "error", "-y", "-ss", f"{t - a:.3f}", "-i", str(pr.salida / nombre), "-frames:v", "1", "-q:v", "3", *SIN_METADATOS,
              str(pr.tmp / f"vivo{sufijo}_{t:.1f}s.jpg")])
     if arg("--fotos"):
         print("FOTOS en", pr.tmp, flush=True)

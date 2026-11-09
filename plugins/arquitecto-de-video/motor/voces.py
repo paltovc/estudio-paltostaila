@@ -12,6 +12,10 @@
 import asyncio, html, json, re, subprocess, sys, unicodedata
 from datetime import datetime
 from pathlib import Path
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 try:
     import edge_tts
@@ -137,7 +141,7 @@ def alinear(marcas, texto, base):
 
 
 def generar():
-    from estudio import Proyecto, FFMPEG, FFPROBE
+    from estudio import Proyecto, FFMPEG, FFPROBE, entregar, parcial_de, escribir_entrega
     pr = Proyecto(args[1])
     voz = opt("--voz", "es-CL-LorenzoNeural")
     fuente = Path(opt("--texto")) if opt("--texto") else None
@@ -170,7 +174,9 @@ def generar():
         print(f"trozo {i}/{len(ts)} listo ({len(t)} caracteres)", flush=True)
     (tmp / "lista.txt").write_text("".join(f"file '{p.name}'\n" for p in lista), encoding="utf-8")
     salida = voz_dir / f"{pr.id}_voz-{voz.split('-')[-1].replace('Neural', '').lower()}.mp3"
-    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(tmp / "lista.txt"), "-c", "copy", str(salida)], check=True)
+    parcial = parcial_de(salida)             # la voz anterior (la de un render ya entregado) queda como *_anterior-<fecha>
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(tmp / "lista.txt"), "-c", "copy", *SIN_METADATOS, str(parcial)], check=True)
+    entregar(parcial, salida)
     segs, actual = [], []
     for w in palabras:
         actual.append(w)
@@ -184,7 +190,7 @@ def generar():
     if destino_tr.exists() and "--reemplazar" not in args:
         destino_tr = destino_tr.with_name(destino_tr.stem + "_voz_generada.json")
     destino_tr.parent.mkdir(parents=True, exist_ok=True)
-    destino_tr.write_text(json.dumps(tr, ensure_ascii=False), encoding="utf-8")
+    escribir_entrega(destino_tr, json.dumps(tr, ensure_ascii=False))   # la transcripción anterior (quizá corregida a mano) queda guardada
     print(f"\nvoz: {salida} ({base:.1f} s, {voz})")
     print(f"tiempos por palabra: {destino_tr} (no hace falta transcribir con WhisperX)")
 

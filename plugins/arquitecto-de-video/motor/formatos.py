@@ -16,6 +16,10 @@ try:
     from estudio import FFMPEG
 except Exception:
     FFMPEG = "ffmpeg"
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 TAM = {"16x9": (1920, 1080), "9x16": (1080, 1920), "1x1": (1080, 1080), "4x5": (1080, 1350)}
 
@@ -41,7 +45,7 @@ def video(ruta, formatos="1x1,4x5,9x16", modo="relleno", cx=0.5):
         from estudio import destino
         sal = destino(ruta.with_name(f"{ruta.stem}_{fm}.mp4"), ruta)
         run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-c:v", "libx264",
-             "-preset", "veryfast", "-crf", "18", "-c:a", "copy", "-movflags", "+faststart", sal])
+             "-preset", "veryfast", "-crf", "18", "-c:a", "copy", *SIN_METADATOS, "-movflags", "+faststart", sal])
         print("listo:", sal, flush=True)
         salidas.append(sal)
     return salidas
@@ -77,7 +81,7 @@ def animar(plantilla, datos, base, sal, dur=4.0, estilo="subir", canal=None, fps
     W, H = fondo.size
     paso, entra = 0.28, 0.55                      # cada capa empieza 0,28 s después de la anterior y tarda 0,55 s
     proc = subprocess.Popen([str(FFMPEG), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(fps),
-                             "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p", str(sal)],
+                             "-i", "-", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p", *SIN_METADATOS, str(sal)],
                             stdin=subprocess.PIPE)
     fin = None
     for i in range(round(dur * fps)):

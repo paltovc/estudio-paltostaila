@@ -71,19 +71,27 @@ def muestras():
         fuente = ImageFont.truetype("arial.ttf", 26)
     except Exception:
         fuente = ImageFont.load_default()
+    import shutil, tempfile
+    import atexit
+    tmp = Path(tempfile.mkdtemp(prefix="color_muestras_"))   # los cuadros sueltos: carpeta temporal propia
+    atexit.register(shutil.rmtree, tmp, True)               # se borra aunque algo falle a mitad
     for i, p in enumerate(pedidos, 1):
         ruta, _, t = p.rpartition("@") if "@" in p else (p, "", "")
         ruta = Path(ruta); t = float(t) if t else None
-        antes = fotograma(ruta, t, "", salida / f"_a{i}.jpg", alto)
-        despues = fotograma(ruta, t, cadena(ruta, look), salida / f"_d{i}.jpg", alto)
+        antes = fotograma(ruta, t, "", tmp / f"_a{i}.jpg", alto)
+        despues = fotograma(ruta, t, cadena(ruta, look), tmp / f"_d{i}.jpg", alto)
         hoja = Image.new("RGB", (antes.width + despues.width + 30, alto + 50), (20, 20, 24))
         hoja.paste(antes, (10, 45)); hoja.paste(despues, (antes.width + 20, 45))
         d = ImageDraw.Draw(hoja)
         d.text((14, 10), f"ANTES  {ruta.name}" + (f" @ {t:.1f}s" if t is not None else ""), fill=(230, 230, 230), font=fuente)
         d.text((antes.width + 24, 10), f"DESPUÉS  look {look}", fill=(255, 200, 110), font=fuente)
-        hoja.save(salida / f"color_{look}_{i:02d}.jpg", quality=85)
-        (salida / f"_a{i}.jpg").unlink(); (salida / f"_d{i}.jpg").unlink()
-        print("ok", salida / f"color_{look}_{i:02d}.jpg", flush=True)
+        sal = salida / f"color_{look}_{i:02d}.jpg"
+        k = 2
+        while sal.exists():                       # nunca encima de una hoja anterior
+            sal = salida / f"color_{look}_{i:02d}_{k}.jpg"; k += 1
+        hoja.save(sal, quality=85)
+        print("ok", sal, flush=True)
+    shutil.rmtree(tmp, ignore_errors=True)       # solo la carpeta temporal de arriba
 
 
 if __name__ == "__main__":

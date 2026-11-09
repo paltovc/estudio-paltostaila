@@ -1,0 +1,102 @@
+--- caras_antes.py	2026-11-08 14:18:30.373039402 -0300
++++ caras.py	2026-11-08 14:19:11.214460630 -0300
+@@ -121,9 +121,39 @@
+     return max(0.0, w) * max(0.0, h)
+ 
+ 
+-def castigo(caja, regiones):
++BASE = {"cara": PESO_CARA, "cabeza": PESO_CARA, "globo": PESO_GLOBO, "texto": PESO_TEXTO}
++TAPAR = {"cara": 10.0, "cabeza": 10.0, "texto": 4.0}     # costo de tapar ENTERA una cara o un texto (medido sobre ellos)
++
++
++def _frac(caja, r):
++    return min(1.0, cruce(caja, r) / max(1.0, (r[2] - r[0]) * (r[3] - r[1])))
++
++
++def castigo(caja, regiones, por_region=False):
++    """Cuánto tapa la caja. Base: la parte de la CAJA que queda sobre algo (una tarjeta grande que cubre una cabeza chica
++    casi no suma). Con por_region=True se suma también la parte de cada cara o texto que queda tapada, medida sobre ESA
++    cara o ese texto: tapar entera una cabeza chica o una palabra dibujada cuesta lo mismo que una grande."""
+     area = max(1.0, (caja[2] - caja[0]) * (caja[3] - caja[1]))
+-    return sum(p * cruce(caja, r) / area for r, p, _ in regiones)
++    total = sum(p * cruce(caja, r) / area for r, p, _ in regiones)
++    if por_region:
++        total += sum(TAPAR[t] * (p / BASE[t]) * _frac(caja, r) for r, p, t in regiones if t in TAPAR)
++    return total
++
++
++def cubierto(caja, regiones, tipos=("cara", "cabeza", "texto")):
++    """Parte tapada de esas regiones, medida sobre cada una y promediada entre los cuadros mirados
++    (1.0 = una cara o un texto tapado entero todo el tiempo; dos tapadas enteras = 2.0)."""
++    return sum((p / BASE[t]) * _frac(caja, r) for r, p, t in regiones if t in tipos)
++
++
++def tapa(caja, regiones):
++    """≥ 1 cuando la caja tapa algo importante, con la peor de dos medidas: sobre lo tapado (un 20 % de una cara o
++    cabeza, o la mitad de un texto de la imagen) o sobre la caja (como antes: la caja queda en buena parte sobre una
++    cara grande o un cartel de texto). Es lo que se anota como «ahora» en capa_viva_lugares.txt y lo que revisa
++    terminado.py (punto 5)."""
++    sobre_lo_tapado = 5 * cubierto(caja, regiones, ("cara", "cabeza")) + 2 * cubierto(caja, regiones, ("texto",))
++    sobre_la_caja = castigo(caja, [r for r in regiones if r[2] in TAPAR])
++    return max(sobre_lo_tapado, sobre_la_caja)
+ 
+ 
+ def main():
+--- vivo_antes_texto.py	2026-11-08 14:18:30.374452376 -0300
++++ vivo.py	2026-11-08 14:18:30.426146537 -0300
+@@ -231,7 +231,7 @@
+             area = max(1.0, (c[2] - c[0]) * (c[3] - c[1]))
+             dentro = max(0, min(c[2], self.W) - max(c[0], 0)) * max(0, min(c[3], self.H) - max(c[1], 0))
+             # tapar el contador se mide sobre el contador (una fila ancha de fichas que lo cruza en una punta igual lo tapa)
+-            return caras.castigo(c, reg) + sum(10 * caras.cruce(c, o) / max(1.0, (o[2] - o[0]) * (o[3] - o[1])) for o in occ) + 30 * (1 - dentro / area)
++            return caras.castigo(c, reg, por_region=True) + sum(10 * caras.cruce(c, o) / max(1.0, (o[2] - o[0]) * (o[3] - o[1])) for o in occ) + 30 * (1 - dentro / area)
+         p0 = pen((x, y))
+         if p0 < 0.05:
+             return x, y
+@@ -240,9 +240,8 @@
+                           for fx in (0.14, 0.30, 0.50, 0.70, 0.86)]
+         diag = math.hypot(self.W, self.H)
+         mejor = min(candidatos, key=lambda p: pen(p) + 0.6 * math.hypot(p[0] - x, p[1] - y) / diag)
+-        # lo que se anota como "ahora" es solo lo que sigue tapando caras o cabezas (globos y texto pesan menos)
+-        solo_caras = [r for r in reg if r[2] in ("cara", "cabeza")]
+-        en_caras = lambda p: round(caras.castigo(caja(*p), solo_caras), 2)
++        # lo que se anota como "ahora" es lo que sigue tapando caras, cabezas o texto de la imagen (≥ 1 = revisar a mano)
++        en_caras = lambda p: round(caras.tapa(caja(*p), reg), 2)
+         if pen(mejor) < p0 * 0.6:
+             self.movidos.append((round(a, 1), d.get("tipo"), (x, y), mejor, round(p0, 2), en_caras(mejor)))
+             return mejor
+@@ -443,8 +442,9 @@
+ 
+     def lista(self, d, t0):
+         """Tarjeta de papel que se va escribiendo item por item. Si la tarjeta cruza cortes de escena (cada item con su
+-        imagen), su lugar se revisa en cada corte como el contador: se queda si no tapa caras, se mueve con el corte si
+-        tapa, y si en una escena no hay lugar libre se oculta en esa escena antes que tapar una cara."""
++        imagen), su lugar se revisa en cada corte como el contador: se queda si no tapa caras ni texto de la imagen, se
++        mueve con el corte si tapa, y si en una escena no hay lugar libre se oculta en esa escena antes que tapar. Vale
++        también para una tarjeta de una sola escena: si no hay lugar libre, no se muestra (queda anotado «lista oculta»)."""
+         a = self._t(d["en"]) - t0
+         items = [i if isinstance(i, dict) else {"texto": i} for i in d["items"]]
+         cada = float(d.get("cada", 0.9))
+@@ -467,7 +467,7 @@
+             tramos, b_abs = self._tramos_escena(t0 + a, t0 + b, ultimo_item=t0 + max(tiempos))
+             b = b_abs - t0
+         lugares = []                       # (desde, hasta, (x0, y0) o None si en ese tramo se oculta), en segundos absolutos
+-        if len(tramos) == 1:
++        if self.mapa is None or self.vertical or d.get("fijo"):
+             x, y = self._lugar(d, defecto, t0 + a, t0 + b, caja_lista, cands)
+             if self.vertical:   # dentro de la zona segura: sin tocar la columna de botones de la derecha
+                 x0 = int(min(max(x - ancho // 2, 0.05 * self.W), 0.84 * self.W - ancho))
+@@ -480,10 +480,11 @@
+             pedido = None
+             for p, q in tramos:
+                 m = max(3, min(8, int(q - p) + 1))
+-                caras_t = [r for r in self.mapa.regiones(p, q, m) if r[2] in ("cara", "cabeza")]
++                reg_t = self.mapa.regiones(p, q, m)
+                 antes_mov = len(self.movidos)
+                 x, y = self._lugar(d, defecto, p, q, caja_lista, cands, muestras=m, pos=pedido)
+-                if caras.castigo(caja_lista(x, y), caras_t) >= 1:      # ningún lugar libre de caras en esta escena: se oculta
++                # ningún lugar libre de caras ni de texto de la imagen en esta escena (aunque sea la única): se oculta
++                if caras.tapa(caja_lista(x, y), reg_t) >= 1:
+                     del self.movidos[antes_mov:]
+                     self.movidos.append((round(p, 1), "lista oculta", (x, y), None, 0, 0.0))
+                     lugares.append((p, q, None))

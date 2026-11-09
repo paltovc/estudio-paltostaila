@@ -78,7 +78,7 @@ def leer_notas():
 def medios():
     out = []
     for f in sorted(pr.salida.glob("*.mp4"), key=lambda x: -x.stat().st_mtime):
-        if ".parcial" not in f.name:
+        if ".parcial" not in f.name and "_anterior-" not in f.name:      # las entregas guardadas no se comentan por error
             out.append({"nombre": f.name, "ruta": str(f.relative_to(pr.dir)).replace("\\", "/"), "tipo": "video",
                         "con_subtitulos": "con-subtitulos" in f.name or "9x16" in f.name or "vivo-prueba" in f.name})
     solo = pr.tmp / "solo_video.mp4"

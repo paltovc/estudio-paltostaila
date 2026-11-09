@@ -27,9 +27,13 @@ import transiciones
 import efectos as fx
 
 try:
-    from estudio import FFMPEG, FFPROBE
+    from estudio import FFMPEG, FFPROBE, entregar, parcial_de
 except Exception:
-    FFMPEG, FFPROBE = "ffmpeg", "ffprobe"
+    sys.exit("Falta estudio.py del motor (montaje_tomas.py lo necesita para no pisar el video anterior).")
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 FOTO = {".jpg", ".jpeg", ".png", ".webp"}
 LOOKS.setdefault("calido_foto", dict(c=1.02, s=1.0, g=1.0, med=(0.04, 0.01, -0.04), alt=(0.02, 0.0, -0.02), vin=1))
@@ -73,7 +77,7 @@ def tramo_foto(ruta, dur, t, W, H, fps, look, sal):
         fc = fc[:-3] + "," + fx.cadena(t["efectos"]) + "[v]"
     run([FFMPEG, "-v", "error", "-y", "-loop", "1", "-framerate", fps, "-t", f"{dur:.3f}", "-i", ruta,
          "-filter_complex", fc, "-map", "[v]", "-frames:v", n, "-c:v", "libx264", "-preset", "veryfast", "-crf", 18,
-         "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
+         "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", *SIN_METADATOS, sal])
 
 
 def tramo_video(ruta, dur, t, W, H, fps, look, sal):
@@ -105,7 +109,7 @@ def tramo_video(ruta, dur, t, W, H, fps, look, sal):
         vf += "," + fx.cadena(t["efectos"])
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t.get('desde_clip', 0):.3f}", "-t", f"{consumo + 0.5:.3f}", "-i", ruta,
          "-an", "-vf", vf, "-frames:v", round(dur * fps), "-c:v", "libx264", "-preset", "veryfast", "-crf", 18,
-         "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", sal])
+         "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", *SIN_METADATOS, sal])
 
 
 def unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp):
@@ -121,7 +125,7 @@ def unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp):
             raise SystemExit(f"Tramo {i + 1}: dura menos que su transición de entrada ({h} cuadros); acórtala o alarga el tramo")
         cuerpo = tmp / f"cuerpo_{i + 1:02d}.mp4"
         run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-vf", f"trim=start_frame={h}:end_frame={cuadros[i]},setpts=PTS-STARTPTS",
-             "-an", *enc, cuerpo])
+             "-an", *enc, *SIN_METADATOS, cuerpo])
         piezas.append(cuerpo)
         if i + 1 < len(lista) and TRS[i + 1]:
             nombre, d = TRS[i + 1]
@@ -129,7 +133,7 @@ def unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp):
             fc = (f"[0]trim=start_frame={cuadros[i]}:end_frame={cuadros[i] + d},setpts=PTS-STARTPTS[p];"
                   f"[1]trim=end_frame={d},setpts=PTS-STARTPTS[q];" + transiciones.cadena(nombre, d, fps, W, H, "p", "q", "v"))
             run([FFMPEG, "-v", "error", "-y", "-i", ruta, "-i", lista[i + 1], "-filter_complex", fc, "-map", "[v]",
-                 "-frames:v", d, "-an", *enc, pieza])
+                 "-frames:v", d, "-an", *enc, *SIN_METADATOS, pieza])
             piezas.append(pieza)
     return piezas
 
@@ -139,7 +143,7 @@ def audio(cfg, base, sal, objetivo=-14.0):
     dur = a["hasta"] - a["desde"]
     filtro = f"afade=t=in:d={a.get('entrada', 0.3)},afade=t=out:st={dur - a.get('salida', 2.5):.3f}:d={a.get('salida', 2.5)}"
     tmp = sal.with_name("_audio_previo.wav")
-    run([FFMPEG, "-v", "error", "-y", "-ss", a["desde"], "-t", f"{dur:.3f}", "-i", base / a["archivo"], "-af", filtro, "-ar", 48000, tmp])
+    run([FFMPEG, "-v", "error", "-y", "-ss", a["desde"], "-t", f"{dur:.3f}", "-i", base / a["archivo"], "-af", filtro, "-ar", 48000, *SIN_METADATOS, tmp])
     ganancia = 0.0
     for _ in range(4):
         s = run([FFMPEG, "-hide_banner", "-i", tmp, "-af", f"volume={ganancia}dB,alimiter=limit=0.89:level=0,ebur128", "-f", "null", "-"])
@@ -147,7 +151,7 @@ def audio(cfg, base, sal, objetivo=-14.0):
         if abs(i - objetivo) < 0.3:
             break
         ganancia += objetivo - i
-    run([FFMPEG, "-v", "error", "-y", "-i", tmp, "-af", f"volume={ganancia}dB,alimiter=limit=0.89:level=0", sal])
+    run([FFMPEG, "-v", "error", "-y", "-i", tmp, "-af", f"volume={ganancia}dB,alimiter=limit=0.89:level=0", *SIN_METADATOS, sal])
     tmp.unlink()
     return i
 
@@ -188,20 +192,28 @@ def main():
     if any(TRS):
         lista = unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp)
     (tmp / "lista.txt").write_text("".join(f"file '{p.name}'\n" for p in lista), encoding="utf-8")
-    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", 0, "-i", tmp / "lista.txt", "-c", "copy", tmp / "imagen.mp4"])
+    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", 0, "-i", tmp / "lista.txt", "-c", "copy", *SIN_METADATOS, tmp / "imagen.mp4"])
     lufs = audio(cfg, base, tmp / "audio.wav")
     total = cfg["audio"]["hasta"] - cfg["audio"]["desde"]
     final = base / "07_RENDER" / f"{cfg['id']}_{cfg['version']}_vertical.mp4"
+    parcial = parcial_de(final)                  # el video anterior (también al rehacer un --tramo) no se pisa
     run([FFMPEG, "-v", "error", "-y", "-i", tmp / "imagen.mp4", "-i", tmp / "audio.wav",
          "-vf", f"fade=t=in:d=0.4,fade=t=out:st={total - 1.2:.3f}:d=1.2", "-c:v", "libx264", "-preset", "medium", "-crf", 18,
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
-         "-c:a", "aac", "-b:a", "256k", "-t", f"{total:.3f}", "-movflags", "+faststart", final])
+         "-c:a", "aac", "-b:a", "256k", "-t", f"{total:.3f}", *SIN_METADATOS, "-movflags", "+faststart", parcial])
+    entregar(parcial, final)
     rev = base / "05_REVISION"; rev.mkdir(exist_ok=True)
     run([FFMPEG, "-v", "error", "-y", "-i", final, "-vf", "fps=1/2,scale=270:-1,tile=8x3", "-frames:v", 1, "-q:v", 4,
          rev / f"{cfg['id']}_{cfg['version']}_hoja.jpg"])
     s = run([FFMPEG, "-hide_banner", "-i", final, "-vf", "blackdetect=d=0.2:pix_th=0.05", "-af", "ebur128", "-f", "null", "-"])
     negros = re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", s)
-    print(f"\nlisto: {final}\nduración {total:.2f} s, volumen {lufs:.1f} LUFS, tramos negros: {negros or 'ninguno'}")
+    from estudio import metadatos_personales
+    meta = metadatos_personales(final)
+    meta_txt = "no se pudo leer (revisar)" if meta is None else ("ninguno" if not meta else "REVISAR: " + ", ".join(meta))
+    print(f"\nlisto: {final}\nduración {total:.2f} s, volumen {lufs:.1f} LUFS, tramos negros: {negros or 'ninguno'}, "
+          f"metadatos personales: {meta_txt}")
+    if meta is None or meta:
+        sys.exit(f"REVISAR {final.name}: {meta_txt}. Comprobar con: python estudio.py metadatos \"{final}\"")
 
 
 if __name__ == "__main__":

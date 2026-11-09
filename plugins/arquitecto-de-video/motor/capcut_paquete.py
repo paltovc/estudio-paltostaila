@@ -12,7 +12,11 @@
 #   LEEME.txt                 pasos
 import shutil
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, nombre_libre
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 
@@ -22,10 +26,14 @@ def main():
     if not solo.exists() or not narr.exists():
         raise SystemExit("Falta tmp/solo_video.mp4 o tmp/narracion.m4a: correr primero armar.py y terminar.py (o grabado.py armar).")
     d = pr.dir / "09_CAPCUT"
+    if d.exists() and any(d.iterdir()):   # un proyecto de CapCut puede estar usando estos clips: el paquete nuevo va aparte
+        d = nombre_libre(d)
+        print(f"09_CAPCUT ya tiene un paquete (CapCut puede estar usándolo): el nuevo va en {d.name}", flush=True)
     d.mkdir(exist_ok=True)
     run([FFMPEG, "-v", "error", "-y", "-i", solo, "-i", narr, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
-         "-b:a", "192k", "-shortest", "-movflags", "+faststart", d / f"{pr.id}_video_limpio.mp4"])
-    shutil.copy2(solo, d / f"{pr.id}_solo_imagen.mp4")
+         "-b:a", "192k", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", d / f"{pr.id}_video_limpio.mp4"])
+    run([FFMPEG, "-v", "error", "-y", "-i", solo, "-map", "0:v", "-c", "copy", *SIN_METADATOS, "-movflags", "+faststart",
+         d / f"{pr.id}_solo_imagen.mp4"])          # T1: sin metadatos del armado (antes era una copia directa)
     if voz.exists():
         shutil.copy2(voz, d / f"{pr.id}_voz.wav")
     srt = pr.salida / f"{pr.base_nombre}_subtitulos.srt"
@@ -47,7 +55,7 @@ def main():
             if b - a < 0.1:
                 continue
             run([FFMPEG, "-v", "error", "-y", "-ss", f"{a:.3f}", "-i", solo, "-t", f"{b - a:.3f}", "-an", "-c:v", "libx264",
-                 "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", carpeta / f"{r['n']:03d}.mp4"])
+                 "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", *SIN_METADATOS, carpeta / f"{r['n']:03d}.mp4"])
             n_esc += 1
     _, pals = palabras(pr)
     lineas = []

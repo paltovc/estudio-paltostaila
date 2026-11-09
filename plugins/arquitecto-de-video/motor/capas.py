@@ -18,6 +18,10 @@ try:
     from estudio import FFMPEG, FFPROBE
 except Exception:
     FFMPEG, FFPROBE = "ffmpeg", "ffprobe"
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 IMG = {".jpg", ".jpeg", ".png", ".webp"}
 TMP = Path(tempfile.gettempdir()) / "estudio_capas"
@@ -120,7 +124,7 @@ def mapa_audio(cual, a, b, fa, fb):
 
 def salida_cod(sal):
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-            "-movflags", "+faststart", sal]
+            *SIN_METADATOS, "-movflags", "+faststart", sal]
 
 
 def verde(fondo, persona, sal, col="00FF00", sim=0.16, esc=1.0, x="centro", y="abajo"):

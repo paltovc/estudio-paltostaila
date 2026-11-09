@@ -16,8 +16,12 @@
 # repiten más adelante (se queda la última versión, que suele ser la buena).
 import difflib, json, re, shutil, subprocess, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, FFPROBE, run, norm
+from estudio import Proyecto, FFMPEG, FFPROBE, run, norm, nombre_libre, entregar, parcial_de
 from color import cadena
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 G = {"material": "", "look": "natural", "pausa_max": 0.45, "margen": 0.08, "punch": 1.08, "jl": 0.0, "limpiar_voz": True,
@@ -62,7 +66,7 @@ def transcribir():
         if js.exists() and "--rehacer" not in sys.argv:
             continue
         wav = TMP / f"{f.stem}.wav"
-        run([FFMPEG, "-v", "error", "-y", "-i", f, "-vn", "-ac", "1", "-ar", "16000", wav])
+        run([FFMPEG, "-v", "error", "-y", "-i", f, "-vn", "-ac", "1", "-ar", "16000", *SIN_METADATOS, wav])
         print(f"transcribiendo {f.name} ({dur(f):.0f} s)...", flush=True)
         r = subprocess.run([whisperx(), str(wav), "--language", wx["idioma"], "--model", wx["modelo"], "--compute_type",
                             wx["compute_type"], "--device", "cpu", "--output_format", "json", "--output_dir", str(TMP)])
@@ -180,7 +184,7 @@ def cortar():
         s["text"] = " ".join(w["word"] for w in s["words"])
     destino = pr.dir / "06_RECETA" / "transcripcion.json"
     if destino.exists():
-        shutil.copy2(destino, destino.with_name("transcripcion_antes_grabado.json"))
+        shutil.copy2(destino, nombre_libre(destino.with_name("transcripcion_antes_grabado.json")))   # cada pasada guarda su respaldo
     destino.write_text(json.dumps({"segments": final, "origen": "grabado.py"}, ensure_ascii=False, indent=1), encoding="utf-8")
     original = sum(p["hasta"] - p["desde"] for p in orden)
     limpio = [{k: v for k, v in c.items() if k != "palabras"} for c in cortes]
@@ -247,17 +251,17 @@ def armar():
               f"crop={W}:{H}:(iw-{W})/2:(ih-{H})/2,fps={FPS},setsar=1,format=yuv420p")
         v = TMP / f"v_{i:03d}.mp4"
         run([FFMPEG, "-v", "error", "-y", "-ss", f"{max(0, c['a'] + da):.3f}", "-i", ruta, "-an", "-vf", vf, "-frames:v", str(n),
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-r", str(FPS), v])
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-r", str(FPS), *SIN_METADATOS, v])
         a_ = TMP / f"a_{i:03d}.wav"
         d = c["b"] - c["a"]
         run([FFMPEG, "-v", "error", "-y", "-ss", f"{c['a']:.3f}", "-t", f"{d:.3f}", "-i", ruta, "-vn", "-af",
-             f"afade=t=in:d=0.012,afade=t=out:st={max(0, d - 0.012):.3f}:d=0.012", "-ac", "2", "-ar", "48000", a_])
+             f"afade=t=in:d=0.012,afade=t=out:st={max(0, d - 0.012):.3f}:d=0.012", "-ac", "2", "-ar", "48000", *SIN_METADATOS, a_])
         lista_v.append(v); lista_a.append(a_)
         print(f"  tramo {i + 1}/{len(cortes)}  {c['archivo']} {c['a']:.1f}-{c['b']:.1f}{'  punch-in' if zoom > 1 else ''}", flush=True)
     (TMP / "v.txt").write_text("".join(f"file '{p.name}'\n" for p in lista_v), encoding="utf-8")
     (TMP / "a.txt").write_text("".join(f"file '{p.name}'\n" for p in lista_a), encoding="utf-8")
     nombre_v = "solo_video_borrador_{}s.mp4".format(int(limite)) if "--borrador" in sys.argv else "solo_video.mp4"
-    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "v.txt", "-c", "copy", f"../{nombre_v}"], cwd=TMP)
+    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "v.txt", "-c", "copy", *SIN_METADATOS, f"../{nombre_v}"], cwd=TMP)
     (pr.tmp / (Path(nombre_v).stem + ".json")).write_text(json.dumps({"clips": {}, "origen": "grabado.py", "tramos": len(cortes)}), encoding="utf-8")
     lv = G["limpiar_voz"]          # true (básica), false, o "suave" / "media" / "fuerte" / "radio" (audio.py)
     if isinstance(lv, str):
@@ -265,12 +269,16 @@ def armar():
         limpia = _au.cadena_voz(None if lv == "radio" else lv, lv == "radio") or "anull"
     else:
         limpia = "highpass=f=80,afftdn=nf=-25,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=120" if lv else "anull"
-    voz = pr.dir / "02_VOZ" / f"{pr.id}_voz-grabado.wav"
+    borr = f"_borrador-{int(limite)}s" if "--borrador" in sys.argv else ""     # el borrador nunca reemplaza la voz completa
+    voz = pr.dir / "02_VOZ" / f"{pr.id}_voz-grabado{borr}.wav"
     voz.parent.mkdir(exist_ok=True)
-    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "a.txt", "-af", limpia, str(voz)], cwd=TMP)
+    parcial = parcial_de(voz)                 # la voz editada anterior queda como *_anterior-<fecha>
+    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "a.txt", "-af", limpia, *SIN_METADATOS, str(parcial)], cwd=TMP)
+    entregar(parcial, voz)
     cfg_f = pr.dir / "proyecto.json"
     cfg = json.loads(cfg_f.read_text(encoding="utf-8"))
-    if cfg.get("audios") != f"02_VOZ/{voz.name}":
+    if not borr and cfg.get("audios") != f"02_VOZ/{voz.name}":     # el borrador no cambia la voz del proyecto
+        shutil.copy2(cfg_f, nombre_libre(cfg_f.with_name("proyecto_antes_grabado.json")))       # respaldo antes de cambiarlo
         cfg["audios"] = f"02_VOZ/{voz.name}"
         cfg.setdefault("carpetas", {})["transcripcion"] = "06_RECETA/transcripcion.json"
         cfg_f.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -13,6 +13,22 @@
 import json, math, os, re, sys
 from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
+try:
+    from estudio import destino as _destino, nombre_libre      # nunca se pisa una miniatura ni un formato ya hecho
+except Exception:
+    def nombre_libre(p):
+        p = Path(p); k = 2
+        if not p.exists():
+            return p
+        while p.with_name(f"{p.stem}_{k}{p.suffix}").exists():
+            k += 1
+        return p.with_name(f"{p.stem}_{k}{p.suffix}")
+
+    def _destino(salida, *entradas):
+        for e in entradas:
+            if e and Path(e).exists() and Path(salida).resolve() == Path(e).resolve():
+                sys.exit(f"La salida {Path(salida).name} es el mismo archivo de entrada: elige otro nombre")
+        return nombre_libre(salida)
 
 ESTUDIO = Path.home() / "EstudioPaltostaila"
 FUENTES_SISTEMA = [Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts", Path.home() / "AppData/Local/Microsoft/Windows/Fonts",
@@ -461,7 +477,7 @@ def main():
         for fm in opt("--formatos", "16x9,9x16,1x1,4x5").split(","):
             W, H = FORMATOS[fm]
             out = recorte_inteligente(im, W, H) if opt("--modo", "inteligente") == "inteligente" else con_relleno(im, W, H)
-            destino = salida / f"{ruta.stem}_{fm}.jpg"
+            destino = _destino(salida / f"{ruta.stem}_{fm}.jpg", ruta)
             out.save(destino, quality=92)
             print("listo:", destino)
         return
@@ -475,23 +491,24 @@ def main():
         base = Path(opt("--base") or (Path(opt("--datos")).parent if opt("--datos") else Path.cwd()))
         salida = Path(opt("--salida") or base / f"{pl_ruta.stem}.png")
         salida.parent.mkdir(parents=True, exist_ok=True)
+        salida = _destino(salida, pl_ruta, opt("--datos"))       # si ya existe (una miniatura elegida), va con _2, _3...
         img = render(plantilla, datos, base, opt("--canal"))
         img.save(salida, quality=93)
         print("listo:", salida)
         avisos, info = revisar(img)
         texto_rev = "\n".join(["Revisión de legibilidad", *info, "", *(f"AVISO: {a}" for a in avisos)] or [])
-        salida.with_name(salida.stem + "_revision.txt").write_text(texto_rev + ("\nOK: sin avisos" if not avisos else "") + "\n", encoding="utf-8")
+        nombre_libre(salida.with_name(salida.stem + "_revision.txt")).write_text(texto_rev + ("\nOK: sin avisos" if not avisos else "") + "\n", encoding="utf-8")
         print(texto_rev + ("\nOK: sin avisos" if not avisos else ""))
         for fm in [f for f in (opt("--formatos") or "").split(",") if f]:
             W, H = FORMATOS[fm]
-            destino = salida.with_name(f"{salida.stem}_{fm}{salida.suffix}")
+            destino = nombre_libre(salida.with_name(f"{salida.stem}_{fm}{salida.suffix}"))
             img2 = render(escalar_plantilla(plantilla, W, H), datos, base, opt("--canal"))
             img2.save(destino, quality=93)
             avisos2, _ = revisar(img2)
             print("listo:", destino, *(f"\n  AVISO {fm}: {a}" for a in avisos2))
         # vista de cómo se ve en el celular (160 px de ancho, como en la lista de YouTube)
         prev = Image.open(salida)
-        prev.resize((160, round(160 * prev.height / prev.width))).save(salida.with_name(salida.stem + "_160px.png"))
+        prev.resize((160, round(160 * prev.height / prev.width))).save(nombre_libre(salida.with_name(salida.stem + "_160px.png")))
         return
     sys.exit("paso desconocido: " + paso)
 

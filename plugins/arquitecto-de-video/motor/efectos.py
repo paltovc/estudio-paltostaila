@@ -18,6 +18,10 @@ try:
     from estudio import FFMPEG
 except Exception:
     FFMPEG = "ffmpeg"
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 EFECTOS = {
     "grano": "noise=alls=10:allf=t",
@@ -87,7 +91,7 @@ def aplicar(entrada, salida, efectos=None, desde=None, hasta=None, cong=None, le
     else:
         vf = ",".join(p for p in pasos + [fx] if p) or "null"
     cmd = [FFMPEG, "-v", "error", "-y", "-i", entrada, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
-           "-pix_fmt", "yuv420p"]
+           "-pix_fmt", "yuv420p", *SIN_METADATOS]
     cmd += ["-an"] if lento or cong else ["-c:a", "copy"]       # el audio no calzaría con la imagen estirada
     r = subprocess.run([str(c) for c in cmd + [salida]], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode:

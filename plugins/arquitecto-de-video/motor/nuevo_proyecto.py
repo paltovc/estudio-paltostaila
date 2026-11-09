@@ -70,8 +70,10 @@ if opt("--personaje"):
     refs_destino.mkdir(parents=True, exist_ok=True)
     for f in fuentes:
         destino = refs_destino / f.name
-        if destino.exists():
-            destino = refs_destino / f"{f.stem}_{date.today():%Y%m%d}{f.suffix}"
+        k = 1
+        while destino.exists():                     # nunca encima de una referencia que ya está
+            destino = refs_destino / f"{f.stem}_{date.today():%Y%m%d}{'' if k == 1 else f'_{k}'}{f.suffix}"
+            k += 1
         shutil.copy2(f, destino)
     print(f"{len(fuentes)} imagenes del personaje copiadas a {refs_destino}")
 

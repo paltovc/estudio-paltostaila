@@ -4,10 +4,15 @@
 #   python ritmo.py "video.mp4"                         -> carpeta ritmo_<nombre> al lado del video
 #   python ritmo.py "referente.mp4" --comparar "nuestro.mp4"   -> además compara los dos
 #   python ritmo.py "video.mp4" --umbral 0.25 --salida "C:\carpeta"
+#   (el informe va siempre en una subcarpeta nueva ritmo_<video>, ritmo_<video>_2...: nunca encima de otra)
 # Sirve con el video de un referente que la persona entregó, con referente.py o con nuestros propios renders.
 import json, re, statistics, sys
 from pathlib import Path
-from estudio import FFMPEG, run, duracion_medio, mmss
+from estudio import FFMPEG, run, duracion_medio, mmss, nombre_libre
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -67,22 +72,34 @@ def analizar(video, salida=None, umbral=0.3):
         ms = [m for _, m in vol if m > -70]
         d["volumen_promedio_lufs"] = round(statistics.mean(ms), 1) if ms else None
         d["volumen_rango_lufs"] = round(max(ms) - min(ms), 1) if ms else None
-    (salida / "ritmo.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
-    hoja_cortes(video, sorted(cs + suaves), salida, dur)
+    momentos = sorted(cs + suaves)
+    d["hoja_cortes_momentos"] = min(len(momentos) + 1, LIMITE_HOJAS)
+    if len(momentos) + 1 > LIMITE_HOJAS:
+        d["hoja_cortes_aviso"] = f"la hoja muestra los primeros {LIMITE_HOJAS} de {len(momentos) + 1} momentos"
+    (salida / "ritmo.json").write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")   # los datos quedan aunque falle lo visual
+    try:
+        hoja_cortes(video, momentos, salida, dur)
+    except Exception as e:
+        print("aviso hoja de cortes ->", str(e)[-200:], flush=True)
     return d, vol, salida
+
+
+LIMITE_HOJAS = 480          # cuadros en las hojas de cortes (20 hojas de 24); el resto queda en ritmo.json
 
 
 def hoja_cortes(video, cs, salida, dur, por_hoja=24):
     """Un cuadro 0,25 s después de cada corte, con su minuto: para ver qué texto aparece y cómo es cada plano."""
+    import shutil, tempfile
     momentos = [0.0] + cs
-    for n in range(0, min(len(momentos), 96), por_hoja):
+    import atexit
+    tmp = Path(tempfile.mkdtemp(prefix="ritmo_cuadros_"))   # carpeta temporal propia: nunca en la carpeta de la persona
+    atexit.register(shutil.rmtree, tmp, True)              # se borra aunque algo falle a mitad
+    for n in range(0, min(len(momentos), LIMITE_HOJAS), por_hoja):
         grupo = momentos[n:n + por_hoja]
-        tmp = salida / "_cuadros"
-        tmp.mkdir(exist_ok=True)
         cuadros = []
         for k, t in enumerate(grupo):
             f = tmp / f"c{n + k:03d}.jpg"
-            run([FFMPEG, "-v", "error", "-y", "-ss", f"{min(t + 0.25, max(0, dur - 0.3)):.2f}", "-i", video, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "4", f])
+            run([FFMPEG, "-v", "error", "-y", "-ss", f"{min(t + 0.25, max(0, dur - 0.3)):.2f}", "-i", video, "-frames:v", "1", "-vf", "scale=320:-2", "-q:v", "4", *SIN_METADATOS, f])
             if f.exists():
                 cuadros.append((t, f))
         if not cuadros or Image is None:
@@ -98,12 +115,7 @@ def hoja_cortes(video, cs, salida, dur, por_hoja=24):
             hoja.paste(Image.open(f).resize((w, h)), (x, y + 26))
             dib.text((x + 6, y + 3), f"#{n + k}  {mmss(t)}", fill=(255, 210, 63), font=letra)
         hoja.save(salida / f"hoja_cortes_{n // por_hoja + 1:02d}.jpg", quality=85)
-        for _, f in cuadros:
-            f.unlink(missing_ok=True)
-    try:
-        (salida / "_cuadros").rmdir()
-    except OSError:
-        pass
+    shutil.rmtree(tmp, ignore_errors=True)       # solo la carpeta temporal que se creó arriba
 
 
 def fuente(tam):
@@ -133,7 +145,9 @@ def grafico(series, destino):
         base = y0 + 190
         for k, n in enumerate(d["cortes_cada_10s"]):
             h = n / cmax * 120
-            dib.rectangle([X(k * 10) + 2, base - h, X(min((k + 1) * 10, d["duracion_s"])) - 2, base], fill=(79, 195, 247))
+            xa, xb = X(k * 10) + 2, X(min((k + 1) * 10, d["duracion_s"])) - 2
+            if n and xb > xa:          # el último tramo puede durar menos de 4 px: se omite en vez de fallar
+                dib.rectangle([xa, base - h, xb, base], fill=(79, 195, 247))
         for c in d["momentos_de_corte"]:
             dib.line([X(c), base + 4, X(c), base + 12], fill=(40, 40, 40))
         for c in d.get("momentos_suaves", []):
@@ -177,13 +191,18 @@ def main():
         sys.exit("uso: python ritmo.py video.mp4 [--comparar otro.mp4] [--umbral 0.3] [--salida carpeta]")
     opt = lambda k, x=None: a[a.index(k) + 1] if k in a else x
     umbral = float(opt("--umbral", 0.3))
-    d, vol, salida = analizar(a[0], opt("--salida"), umbral)
+    pedida = opt("--salida")                  # en una carpeta de la persona: siempre una subcarpeta propia y nueva
+    base = Path(pedida) if pedida else Path(a[0]).parent
+    d, vol, salida = analizar(a[0], nombre_libre(base / f"ritmo_{Path(a[0]).stem}"), umbral)
     series, otro = [(d, vol)], None
     if opt("--comparar"):
         otro, vol2, _ = analizar(opt("--comparar"), salida / "comparado", umbral)
         series.append((otro, vol2))
-    grafico(series, salida / "ritmo.png")
-    informe(d, salida, otro)
+    informe(d, salida, otro)                 # primero el informe: un fallo del gráfico no lo impide
+    try:
+        grafico(series, salida / "ritmo.png")
+    except Exception as e:
+        print("aviso gráfico ->", str(e)[-200:], flush=True)
     print("LISTO", salida, flush=True)
 
 

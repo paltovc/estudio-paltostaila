@@ -3,8 +3,12 @@
 #                                 "chico": "CREENCIA 1", "titulo": "¿Invertir es solo\\Npara ricos?"}]
 #   python vertical.py "C:\ruta\video"
 import sys
-from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, slug
+from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, slug, entregar, parcial_de
 import vivo
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 F = pr["subtitulos"]["fuente"]
@@ -121,11 +125,13 @@ def corte(segs, pals, v):
               "[b]scale=1080:-2[frente];[fondo][frente]overlay=0:(H-h)/2,"
               f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
     nombre = f"{pr.base_nombre}_{slug(v['nombre'])}_9x16.mp4"
+    parcial = parcial_de(pr.salida / nombre).name      # el Short anterior no se pisa: queda como *_anterior-<fecha>
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/solo_video.mp4",
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,
          "-map", "[v]", "-map", "1:a", "-af", f"afade=t=in:d=0.2,afade=t=out:st={dur - 0.6:.3f}:d=0.6",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(pr.fps),
-         "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", "-movflags", "+faststart", nombre], cwd=pr.salida)
+         "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
+    entregar(pr.salida / parcial, pr.salida / nombre)
     print(f"LISTO {pr.salida / nombre} ({dur:.1f} s)", flush=True)
 
 

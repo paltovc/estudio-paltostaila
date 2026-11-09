@@ -7,6 +7,10 @@
 import os, shutil, sys
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, FFPROBE, run
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 
@@ -30,7 +34,7 @@ def main():
     else:
         claves = ("_youtube", "_con-subtitulos", "_9x16", "_vertical", "_borrador", "vivo-prueba")
         archivos = [f for f in sorted(pr.salida.glob("*.mp4"), key=lambda x: -x.stat().st_mtime)
-                    if any(k in f.name for k in claves) and ".parcial" not in f.name][:6]
+                    if any(k in f.name for k in claves) and ".parcial" not in f.name and "_anterior-" not in f.name][:6]
     if not archivos:
         sys.exit("No hay videos en 07_RENDER todavía.")
     destino = pr.salida / "celu"
@@ -45,7 +49,7 @@ def main():
                    "drawbox=x=iw*0.86:y=ih*0.38:w=iw*0.14:h=ih*0.42:color=red@0.35:t=fill")
         nombre = f"{f.stem}_celu{'-zona' if '--zona' in sys.argv and vertical else ''}.mp4"
         run([FFMPEG, "-v", "error", "-y", "-i", f, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", destino / nombre])
+             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", *SIN_METADATOS, "-movflags", "+faststart", destino / nombre])
         mb = (destino / nombre).stat().st_size / 1e6
         linea = f"listo: {destino / nombre} ({mb:.1f} MB)"
         if nube:

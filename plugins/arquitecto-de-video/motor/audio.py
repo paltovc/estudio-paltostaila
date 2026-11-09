@@ -12,6 +12,10 @@
 # Nada de esto clona ni cambia la identidad de una voz.
 import json, re, subprocess, sys
 from pathlib import Path
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 try:
     from estudio import FFMPEG
@@ -70,7 +74,7 @@ def normalizar(entrada, salida, objetivo=-14.0):
     lufs, _, _ = medir(entrada)
     g = objetivo - lufs
     for _ in range(3):
-        run([FFMPEG, "-v", "error", "-y", "-i", entrada, "-af", f"volume={g:.2f}dB,alimiter=limit=0.89:level=0", "-ar", 48000, salida])
+        run([FFMPEG, "-v", "error", "-y", "-i", entrada, "-af", f"volume={g:.2f}dB,alimiter=limit=0.89:level=0", "-ar", 48000, *SIN_METADATOS, salida])
         actual, _, _ = medir(salida)
         if abs(actual - objetivo) <= 0.3:
             break
@@ -80,7 +84,7 @@ def normalizar(entrada, salida, objetivo=-14.0):
 
 def limpiar(entrada, salida, nivel="media", radio=False, normal=True):
     tmp = Path(salida).with_name("_limpia_paso.wav")
-    run([FFMPEG, "-v", "error", "-y", "-i", entrada, "-vn", "-af", cadena_voz(nivel, radio) or "anull", "-ar", 48000, tmp])
+    run([FFMPEG, "-v", "error", "-y", "-i", entrada, "-vn", "-af", cadena_voz(nivel, radio) or "anull", "-ar", 48000, *SIN_METADATOS, tmp])
     if normal:
         normalizar(tmp, salida)
         tmp.unlink()
@@ -104,7 +108,7 @@ def volume_db(v):
 
 def mezclar(voz, musica, salida, volumen=-20, ducking=True, desde=0.0):
     run([FFMPEG, "-v", "error", "-y", "-i", voz, "-stream_loop", -1, "-ss", f"{desde:.3f}", "-i", musica, "-filter_complex",
-         filtro_musica(0, 1, volumen, ducking), "-map", "[mezcla]", "-shortest", "-ar", 48000, salida])
+         filtro_musica(0, 1, volumen, ducking), "-map", "[mezcla]", "-shortest", "-ar", 48000, *SIN_METADATOS, salida])
     return salida
 
 
@@ -131,7 +135,7 @@ def main():
         mezclar(a[1], a[2], a[3], float(op("--musica", -20)), "--sin-ducking" not in a, float(op("--desde", 0)))
         print("LISTO", a[3])
     elif a[0] == "efecto":
-        run([FFMPEG, "-v", "error", "-y", "-i", a[1], "-vn", "-af", EFECTOS[op("--tipo", "eco")], "-ar", 48000, a[2]])
+        run([FFMPEG, "-v", "error", "-y", "-i", a[1], "-vn", "-af", EFECTOS[op("--tipo", "eco")], "-ar", 48000, *SIN_METADATOS, a[2]])
         print("LISTO", a[2])
 
 

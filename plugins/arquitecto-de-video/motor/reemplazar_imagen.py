@@ -21,6 +21,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from estudio import FFMPEG, FFPROBE, nombre_libre
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 if not ARGS:
@@ -381,7 +385,7 @@ def main():
     dec = subprocess.Popen([str(FFMPEG), "-v", "error", "-i", str(V), "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
     enc = subprocess.Popen([str(FFMPEG), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{W}x{H}", "-r", f"{fps}",
                             "-i", "-", "-i", str(V), "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "17",
-                            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", str(parcial)], stdin=subprocess.PIPE)
+                            "-pix_fmt", "yuv420p", "-c:a", "copy", *SIN_METADATOS, "-movflags", "+faststart", str(parcial)], stdin=subprocess.PIPE)
     tam = W * H * 3
     i = 0
     while True:

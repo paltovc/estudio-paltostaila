@@ -22,6 +22,10 @@ try:
     from estudio import FFMPEG, FFPROBE, nombre_libre, apartar_anterior
 except Exception:
     FFMPEG, FFPROBE = "ffmpeg", "ffprobe"
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 ESTUDIO = Path.home() / "EstudioPaltostaila"
 
@@ -97,7 +101,7 @@ def preparar(video, idioma="en", carpeta=None):
                      "(el archivo actual queda guardado como segmentos_anterior-<fecha>.json)")
         apartar_anterior(viejo)
     wav = c / "audio_16k.wav"
-    run([FFMPEG, "-v", "error", "-y", "-i", video, "-vn", "-ac", 1, "-ar", 16000, wav])
+    run([FFMPEG, "-v", "error", "-y", "-i", video, "-vn", "-ac", 1, "-ar", 16000, *SIN_METADATOS, wav])
     print("transcribiendo (puede tardar unos minutos por minuto de video)...", flush=True)
     segs = frases(transcribir(wav, idioma, c))
     (c / "segmentos.json").write_text(json.dumps({"video": str(video.resolve()), "idioma": idioma, "segmentos": segs},
@@ -115,11 +119,12 @@ def cargar(c):
     return d
 
 
-def recortar(src):
-    """Quita el silencio del principio y del final (las voces generadas traen aire) -> .wav al lado; devuelve su largo."""
-    w = Path(src).with_suffix(".recortado.wav")
+def recortar(src, carpeta=None):
+    """Quita el silencio del principio y del final (las voces generadas traen aire) -> .wav en `carpeta` (o al lado);
+    devuelve su largo."""
+    w = (Path(carpeta) if carpeta else Path(src).parent) / (Path(src).stem + ".recortado.wav")
     sil = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.03"
-    run([FFMPEG, "-v", "error", "-y", "-i", src, "-af", f"{sil},areverse,{sil},areverse", "-ar", 48000, w])
+    run([FFMPEG, "-v", "error", "-y", "-i", src, "-af", f"{sil},areverse,{sil},areverse", "-ar", 48000, *SIN_METADATOS, w])
     return w, dur(w)
 
 
@@ -134,8 +139,16 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
     segs = [s for s in d["segmentos"] if s.get("traduccion")]
     (c / "textos_para_voz.txt").write_text("".join(f"{s['id']:03d}  ({s['fin'] - s['inicio']:.1f} s)  {s['traduccion']}\n" for s in segs),
                                           encoding="utf-8")
-    vdir = c / "voces"
-    vdir.mkdir(exist_ok=True)
+    vdir = c / "voces"                 # voces hechas afuera (página de voz con licencia): aquí solo se LEE
+    tdir = c / "voces_tts"             # voces del estudio (edge-tts): nunca en voces\, para no pisar las de afuera
+    if desde_archivos:
+        vdir.mkdir(exist_ok=True)
+    tdir.mkdir(exist_ok=True)
+    import datetime as _dt
+    hecha_antes = (c / "segmentos.json").exists() and _dt.date.fromtimestamp((c / "segmentos.json").stat().st_ctime) <= _dt.date(2026, 11, 8)
+    if desde_archivos and any(vdir.glob("*.mp3")) and hecha_antes:      # carpeta hecha antes del cambio
+        print("AVISO: antes del 08-11-2026 las voces del estudio (edge-tts) también se guardaban en voces\\. "
+              "Confirma que las de esa carpeta son las hechas afuera con licencia.", flush=True)
     total = dur(d["video"])
     partes, avisos, solapes = [], [], []
     for i, s in enumerate(segs):
@@ -147,9 +160,9 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
                 avisos.append(f"frase {s['id']}: falta voces\\{s['id']:03d}.mp3")
                 continue
             vel = 0
-            src, largo = recortar(src)
+            src, largo = recortar(src, tdir)          # el recorte va a voces_tts\\: voces\\ solo se lee
         else:
-            src, vel = vdir / f"{s['id']:03d}.mp3", 0
+            src, vel = tdir / f"{s['id']:03d}.mp3", 0
             asyncio.run(_tts(s["traduccion"], nombre_voz, src, 0))
             src_w, largo = recortar(src)
             if largo > espacio * 1.02:                         # no cabe: acelerar lo justo
@@ -185,10 +198,10 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
     script.write_text(mezcla, encoding="utf-8")
     # ffmpeg 7.1+ lee el filtro desde archivo con "-/filter_complex"; las versiones viejas con "-filter_complex_script"
     cola = ["-map", "[v]", c / "voz_traducida_paso.wav"]
-    r = subprocess.run([str(x) for x in [FFMPEG, "-v", "error", "-y", *ins, "-/filter_complex", script, *cola]],
+    r = subprocess.run([str(x) for x in [FFMPEG, "-v", "error", "-y", *ins, "-/filter_complex", script, *SIN_METADATOS, *cola]],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode:
-        run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex_script", script, *cola])
+        run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex_script", script, *SIN_METADATOS, *cola])
     import audio as au
     au.normalizar(c / "voz_traducida_paso.wav", c / "voz_traducida.wav")
     (c / "voz_traducida_paso.wav").unlink()
@@ -209,15 +222,27 @@ def mezclar(c, original="-16", quemar=False):
         import audio as au
         fc = au.filtro_musica(1, 0, float(original), True, "aud")
     run([FFMPEG, "-v", "error", "-y", "-i", video, "-i", c / "voz_traducida.wav", "-filter_complex", fc,
-         "-map", "0:v", "-map", "[aud]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", sal])
+         "-map", "0:v", "-map", "[aud]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", sal])
     print("listo:", sal)
     if quemar:
         sub = c / "traduccion.srt"
-        sal2 = c / f"{video.stem}_ES_subtitulado.mp4"
+        sal2 = nombre_libre(c / f"{video.stem}_ES_subtitulado.mp4")      # un segundo --quemar no pisa el anterior
         run([FFMPEG, "-v", "error", "-y", "-i", sal.name, "-vf",
              "subtitles=traduccion.srt:force_style='FontName=Arial,FontSize=20,Bold=1,Outline=2,MarginV=40'",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", sal2.name], cwd=c)
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", *SIN_METADATOS, sal2.name], cwd=c)
         print("listo:", sal2)
+    try:
+        from estudio import metadatos_personales
+    except ImportError:
+        return
+    malos = []
+    for v in [sal] + ([sal2] if quemar else []):
+        m = metadatos_personales(Path(c) / Path(v).name)
+        print("metadatos personales:", Path(v).name, "no se pudo leer (revisar)" if m is None else ("ninguno" if not m else "REVISAR: " + ", ".join(m)))
+        if m is None or m:
+            malos.append(Path(v).name)
+    if malos:
+        sys.exit("REVISAR metadatos en: " + ", ".join(malos))
 
 
 def main():

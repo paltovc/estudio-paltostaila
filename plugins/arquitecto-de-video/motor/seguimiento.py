@@ -11,9 +11,13 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 try:
-    from estudio import FFMPEG
+    from estudio import FFMPEG, destino, nombre_libre
 except Exception:
     FFMPEG = "ffmpeg"
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 
 def rastreador():
@@ -116,10 +120,11 @@ def main():
     a = sys.argv[1:]
     op = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     if "--cuadro" in a:
-        s = cuadro(a[0], float(op("--cuadro")), str(Path(a[0]).with_name(Path(a[0]).stem + f"_cuadro_{op('--cuadro')}s.jpg")))
+        s = cuadro(a[0], float(op("--cuadro")), str(nombre_libre(Path(a[0]).with_name(Path(a[0]).stem + f"_cuadro_{op('--cuadro')}s.jpg"))))
         print("LISTO", s)
         return
-    video, sal = Path(a[0]), Path(a[1])
+    video = Path(a[0])
+    sal = destino(a[1], a[0])          # nunca encima de otro archivo ni del video de entrada
     desde, hasta = float(op("--desde", 0)), float(op("--hasta", 5))
     caja = [float(v) for v in op("--caja").split(",")]
     marca = op("--marca", "texto" if op("--texto") else "circulo")
@@ -127,7 +132,7 @@ def main():
     if perdidos:
         print(f"AVISO lo perdí de vista {len(perdidos)} cuadros (desde {perdidos[0]} s); ahí queda quieto. Revisa el control.")
     st = pegatina(marca, op("--texto", ""), op("--color", "acento"), caja[3], op("--canal"))
-    png = sal.with_name(sal.stem + "_marca.png")
+    png = nombre_libre(sal.with_name(sal.stem + "_marca.png"))
     st.save(png)
     lado = op("--lado", "arriba")
     cmds = []
@@ -143,7 +148,7 @@ def main():
         else:
             x, y = cx + w / 2 + 10, cy - st.height / 2
         cmds.append(f"{t:.3f} [enter] overlay x {int(x)}, [enter] overlay y {int(y)};")
-    cmd_file = sal.with_name(sal.stem + "_cmds.txt")
+    cmd_file = nombre_libre(sal.with_name(sal.stem + "_cmds.txt"))
     cmd_file.write_text("\n".join(cmds) + "\n", encoding="utf-8")
     x0 = cmds[0].split(" overlay x ")[1].split(",")[0]
     y0 = cmds[0].split(" overlay y ")[1].rstrip(";")
@@ -151,10 +156,10 @@ def main():
           f"[0:v]sendcmd=f='{cmd_file.name}'[b];[b][m]overlay=x={x0}:y={y0}:shortest=1:enable='between(t,{desde},{hasta})',format=yuv420p[v]")
     r = subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(video.resolve()), "-loop", "1", "-i", png.name,
                         "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", "-shortest", "-c:v", "libx264", "-preset", "veryfast",
-                        "-crf", "18", "-c:a", "copy", str(sal.resolve())], cwd=sal.parent, capture_output=True, text=True)
+                        "-crf", "18", "-c:a", "copy", *SIN_METADATOS, str(sal.resolve())], cwd=sal.parent, capture_output=True, text=True)
     if r.returncode:
         sys.exit("ffmpeg falló:\n" + r.stderr[-1200:])
-    sal.with_name(sal.stem + "_recorrido.json").write_text(json.dumps(
+    nombre_libre(sal.with_name(sal.stem + "_recorrido.json")).write_text(json.dumps(
         {"rastreador": tipo, "perdidos": perdidos, "puntos": [[round(p, 2) for p in q] for q in lisos]}), encoding="utf-8")
     # hoja de control: qué vio en cada momento
     tiles = []
@@ -171,7 +176,7 @@ def main():
         hoja = Image.new("RGB", (tw * min(6, len(tiles)), th * ((len(tiles) + 5) // 6)))
         for i, im in enumerate(tiles):
             hoja.paste(im, ((i % 6) * tw, (i // 6) * th))
-        hoja.save(sal.with_name(sal.stem + "_control.jpg"), quality=85)
+        hoja.save(nombre_libre(sal.with_name(sal.stem + "_control.jpg")), quality=85)
     print(f"LISTO {sal} (rastreador {tipo})", flush=True)
 
 

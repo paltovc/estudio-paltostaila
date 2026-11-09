@@ -6,6 +6,10 @@ import tempfile
 from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 from estudio import Proyecto, FFMPEG, FFPROBE, run, palabras, cues, buscar, mmss, clips_pendientes, manifiesto
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 REV = pr.salida / "revision"
@@ -32,7 +36,7 @@ def negros(p):
 def huella(video, t, tmp, nombre):
     out = Path(tmp) / f"{nombre}.png"
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", video, "-frames:v", "1", "-vf",
-         f"scale={pr.ancho}:{pr.alto}:force_original_aspect_ratio=increase,crop={pr.ancho}:{pr.alto}", out])
+         f"scale={pr.ancho}:{pr.alto}:force_original_aspect_ratio=increase,crop={pr.ancho}:{pr.alto}", *SIN_METADATOS, out])
     return Image.open(out).convert("L").resize((64, 36))
 
 
@@ -79,7 +83,7 @@ def main():
     dur = pr.duracion()
     lineas = [f"Revision de {pr.base_nombre} - voz: {mmss(dur)} ({dur:.2f} s)\n"]
     finales = [f for f in sorted(set(pr.salida.glob(f"{pr.base_nombre}_*.mp4")))
-               if ".parcial" not in f.name and "_borrador" not in f.name]
+               if ".parcial" not in f.name and "_borrador" not in f.name and "_anterior-" not in f.name]
     problemas = 0
     for f in finales:
         st = info(f)
@@ -98,7 +102,7 @@ def main():
                       f"\n   tramos negros: {len(ng)} {'OK' if ok_neg else 'REVISAR: ' + str(ng[:5])}")
     principal = next((f for f in finales if f.name.endswith("_con-subtitulos.mp4")), finales[0] if finales else None)
     if principal:
-        run([FFMPEG, "-v", "error", "-y", "-i", principal, "-vf", "fps=1/5,scale=480:-1,tile=4x3", "-q:v", "4",
+        run([FFMPEG, "-v", "error", "-y", "-i", principal, "-vf", "fps=1/5,scale=480:-1,tile=4x3", "-q:v", "4", *SIN_METADATOS,
              REV / "hoja_%02d.jpg"])
         segs, pals = palabras(pr)
         largos = sorted(cues(segs, pr["subtitulos"]["max_caracteres"]), key=lambda c: -len(c[2]))[:4]
@@ -107,7 +111,7 @@ def main():
             momentos.append((buscar(pals, r["frase"]) + 1.0, "rotulo " + r["chico"]))
         for t, motivo in sorted(momentos):
             nombre = f"fotograma_{int(t // 60)}m{int(t % 60):02d}s.jpg"
-            run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", principal, "-frames:v", "1", "-q:v", "3", REV / nombre])
+            run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", principal, "-frames:v", "1", "-q:v", "3", *SIN_METADATOS, REV / nombre])
             lineas.append(f"   {nombre}: {motivo}")
     if principal and not "_9x16" in principal.name:
         problemas += revisar_clips(principal, lineas)

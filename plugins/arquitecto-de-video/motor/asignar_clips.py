@@ -5,6 +5,10 @@ import re, shutil, subprocess, tempfile
 from pathlib import Path
 from PIL import Image, ImageChops, ImageStat
 from estudio import Proyecto, FFMPEG
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 LIMITE = 30.0   # diferencia maxima aceptada (0 = identico); mas alto = no se asigna
@@ -16,7 +20,7 @@ def huella(img):
 
 def primer_cuadro(mp4, tmp):
     out = Path(tmp) / (mp4.stem + ".png")
-    subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", "0.05", "-i", str(mp4), "-frames:v", "1", str(out)], check=True)
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", "0.05", "-i", str(mp4), "-frames:v", "1", *SIN_METADATOS, str(out)], check=True)
     return huella(Image.open(out))
 
 

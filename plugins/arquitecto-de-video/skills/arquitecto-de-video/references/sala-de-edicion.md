@@ -29,6 +29,7 @@ Claude arma solo la primera versión completa (receta, capa viva con el preset d
 2. Traducir cada nota a un cambio concreto: estilo o posición de subtítulos, un elemento nuevo o movido en `elementos`, una escena de la receta, un rótulo, un corte de pausa. Si una nota es ambigua, preguntar solo esa.
 3. Aplicar, sacar una prueba de ese tramo (`vivo.py --prueba` o `terminar.py --muestras`) y mostrarla.
 4. Marcar la nota como hecha en `08_SALA/notas.json` (`"hecho": true`) para que la sala la muestre tachada; la persona recarga la página.
+4b. **¿Para siempre o solo este video?** Copiar cada nota, tal cual y con su autor y fecha, a "Correcciones de la persona" en la biblia del canal **del PC** (`%USERPROFILE%\EstudioPaltostaila\canales\<canal>\canal.md`). Una clave, contraseña, enlace con token, teléfono o nombre de otra persona se copia como [omitido], dejando constancia. Al mostrar las pruebas, preguntar una sola vez cuáles son "para siempre": esas se proponen como regla de la biblia (o en "Lo que NO va") y se agregan con el sí del dueño del canal (en finanzas, Patricio). Lo técnico de cómo se resolvió va a `canales\<canal>\aprendizajes.md`.
 5. El render final sigue las puertas normales (borrador aprobado → finales → control de calidad). Cada render nuevo sube de versión; nunca se pisa uno anterior.
 
 ## Copia para el celular

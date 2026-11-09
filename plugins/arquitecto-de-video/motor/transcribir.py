@@ -4,7 +4,11 @@
 #   python transcribir.py "C:\ruta\video" --comparar solo compara la transcripcion existente con el guion
 import difflib, glob, os, shutil, subprocess, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, run, cargar, norm, mmss
+from estudio import Proyecto, FFMPEG, run, cargar, norm, mmss, apartar_anterior
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 WX = pr["whisperx"]
@@ -26,7 +30,7 @@ def transcribir():
     print("audios en orden:", *[a.name for a in auds], sep="\n  ")
     wav = pr.tmp / "voz_16k.wav"
     ins = sum([["-i", a] for a in auds], [])
-    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", f"concat=n={len(auds)}:v=0:a=1", "-ac", "1", "-ar", "16000", wav])
+    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", f"concat=n={len(auds)}:v=0:a=1", "-ac", "1", "-ar", "16000", *SIN_METADATOS, wav])
     salida = pr.tmp / "whisperx"
     salida.mkdir(exist_ok=True)
     cmd = [whisperx(), str(wav), "--language", WX["idioma"], "--model", WX["modelo"], "--compute_type", WX["compute_type"],
@@ -36,6 +40,9 @@ def transcribir():
     if r.returncode != 0:
         sys.exit("WhisperX fallo; revisa el mensaje de arriba")
     pr.transcripcion.parent.mkdir(parents=True, exist_ok=True)
+    guardada = apartar_anterior(pr.transcripcion)    # la transcripción anterior (quizá corregida a mano) queda guardada
+    if guardada:
+        print("la transcripción anterior quedó como", guardada.name)
     shutil.copy2(salida / "voz_16k.json", pr.transcripcion)
     print("transcripcion:", pr.transcripcion)
 

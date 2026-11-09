@@ -104,7 +104,7 @@ class Proyecto:
         patrones = self.cfg["audios"] if isinstance(self.cfg["audios"], list) else [self.cfg["audios"]]
         patron = ", ".join(str(self.ruta(p)) for p in patrones)
         lista = sorted({Path(x) for p in patrones for x in glob.glob(str(self.ruta(p)))
-                        if Path(x).suffix.lower() in (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac")})
+                        if Path(x).suffix.lower() in (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac") and not es_resto(x)})
         if not lista:
             sys.exit(f"No encuentro audios de voz con el patron {patron}")
         return lista
@@ -140,6 +140,52 @@ def _buscar_ffmpeg(nombre):
 
 FFMPEG = _buscar_ffmpeg("ffmpeg")
 FFPROBE = _buscar_ffmpeg("ffprobe")
+
+# Perfil bajo (T1, 08-11-2026): un video que sale del PC no lleva los metadatos del original (GPS, marca y modelo del
+# celular, fecha de grabación, capítulos). Se pone justo antes del archivo de salida en cada comando que escribe una entrega.
+SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
+# Lo único que puede quedar: etiquetas técnicas con los valores que pone el propio ffmpeg. Cualquier otra cosa, o un valor
+# distinto (por ejemplo handler_name="Core Media Video" de un iPhone), se informa para revisar.
+_TECNICAS = {"major_brand": {"isom", "mp42", "mp41", "iso5", "iso6", "M4A ", "M4A", "M4V ", "M4V", "qt  ", "qt"},
+             "minor_version": None, "compatible_brands": None, "language": None,
+             "duration": None,                                 # MKV y WEBM guardan la duración de cada pista como etiqueta
+             "vendor_id": {"[0][0][0][0]", "FFMP"}, "encoder": ("Lavf", "Lavc", "Lavc6", "Lavc7"),
+             "handler_name": {"VideoHandler", "SoundHandler", "SubtitleHandler", "DataHandler"}}
+
+
+def _tecnica(k, v):
+    regla = _TECNICAS.get(k.lower(), False)
+    if regla is False:
+        return False
+    if regla is None:
+        return True
+    if k.lower() == "major_brand":
+        return str(v).strip() in {x.strip() for x in regla}
+    if isinstance(regla, tuple):
+        return str(v).startswith(regla)
+    return str(v) in regla
+
+
+def metadatos_personales(p):
+    """Etiquetas que no son técnicas en un video (formato, pistas y capítulos): [] = limpio; None = no se pudo leer
+    (ffprobe falló o no devolvió el formato): eso nunca cuenta como limpio."""
+    r = subprocess.run([str(FFPROBE), "-v", "error", "-show_entries", "format=format_name:format_tags:stream_tags:chapters",
+                        "-of", "json", str(p)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode:
+        return None
+    try:
+        d = json.loads(r.stdout or "{}")
+    except ValueError:
+        return None
+    if not d.get("format"):
+        return None
+    tags = list((d["format"].get("tags") or {}).items())
+    for s in d.get("streams", []):
+        tags += list((s.get("tags") or {}).items())
+    malos = {f"{k}={v}" if k.lower() in _TECNICAS else k for k, v in tags if not _tecnica(k, v)}
+    if d.get("chapters"):
+        malos.add(f"capítulos ({len(d['chapters'])})")
+    return sorted(malos)
 
 
 def run(cmd, cwd=None):
@@ -330,6 +376,57 @@ def apartar_anterior(p):
     return dest
 
 
+def es_resto(p):
+    """Copias que el estudio guarda o deja a medias (<nombre>_anterior-<fecha>, <nombre>.parcial): nunca cuentan como
+    la voz, el video o la entrega vigente."""
+    n = Path(p).name
+    return "_anterior-" in n or ".parcial" in n
+
+
+def escribir_entrega(ruta, texto):
+    """Escribe un archivo de texto de la entrega (.srt, capítulos, transcripción) sin perder el anterior: si existe y
+    cambia, el anterior queda como <nombre>_anterior-<fecha>. Si es igual, no se toca."""
+    ruta = Path(ruta)
+    if ruta.exists() and ruta.read_text(encoding="utf-8", errors="replace") == texto:
+        return None
+    guardada = apartar_anterior(ruta)
+    ruta.write_text(texto, encoding="utf-8")
+    return guardada
+
+
+def entregar(parcial, final):
+    """Cierra una entrega sin pisar la anterior: si `final` existe queda guardado como <nombre>_anterior-<fecha>, y el
+    archivo nuevo (escrito antes como .parcial) toma el nombre final. Devuelve la ruta de la anterior o None.
+    Si Windows no deja renombrar (el video está abierto en la sala, VLC o CapCut), lo reintenta y si no puede
+    se detiene con un mensaje claro: el trabajo nuevo queda a salvo en el .parcial."""
+    import time
+    parcial, final = Path(parcial), Path(final)
+    guardada = None
+    for intento in range(5):
+        try:
+            guardada = apartar_anterior(final) or guardada
+            parcial.rename(final)
+            break
+        except PermissionError:
+            if intento == 4:
+                if guardada:      # la anterior ya se apartó; lo que no se pudo renombrar es el archivo nuevo
+                    sys.exit(f"No pude dejar el archivo nuevo como {final.name}: Windows tiene abierto {parcial.name} "
+                             f"(¿un antivirus o un reproductor?). La entrega anterior está guardada como {guardada.name} "
+                             f"y la nueva a salvo como {parcial.name}: renómbrala o vuelve a correr el paso.")
+                sys.exit(f"No pude cerrar la entrega: {final.name} está abierto en otro programa (sala, VLC, CapCut...). "
+                         f"El archivo nuevo quedó a salvo como {parcial.name}. Ciérralo y vuelve a correr el paso.")
+            time.sleep(2)
+    if guardada:
+        print(f"la entrega anterior quedó guardada como {guardada.name}", flush=True)
+    return guardada
+
+
+def parcial_de(final):
+    """Nombre temporal para escribir una entrega antes de cerrarla con entregar()."""
+    final = Path(final)
+    return nombre_libre(final.with_name(final.stem + ".parcial" + final.suffix))
+
+
 def destino(salida, *entradas):
     """Ruta de salida segura para las herramientas: nunca igual a una entrada y nunca encima de un archivo existente."""
     sal = Path(salida)
@@ -343,3 +440,90 @@ def destino(salida, *entradas):
     if libre != sal:
         print(f"{sal.name} ya existe; se guarda como {libre.name}", flush=True)
     return libre
+
+
+def formato_plataformas(p):
+    """Lo que piden YouTube, TikTok e Instagram (MP4 + H.264 4:2:0 + AAC-LC 48 kHz estéreo, índice al principio,
+    hasta 60 fps). Devuelve la lista de diferencias ([] = ideal) o None si no se pudo leer."""
+    r = subprocess.run([str(FFPROBE), "-v", "error", "-show_entries",
+                        "stream=codec_type,codec_name,profile,pix_fmt,r_frame_rate,sample_rate,channels:format=format_name",
+                        "-of", "json", str(p)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode:
+        return None
+    try:
+        d = json.loads(r.stdout or "{}")
+    except ValueError:
+        return None
+    if not d.get("format"):
+        return None
+    dif = []
+    if Path(p).suffix.lower() != ".mp4" or "mp4" not in d["format"].get("format_name", ""):
+        dif.append("no es MP4")
+    v = [s for s in d.get("streams", []) if s.get("codec_type") == "video"]
+    a = [s for s in d.get("streams", []) if s.get("codec_type") == "audio"]
+    if not v:
+        dif.append("sin video")
+    for s in v[:1]:
+        if s.get("codec_name") != "h264":
+            dif.append(f"video {s.get('codec_name')} (piden H.264)")
+        if s.get("pix_fmt") != "yuv420p":
+            dif.append(f"color {s.get('pix_fmt')} (piden yuv420p)")
+        try:
+            n, m = s.get("r_frame_rate", "0/1").split("/")
+            if float(n) / float(m or 1) > 60.5:
+                dif.append(f"{float(n) / float(m or 1):.0f} fps (máximo 60)")
+        except ValueError:
+            pass
+    for s in a[:1]:
+        if s.get("codec_name") != "aac" or s.get("profile") not in ("LC", None):
+            dif.append(f"audio {s.get('codec_name')} {s.get('profile') or ''} (piden AAC-LC)".replace("  ", " "))
+        if str(s.get("sample_rate")) != "48000":
+            dif.append(f"audio a {s.get('sample_rate')} Hz (piden 48 kHz)")
+        if s.get("channels") != 2:
+            dif.append(f"audio con {s.get('channels')} canales (piden estéreo)")
+    try:                                                   # índice (moov) antes que los datos (mdat): "fast start"
+        with open(p, "rb") as f:
+            pos, orden = 0, []
+            while len(orden) < 12:
+                f.seek(pos); h = f.read(16)
+                if len(h) < 8:
+                    break
+                tam = int.from_bytes(h[:4], "big"); tipo = h[4:8].decode("latin-1")
+                if tam == 1:
+                    tam = int.from_bytes(h[8:16], "big")
+                orden.append(tipo)
+                if tam < 8:
+                    break
+                pos += tam
+            if "moov" in orden and "mdat" in orden and orden.index("moov") > orden.index("mdat"):
+                dif.append("el índice va al final (falta fast start)")
+    except OSError:
+        return None
+    return dif
+
+
+if __name__ == "__main__":
+    # python estudio.py metadatos "<archivo o carpeta>"   revisa videos y audios hechos fuera del flujo normal
+    # (exportes de CapCut, doblajes, montajes): ✓ limpio · ✗ quedan etiquetas · ? no se pudo leer. Solo lee.
+    if len(sys.argv) >= 3 and sys.argv[1] == "metadatos":
+        ruta = Path(sys.argv[2])
+        archivos = [ruta] if ruta.is_file() else sorted(p for p in ruta.rglob("*") if p.suffix.lower() in
+                                                         (".mp4", ".mov", ".m4v", ".m4a", ".wav", ".mp3", ".mkv", ".webm"))
+        malos = 0
+        for p in archivos:
+            m = metadatos_personales(p)
+            malos += m is None or bool(m)
+            print(("?" if m is None else ("✗" if m else "✓")), p, "" if not m else ", ".join(m), flush=True)
+        print(f"{len(archivos)} archivos; {malos} para revisar")
+        sys.exit(1 if malos or not archivos else 0)
+    if len(sys.argv) >= 3 and sys.argv[1] == "formato":
+        ruta = Path(sys.argv[2])
+        archivos = [ruta] if ruta.is_file() else sorted(ruta.rglob("*.mp4"))
+        malos = 0
+        for p in archivos:
+            d = formato_plataformas(p)
+            malos += d is None or bool(d)
+            print(("?" if d is None else ("✗" if d else "✓")), p, "" if not d else "; ".join(d), flush=True)
+        print(f"{len(archivos)} videos; {malos} con diferencias")
+        sys.exit(1 if malos or not archivos else 0)
+    sys.exit('Uso: python estudio.py metadatos|formato "<archivo o carpeta>"')

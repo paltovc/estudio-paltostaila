@@ -7,6 +7,10 @@
 import bisect, csv, json, shutil, sys, wave
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, run, cargar, mmss, duracion_medio, t2s
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 opt = lambda k, d: float(sys.argv[sys.argv.index(k) + 1]) if k in sys.argv else d
@@ -63,7 +67,7 @@ def main():
     auds = pr.audios()
     ins = sum([["-i", a] for a in auds], [])
     completa = pr.tmp / "voz_completa.wav"
-    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", f"concat=n={len(auds)}:v=0:a=1", "-c:a", "pcm_s16le", completa])
+    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", f"concat=n={len(auds)}:v=0:a=1", "-c:a", "pcm_s16le", *SIN_METADATOS, completa])
     with wave.open(str(completa), "rb") as w:   # el corte se hace en Python: sin limites de largo del filtro
         sr, nc, sw = w.getframerate(), w.getnchannels(), w.getsampwidth()
         datos = w.readframes(w.getnframes())

@@ -6,6 +6,10 @@
 import csv, json, subprocess, sys, tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 try:
     from estudio import FFMPEG, FFPROBE
@@ -57,7 +61,7 @@ with tempfile.TemporaryDirectory() as tmp:
                 t = dur * (i + 0.5) / 6
                 f = Path(tmp) / f"{p.stem}_{i}.jpg"
                 subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{t:.2f}", "-i", str(p), "-frames:v", "1",
-                                "-vf", "scale=-2:300", "-q:v", "4", str(f)], capture_output=True)
+                                "-vf", "scale=-2:300", "-q:v", "4", *SIN_METADATOS, str(f)], capture_output=True)
                 if f.exists():
                     cuadros.append((t, Image.open(f).convert("RGB")))
             filas.append({"archivo": p.name, "tipo": "video", "ancho": w, "alto": h,

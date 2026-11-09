@@ -5,3 +5,9 @@ Thumbs.db
 claves/
 *.mp4
 *.wav
+
+# claves y tokens (juez del estudio)
+*.env
+*token*.json
+youtube_cliente*.json
+claves*/

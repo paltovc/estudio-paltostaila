@@ -9,6 +9,10 @@ Ninguno garantiza un video viral; juntos suben la probabilidad. Las reglas del c
 - Siempre 3 variantes de título y miniatura para "Probar y comparar" de YouTube (ver plataformas.md).
 - Series numeradas ("Paso 1", "Creencia 3", "Lección 0"): prometen un camino y traen de vuelta a la gente.
 
+## Ángulo y prueba
+
+Antes del guion, 3 ángulos del mismo formato para elegir uno. En el primer cuadro, algo que pruebe la promesa (un resultado, un objeto, un número con fuente), nunca una promesa de ingresos ni urgencia falsa («no habrá repetición»), ni «comenta X y te mando…».
+
 ## Gancho
 - 0-3 s: se ve y se dice la promesa al mismo tiempo. Nunca saludo, nunca "en este video vamos a…" como primera frase.
 - 3-15 s: abrir una pregunta que se responde más tarde ("la tercera es la que más frena") y decir qué se lleva quien mira.

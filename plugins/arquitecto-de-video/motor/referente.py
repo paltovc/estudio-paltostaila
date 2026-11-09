@@ -6,10 +6,14 @@
 #   python referente.py URL --sin-video        solo datos y comentarios (rapido)
 #   python referente.py URL --transcribir      si no hay subtitulos, transcribe con WhisperX (lento)
 #   python referente.py URL --dest "C:\carpeta"
-import glob, json, re, subprocess, sys
+import glob, json, re, subprocess, sys, time
 from pathlib import Path
 from estudio import FFMPEG, run, mmss, duracion_medio
 from redes import ESTUDIO, llamar, info, promedio_canal, resumen, nombre_seguro, plataforma
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 args = [a for a in sys.argv[1:]]
 if not args or args[0].startswith("-"):
@@ -41,6 +45,11 @@ def cortes_de_escena(video, umbral=0.3):
     return [float(x) for x in re.findall(r"pts_time:([\d.]+)", s)]
 
 
+COMUNES = set("""para pero como esta este esto estos muy mucho mucha gracias obrigado obrigada valeu buen bueno buena
+video vídeo videos canal contenido excelente genial gran mejor todo todos todas cada aqui aquí desde hola saludos tambem também
+voce você isso esse essa mais muito quando onde porque porqué sobre tiene tienes tengo hace hacer puede quiero like""".split())
+
+
 def main():
     print("leyendo datos y comentarios...", flush=True)
     i = info(URL)
@@ -68,14 +77,26 @@ def main():
                     "-o", str(carpeta / "video.%(ext)s"), "--write-thumbnail", "--convert-thumbnails", "jpg", URL], timeout=1800)
         except RuntimeError as e:
             print("aviso: no se pudo descargar el video ->", str(e)[-300:])
-        for langs in ("es-orig,es", "es.*", "en-orig,en,pt-orig,pt"):   # subtitulos aparte: un error aqui no frena el resto
+        orig = (i.get("language") or "").split("-")[0]
+        pedidos = ([f"{orig}-orig,{orig}"] if orig and orig != "es" else []) + ["es-orig,es", "es.*", "en-orig,en,pt-orig,pt"]
+        for langs in pedidos:   # subtitulos aparte: primero el idioma original; un error aqui no frena el resto
             if list(carpeta.glob("video*.vtt")):
                 break
-            try:
-                llamar(["--no-playlist", "--no-warnings", "--skip-download", "--write-subs", "--write-auto-subs",
-                        "--sub-langs", langs, "--sub-format", "vtt", "-o", str(carpeta / "video.%(ext)s"), URL], timeout=300)
-            except RuntimeError as e:
-                print("aviso subtitulos", langs, "->", str(e)[-150:])
+            for intento, espera in enumerate((0, 15, 45)):       # YouTube responde 429 si se piden muy seguido: esperar y reintentar
+                if espera:
+                    print(f"  subtitulos: 429, espero {espera} s y reintento", flush=True)
+                    time.sleep(espera)
+                try:
+                    llamar(["--no-playlist", "--no-warnings", "--skip-download", "--write-subs", "--write-auto-subs",
+                            "--sub-langs", langs, "--sub-format", "vtt", "--sleep-subtitles", "3",
+                            "-o", str(carpeta / "video.%(ext)s"), URL], timeout=300)
+                    break
+                except RuntimeError as e:
+                    if not re.search(r"\bHTTP Error 429\b|Too Many Requests", str(e)):
+                        print("aviso subtitulos", langs, "->", str(e)[-150:])
+                        break
+            else:
+                print("aviso subtitulos", langs, "-> sigue el 429 después de 3 intentos")
         video = next(iter(sorted(carpeta.glob("video*.mp4"))), None)
         subs = sorted(carpeta.glob("video*.vtt"), key=lambda p: (".es" not in p.name, p.name))
         if subs:
@@ -88,15 +109,23 @@ def main():
             datos["plano_promedio_s"] = round(dur / (len(cortes) + 1), 1)
             datos["cortes_primeros_10s"] = sum(1 for c in cortes if c <= 10)
             datos["momentos_de_corte"] = [round(c, 2) for c in cortes[:120]]
-            run([FFMPEG, "-v", "error", "-y", "-i", video, "-t", "3", "-vf", "fps=2,scale=480:-1,tile=3x2", "-frames:v", "1", carpeta / "gancho_0a3s.jpg"])
+            run([FFMPEG, "-v", "error", "-y", "-i", video, "-t", "3", "-vf", "fps=2,scale=480:-1,tile=3x2", "-frames:v", "1", *SIN_METADATOS, carpeta / "gancho_0a3s.jpg"])
             paso = max(dur / 24, 1)
-            run([FFMPEG, "-v", "error", "-y", "-i", video, "-vf", f"fps=1/{paso:.2f},scale=360:-1,tile=6x4", "-frames:v", "1", carpeta / "hoja_completa.jpg"])
+            run([FFMPEG, "-v", "error", "-y", "-i", video, "-vf", f"fps=1/{paso:.2f},scale=360:-1,tile=6x4", "-frames:v", "1", *SIN_METADATOS, carpeta / "hoja_completa.jpg"])
             try:   # ritmo medido: cortes, saltos, tramos quietos, volumen y hoja con el cuadro de cada corte
                 import ritmo
                 r, vol, rs = ritmo.analizar(video, carpeta / "ritmo")
-                ritmo.grafico([(r, vol)], rs / "ritmo.png")
-                ritmo.informe(r, rs)
-                datos["cambios_suaves_por_minuto"] = r["cambios_suaves_por_minuto"]
+                # una sola fuente de cortes: la de ritmo.py (cortes secos + fundidos); la del detector simple queda aparte
+                datos["cortes_detector_simple"] = datos.pop("cortes_total", None)
+                datos.update({"cortes_total": r["cortes"], "cortes_por_minuto": r["cortes_por_minuto"],
+                              "plano_promedio_s": r["plano_promedio_s"], "plano_mediana_s": r["plano_mediana_s"],
+                              "cortes_primeros_10s": r["cortes_primeros_10s"], "momentos_de_corte": r["momentos_de_corte"],
+                              "cambios_suaves_por_minuto": r["cambios_suaves_por_minuto"]})
+                for paso, fn in (("informe", lambda: ritmo.informe(r, rs)), ("gráfico", lambda: ritmo.grafico([(r, vol)], rs / "ritmo.png"))):
+                    try:
+                        fn()
+                    except Exception as e:
+                        print(f"aviso ritmo ({paso}) ->", str(e)[-200:])
             except Exception as e:
                 print("aviso ritmo ->", str(e)[-200:])
             if "--transcribir" in args and not transcripcion:
@@ -104,17 +133,32 @@ def main():
     texto = "\n".join(f"[{mmss(t)}] {x}" for t, x in transcripcion)
     if texto:
         (carpeta / "transcripcion.txt").write_text(texto, encoding="utf-8")
+    # comentarios: total que informa la plataforma vs los que se leyeron, y palabras que se repiten (cebo de "comenta X")
+    datos["comentarios_total_reportado"] = datos.get("comentarios")
+    datos["comentarios_leidos"] = len(coms)
+    cuenta = {}
+    for c in coms:
+        for w in set(re.findall(r"[a-záéíóúñãõâêôç]{4,}", (c.get("text") or "").lower())) - COMUNES:
+            cuenta[w] = cuenta.get(w, 0) + 1
+    if coms:
+        rep = sorted(((n, w) for w, n in cuenta.items() if n >= max(5, 0.15 * len(coms))), reverse=True)[:6]
+        datos["comentarios_palabras_repetidas"] = [{"palabra": w, "comentarios": n, "porcentaje": round(100 * n / len(coms))} for n, w in rep]
     (carpeta / "datos.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
 
     m = [f"# Referente: {datos['titulo']}", "", f"{datos['url']}", "",
          "| dato | valor |", "|---|---|"]
     for k in ["plataforma", "canal", "seguidores", "fecha", "dias_publicado", "duracion_s", "vistas", "vistas_por_dia",
-              "likes", "likes_por_1000_vistas", "comentarios", "comentarios_por_1000_vistas", "mediana_vistas_canal",
+              "likes", "likes_por_1000_vistas", "comentarios_total_reportado", "comentarios_leidos", "comentarios_por_1000_vistas", "mediana_vistas_canal",
               "veces_sobre_su_canal", "cortes_por_minuto", "cambios_suaves_por_minuto", "plano_promedio_s", "cortes_primeros_10s"]:
         if datos.get(k) is not None:
             m.append(f"| {k.replace('_', ' ')} | {datos[k]} |")
     gancho = [x for t, x in transcripcion if t <= 15]
     m += ["", "## Lo que se dice en los primeros 15 s", " ".join(gancho) or "(sin transcripcion)",
+          "", "## Palabras que se repiten en los comentarios leidos",
+          ("\n".join(f"- «{x['palabra']}» en {x['comentarios']} comentarios ({x['porcentaje']} %)" for x in datos.get("comentarios_palabras_repetidas", []))
+           or "(ninguna sobre el 15 %)")
+          + ("\n\nOjo: si una palabra aparece en más de un tercio de los comentarios, lo más probable es que el creador pidió comentarla; no es interés espontáneo."
+             if any(x["porcentaje"] > 33 for x in datos.get("comentarios_palabras_repetidas", [])) else ""),
           "", "## Comentarios con mas likes"]
     m += [f"- ({c.get('like_count') or 0}) {(c.get('text') or '').strip()[:300]}" for c in coms[:40]]
     m += ["", "## Archivos", "gancho_0a3s.jpg (6 cuadros de los primeros 3 s), hoja_completa.jpg (24 cuadros), miniatura (video*.jpg),",
@@ -132,7 +176,7 @@ def whisperx(video, carpeta):
         print("aviso: no hay WhisperX; sin transcripcion")
         return []
     wav = carpeta / "audio_16k.wav"
-    run([FFMPEG, "-v", "error", "-y", "-i", video, "-ac", "1", "-ar", "16000", wav])
+    run([FFMPEG, "-v", "error", "-y", "-i", video, "-ac", "1", "-ar", "16000", *SIN_METADATOS, wav])
     subprocess.run([str(exe), str(wav), "--model", "medium", "--compute_type", "int8", "--device", "cpu",
                     "--output_format", "json", "--output_dir", str(carpeta)])
     j = carpeta / "audio_16k.json"

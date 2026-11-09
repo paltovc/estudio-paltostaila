@@ -7,6 +7,10 @@
 import sys
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, run, palabras, momento, mmss
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 S = pr["sonidos"]
@@ -67,7 +71,7 @@ def main():
         return
     mezcla = ";".join(filtros) + ";" + "".join(etiquetas) + \
         f"amix=inputs={len(etiquetas)}:normalize=0:dropout_transition=0,apad,atrim=0:{dur},alimiter=limit={S['limite_capa']}:level=0[out]"
-    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", mezcla, "-map", "[out]", "-ar", "48000", pr.tmp / "efectos.wav"])
+    run([FFMPEG, "-v", "error", "-y", *ins, "-filter_complex", mezcla, "-map", "[out]", "-ar", "48000", *SIN_METADATOS, pr.tmp / "efectos.wav"])
     print(f"{len(etiquetas)} sonidos en {pr.tmp / 'efectos.wav'}", flush=True)
     for t, nombre in sorted(resumen):
         print(f"  {mmss(t)}  {nombre}")

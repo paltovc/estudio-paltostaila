@@ -267,6 +267,10 @@ function capa(t){
       const fs=(d.items||[]).map((it,j)=>t>=e.partes[j]?`${j?`<span class="flecha">${v?"↓":"→"}</span>`:""}<span class="ficha" style="background:#${cols[j%cols.length]};color:${["FFFFFF","FFD23F","6AD15B","4FC3F7"].includes(cols[j%cols.length].toUpperCase())?"#101010":"#fff"}">${it}</span>`:"").join(v?"<br>":"");
       clave+="f"+e.partes.filter(p=>t>=p).length;
       html+=`<div class="el" style="left:${(v?.46:.5)*W*k}px;top:${y*k}px;font-size:${40*esc*k}px;text-align:center;line-height:2.2">${fs}</div>`}
+    else if(d.tipo==="progreso"){const tot=d.total||1,act=d.actual||1,txt=`${(d.etiqueta||"PASO").toUpperCase()} ${act} DE ${tot}`;
+      const [x,y]=posElem(v?(d.pos_vertical||[.30,.31]):(d.pos||[.87,.09]),"arriba-der");let pts="";
+      for(let j=0;j<tot;j++)pts+=`<span style="display:inline-block;width:.32em;height:.32em;border-radius:50%;margin:0 .12em;background:${j<act?"#"+(d.color||est.clave.slice(1)):"#fff6"}"></span>`;
+      html+=`<div class="el" style="left:${x*k}px;top:${y*k}px;font:900 ${40*esc*k}px Arial;color:#fff;background:#101010cc;border:${3*esc*k}px solid #${d.color||est.clave.slice(1)};border-radius:.6em;padding:.25em .6em;text-align:center;line-height:1.3">${txt}<br>${pts}</div>`}
     else if(d.tipo==="lluvia"){const n=d.cantidad||26,dur=d.dura||2.5;let b="";
       for(let j=0;j<n;j++){const ini=e.a+((j*37)%100)/100*dur*.5,fin=ini+1.2+((j*53)%100)/100;if(t<ini||t>fin)continue;
         const f=(t-ini)/(fin-ini),x=((j*97)%100)/100*W*k,y=(-80+f*(H+160))*k;

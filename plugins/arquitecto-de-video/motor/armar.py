@@ -8,6 +8,10 @@ import json
 from datetime import datetime
 from estudio import Proyecto, FFMPEG, FFPROBE, run, duracion_medio
 import transiciones
+try:
+    from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
+except Exception:
+    SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
 pr = Proyecto()
 HASTA = float(sys.argv[sys.argv.index("--hasta") + 1]) if "--hasta" in sys.argv else None
@@ -131,7 +135,7 @@ def pieza(trabajo):
         s = datos
         ini, cant = 2 * s["pre"], (s["b"] - s["post"]) - (s["a"] + s["pre"])
         cmd = [FFMPEG, "-v", "error", "-y", "-i", s["src"], "-filter_complex", flujo(s, 0, ini, cant, "v"),
-               "-map", "[v]", "-frames:v", cant]
+               "-map", "[v]", "-frames:v", cant, *SIN_METADATOS]
     else:
         s1, s2 = datos
         tipo, d = s2["t"]
@@ -139,7 +143,7 @@ def pieza(trabajo):
         fc = (flujo(s1, 0, ini1, d, "p") + ";" + flujo(s2, 1, 0, d, "q") + ";"
               + transiciones.cadena(tipo, d, FPS, W, H, "p", "q", "v"))
         cmd = [FFMPEG, "-v", "error", "-y", "-i", s1["src"], "-i", s2["src"], "-filter_complex", fc,
-               "-map", "[v]", "-frames:v", d]
+               "-map", "[v]", "-frames:v", d, *SIN_METADATOS]
     run(cmd + ENCODE + [parcial])
     parcial.replace(destino)
     return destino
@@ -162,7 +166,7 @@ def main():
         archivos = list(ex.map(pieza, trabajos))
     (PZ / "lista.txt").write_text("".join(f"file '{a.name}'\n" for a in archivos), encoding="utf-8")
     salida = pr.tmp / ("solo_video.mp4" if not HASTA else f"solo_video_borrador_{int(HASTA)}s.mp4")
-    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", PZ / "lista.txt", "-c", "copy", salida])
+    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", PZ / "lista.txt", "-c", "copy", *SIN_METADATOS, salida])
     n = int(run([FFPROBE, "-v", "error", "-count_packets", "-select_streams", "v", "-show_entries",
                  "stream=nb_read_packets", "-of", "csv=p=0", salida]).strip())
     print(f"cuadros: {n} (esperados {total}) {'OK' if n == total else 'REVISAR'}", flush=True)
