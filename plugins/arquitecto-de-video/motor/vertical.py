@@ -115,21 +115,21 @@ def corte(segs, pals, v):
     if v.get("modo") == "seguir":    # pantalla completa y el recorte sigue al sujeto
         x = seguir(pr.salida / "tmp" / "solo_video.mp4", t0, dur, None)
         vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='{x}':y=0,"
-              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6,scale=out_range=tv,format=yuv420p[v]")
     elif v.get("modo") == "recorte":   # pantalla completa: recorta del 16:9 una franja vertical (cuidado con personajes en los bordes)
         cx = float(v.get("centro_x", 0.5))
         vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='max(0,min(iw-1080,iw*{cx}-540))':y=0,"
-              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6,scale=out_range=tv,format=yuv420p[v]")
     else:   # marco: el video completo al centro sobre una copia desenfocada (no corta nada)
         vf = ("[0:v]split[a][b];[a]scale=-2:1920,crop=1080:1920,boxblur=30:2,eq=brightness=-0.18[fondo];"
               "[b]scale=1080:-2[frente];[fondo][frente]overlay=0:(H-h)/2,"
-              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6[v]")
+              f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6,scale=out_range=tv,format=yuv420p[v]")
     nombre = f"{pr.base_nombre}_{slug(v['nombre'])}_9x16.mp4"
     parcial = parcial_de(pr.salida / nombre).name      # el Short anterior no se pisa: queda como *_anterior-<fecha>
     run([FFMPEG, "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/solo_video.mp4",
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,
          "-map", "[v]", "-map", "1:a", "-af", f"afade=t=in:d=0.2,afade=t=out:st={dur - 0.6:.3f}:d=0.6",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(pr.fps),
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-color_range", "tv", "-r", str(pr.fps),
          "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
     entregar(pr.salida / parcial, pr.salida / nombre)
     print(f"LISTO {pr.salida / nombre} ({dur:.1f} s)", flush=True)

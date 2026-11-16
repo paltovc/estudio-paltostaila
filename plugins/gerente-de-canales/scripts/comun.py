@@ -1,3 +1,4 @@
+import re
 # Piezas comunes del gerente de canales: rutas, configuración, JSON seguro, bloqueos, huellas y registro.
 # Todo vive en %USERPROFILE%\EstudioPaltostaila\gerente (o en ESTUDIO_BASE\gerente para pruebas).
 import contextlib, csv, datetime as dt, hashlib, json, os, shutil, sys, time, uuid
@@ -267,6 +268,22 @@ def opt(args, k, defecto=None):
     return args[i + 1]
 
 
+def carpeta_publicar(pdir):
+    """Carpeta de publicación del proyecto: la que dice proyecto.json en "publicar" (el motor la respeta; FIN-002 usa
+    08_PUBLICAR_ESTUDIO) y, si no dice nada, 08_PUBLICAR. Tiene que ser una carpeta directa del proyecto: un nombre
+    con rutas, «..» o absoluto no se acepta y se usa la de siempre."""
+    pdir = Path(pdir)
+    nombre = "08_PUBLICAR"
+    try:
+        d = leer_json(pdir / "proyecto.json")
+        n = d.get("publicar") if isinstance(d, dict) else None
+        if isinstance(n, str) and n.strip() and re.fullmatch(r"[A-Za-z0-9_ .-]+", n.strip()) and ".." not in n:
+            nombre = n.strip()
+    except Exception:
+        pass
+    return pdir / nombre
+
+
 def proyecto_dir(arg):
     p = Path(arg).expanduser()
     if not p.is_dir():
@@ -275,7 +292,7 @@ def proyecto_dir(arg):
 
 
 def publicacion(pdir):
-    p = Path(pdir) / "08_PUBLICAR" / "publicacion.json"
+    p = carpeta_publicar(pdir) / "publicacion.json"
     d = leer_json(p)
     if d is None:
         sys.exit(f"Falta {p} (lo escribe el distribuidor a partir del paquete del publicador).")

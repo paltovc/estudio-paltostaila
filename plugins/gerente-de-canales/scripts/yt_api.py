@@ -1,3 +1,4 @@
+from comun import carpeta_publicar
 # YouTube con la API propia del estudio (OAuth del canal; nada de contraseñas ni cookies).
 #   python yt_api.py autorizar                         abre el navegador UNA vez para dar permiso; guarda el token en claves
 #   python yt_api.py canal [--confirmar]               muestra a qué canal quedó conectado; --confirmar lo fija en config
@@ -399,7 +400,7 @@ def metricas(vid, pdir=None, yt=None, ya=None):
     out["nota"] = ("YouTube Analytics tarda 1-3 días en consolidar y cuenta días completos en hora del Pacífico (no es una "
                    "ventana exacta de 48 h); a las 48 h los contadores del video son más fiables. Desde fines de agosto "
                    "de 2026 'views' de los largos cuenta desde el primer cuadro: comparar con engagedViews.")
-    destino_dir = (Path(pdir) / "08_PUBLICAR" / "metricas") if pdir else (GER / "metricas")
+    destino_dir = (carpeta_publicar(pdir) / "metricas") if pdir else (GER / "metricas")
     dest = escribir_nuevo(destino_dir / f"{vid}_{fin}.json", json.dumps(out, ensure_ascii=False, indent=1))
     p(f"LISTO métricas de {vid}: {dest}")
     return out

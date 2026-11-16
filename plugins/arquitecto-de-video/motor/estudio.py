@@ -47,6 +47,10 @@ DEFAULTS = {
         "clips_con_sonido": [],
         "recorte_clip": {},
         "limite_capa": 0.3,
+        "alinear": "inicio",       # 0.14: "ataque" (el primer sonido audible cae en el momento) o "pico"; "inicio" = como
+                                   # siempre. Los proyectos NUEVOS nacen con "ataque" (nuevo_proyecto.py); los que ya
+                                   # existen no cambian de sonido si se vuelven a armar.
+        "baja_sobre_voz": 0,       # dB que baja un efecto puesto por "segundo" o "escena" si parte en medio de una palabra
     },
     "vertical": [],
     "miniaturas": [],
@@ -197,6 +201,36 @@ def run(cmd, cwd=None):
 
 def duracion_medio(p):
     return float(run([FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", p]).strip())
+
+
+def huella(p):
+    """sha256 de un archivo (para saber si la evaluación o la aprobación corresponden a ESTE archivo)."""
+    import hashlib
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for bloque in iter(lambda: f.read(1 << 20), b""):
+            h.update(bloque)
+    return h.hexdigest()
+
+
+def ataque_y_pico(p, umbral_db=-40.0, max_s=12.0):
+    """(ataque, pico) en segundos de un sonido: cuándo empieza a oírse (primera muestra sobre el umbral, medido
+    contra su propio máximo) y cuándo llega a su punto más fuerte. (0.0, 0.0) si no se pudo leer o es silencio."""
+    import array
+    r = subprocess.run([str(FFMPEG), "-v", "error", "-t", str(max_s), "-i", str(p), "-ac", "1", "-ar", "8000", "-f", "s16le", "-"],
+                       capture_output=True)
+    if r.returncode or len(r.stdout) < 4:
+        return 0.0, 0.0
+    m = array.array("h"); m.frombytes(r.stdout[:len(r.stdout) // 2 * 2])
+    if sys.byteorder == "big":
+        m.byteswap()
+    tope = max(max(m), -min(m))
+    if tope < 30:
+        return 0.0, 0.0
+    lim = tope * 10 ** (umbral_db / 20)
+    ataque = next((i for i, x in enumerate(m) if abs(x) >= lim), 0)
+    pico = next(i for i, x in enumerate(m) if abs(x) == tope)
+    return round(ataque / 8000, 3), round(pico / 8000, 3)
 
 
 def t2s(t):

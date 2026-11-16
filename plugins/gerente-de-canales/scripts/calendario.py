@@ -1,3 +1,4 @@
+from comun import carpeta_publicar
 # Calendario de publicación de todos los canales (gerente\calendario.json).
 #   python calendario.py importar "<proyecto>"         agrega las piezas de publicacion.json (sin duplicar)
 #   python calendario.py ver [--mes 2026-11] [--todo]  tabla con la hora local y la de los mercados del público
@@ -141,7 +142,7 @@ def hoja(pdir):
             else:
                 L += ["**Texto:**", "", "```", txt, "```", ""]
             L += ["- [ ] Subido", "- [ ] Avisar a Claude para marcarlo en el calendario", ""]
-    destino = escribir_nuevo(Path(pdir) / "08_PUBLICAR" / f"hoja_de_publicacion_{pub['version']}.md", "\n".join(L))
+    destino = escribir_nuevo(carpeta_publicar(pdir) / f"hoja_de_publicacion_{pub['version']}.md", "\n".join(L))
     p("LISTO", destino)
 
 

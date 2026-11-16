@@ -20,6 +20,7 @@ Actuar como director de producción. Cada etapa la hace un agente especialista y
 5. **Personaje.** Si la persona entrega 2-3 imágenes o una carpeta y dice "este es el personaje", usar la skill **ficha-personaje**: copiar esas imágenes (sin tocar las originales) a `canales\<canal>\personaje\referencias\`, escribir su descripción exacta y usarla en todos los prompts de imágenes y de Flow desde ese momento. Imágenes adjuntas en el chat: guardarlas primero en el PC (copia en `personaje\referencias`).
 6. Leer la biblia del canal en `%USERPROFILE%\EstudioPaltostaila\canales\<canal>\canal.md` (si no existe, crearla con **nuevo-canal** a partir de la entrevista; para el canal de finanzas hay una base en `${CLAUDE_PLUGIN_ROOT}/canales/finanzas/canal.md`).
 7. Abrir o crear `00_ESTADO.md` en la carpeta del video con la plantilla de `references/tablero.md`. Al retomar un video, leer `00_ESTADO.md` y `00_BRIEF.md` y seguir desde la primera etapa sin terminar, sin repetir la entrevista.
+   - Desde el motor 0.14.4: empezar por `python motor\ficha.py tabla` y usar `motor\cadena.py` (un comando por etapa, resumen corto) y `motor\escuchar.py` (el oído). Detalle en `references/herramientas-0.14.md`.
 8. **Guion:** si la persona trae su texto, el `guionista` lo adapta (gancho, ritmo para la voz, marcas de imagen y definiciones) sin cambiar su contenido ni su voz, y muestra los cambios; si no trae, lo escribe desde la entrevista y la investigación. En ambos casos pasa por el `revisor-de-guion` y la puerta A.
 
 ## Etapas, agentes y puertas

@@ -53,13 +53,37 @@ CHK = P / "08_PUBLICAR" / "checklist_publicacion_monetizacion_v1.md"
 CHK.write_text("# checklist v1\n7 respuestas revisadas\n\nMONETIZACIÓN: OK\n", encoding="utf-8")
 TERM = R7 / "terminado_FIN-900_v1.md"
 TERM_OK = ("# ¿Terminado? FIN-900_v1\n\n**SÍ: lo obligatorio pasa**\n\n| # | punto | | detalle |\n|---|---|---|---|\n"
-           + "".join(f"| {n} | punto {n} | ✓ | |\n" for n in range(1, 7)) + "| 7 | Evaluación (recomendado) | – | |\n")
+           + "".join(f"| {n} | punto {n} | ✓ | |\n" for n in range(1, 7)) + "| 7 | Evaluación (recomendado) | – | |\n"
+           + "| 11 | Sin metadatos personales (GPS, celular, fecha) | ✓ | |\n")
 time.sleep(0.05)
 TERM.write_text(TERM_OK, encoding="utf-8")
 EV = P / "06_RECETA" / "evaluacion_FIN-900_v1_con-subtitulos.json"
-EV.write_text(json.dumps({"video": "C:\\x\\FIN-900_v1_con-subtitulos.mp4", "nota_medida": 8.2, "clase_medida": "A"}), encoding="utf-8")
-(P / "06_RECETA" / "evaluacion_FIN-900_v1_short1_9x16.json").write_text(
-    json.dumps({"video": "FIN-900_v1_short1_9x16.mp4", "nota_medida": 7.1, "clase_medida": "B"}), encoding="utf-8")
+CS = R7 / "FIN-900_v1_con-subtitulos.mp4"
+CS.write_bytes(b"con subtitulos" * 80)
+TERMJ = R7 / "terminado_FIN-900_v1.json"
+EVS = P / "06_RECETA" / "evaluacion_FIN-900_v1_short1_9x16.json"
+SHORT = R7 / "FIN-900_v1_short1_9x16.mp4"
+
+
+import hashlib
+
+
+def _h(q):
+    return hashlib.sha256(Path(q).read_bytes()).hexdigest()
+
+
+def sellar():       # lo que deja terminado.py del motor 0.14: la huella de cada video que revisó
+    TERMJ.write_text(json.dumps({"base": "FIN-900_v1", "ok": True,
+                                 "videos": {q.name: _h(q) for q in sorted(R7.glob("*.mp4"))}}), encoding="utf-8")
+
+
+def evaluar_falso(nota=8.2, clase="A", nota_short=7.2):     # lo que deja evaluar.py del motor 0.14: nota y huella del video evaluado
+    EV.write_text(json.dumps({"video": str(CS), "sha256": _h(CS), "nota_medida": nota, "clase_medida": clase}), encoding="utf-8")
+    EVS.write_text(json.dumps({"video": SHORT.name, "sha256": _h(SHORT), "nota_medida": nota_short, "clase_medida": "B"}), encoding="utf-8")
+
+
+sellar()
+evaluar_falso()
 manana = (dt.datetime.now() + dt.timedelta(days=2)).strftime("%Y-%m-%dT19:00")
 pasado = (dt.datetime.now() + dt.timedelta(days=3)).strftime("%Y-%m-%dT19:00")
 PUB = {"id": "FIN-900", "version": "v1", "canal": "finanzas", "piezas": [
@@ -143,9 +167,111 @@ check("la evaluación de otra versión (v10) no sirve para la v1", c == 1 and "f
 TERM.write_text("# ¿Terminado?\n\n**SÍ: lo obligatorio pasa**\n", encoding="utf-8")
 c, out = correr("puertas.py", P, "--pieza", "largo")
 check("un terminado sin los puntos obligatorios no sirve", c == 1 and "faltan los puntos obligatorios" in out, out)
+TERM.write_text(TERM_OK.replace("| 11 | Sin metadatos personales (GPS, celular, fecha) | ✓ | |\n", ""), encoding="utf-8")
+c, out = correr("puertas.py", P, "--pieza", "largo")
+check("un terminado antiguo, sin el punto 11 (GPS y datos del celular), no sirve", c == 1 and "obligatorios 11" in out, out)
 TERM.write_text(TERM_OK, encoding="utf-8")
+# 0.1.4: terminado y evaluación atados por HUELLA al archivo que se sube (la fecha ya no cuenta)
+def _pl():
+    return correr("puertas.py", P, "--pieza", "largo")
+
+
+c, out = _pl()
+check("evaluación del hermano con subtítulos, sellado en la misma corrida de terminado.py: pasa",
+      "huella del video comprobada" in out and "misma corrida de terminado.py" in out, out)
+_tj = TERMJ.read_text(encoding="utf-8")
+TERMJ.unlink()
+c, out = _pl()
+check("sin terminado_*.json (terminado anterior al motor 0.14) la puerta se cierra", c == 1 and "con las huellas" in out, out)
+TERMJ.write_text("{rota", encoding="utf-8")
+c, out = _pl()
+check("un terminado_*.json ilegible cierra la puerta, sin traza", c == 1 and "con las huellas" in out and "Traceback" not in out, out)
+TERMJ.write_text(_tj, encoding="utf-8")
+_yt = R7 / "FIN-900_v1_youtube.mp4"; _b = _yt.read_bytes(); _st = _yt.stat()
+_yt.write_bytes(_b + b"0"); os.utime(_yt, (_st.st_atime, _st.st_mtime - 3600))
+c, out = _pl()
+check("un video cambiado después de terminado.py no pasa aunque su fecha sea anterior",
+      c == 1 and "cambió después de terminado.py" in out, out)
+_yt.write_bytes(_b); os.utime(_yt, (_st.st_atime, _st.st_mtime))
+_copia = P / "08_PUBLICAR" / "FIN-900_v1_export.mp4"; _copia.write_bytes(_b)
+os.utime(_copia, (_st.st_atime, _st.st_mtime - 3600))
+_otro = json.loads(json.dumps(PUB)); _otro["piezas"][0]["archivo"] = "08_PUBLICAR/FIN-900_v1_export.mp4"; escribir_pub(_otro)
+c, out = _pl()
+check("un MP4 que terminado.py nunca revisó (una copia en 08_PUBLICAR, con fecha vieja) no pasa",
+      c == 1 and "no es uno de los videos que revisó" in out, out)
+escribir_pub(PUB); _copia.unlink()
+_csb = CS.read_bytes()
+CS.write_bytes(b"otro render" * 80)
+c, out = _pl()
+check("si el video evaluado cambió después de la nota, la puerta se cierra", c == 1 and "cambió después de la evaluación" in out, out)
+CS.write_bytes(_csb)
+_d = json.loads(_tj); _d["videos"].pop(CS.name); TERMJ.write_text(json.dumps(_d), encoding="utf-8")
+c, out = _pl()
+check("si el video evaluado no está en la misma corrida de terminado.py que el que se sube, la puerta se cierra",
+      c == 1 and "no está entre los videos que revisó" in out, out)
+TERMJ.write_text(_tj, encoding="utf-8")
+CS.rename(CS.with_suffix(".guardado"))
+c, out = _pl()
+check("si el video evaluado ya no está, la puerta se cierra", c == 1 and "ya no está" in out, out)
+CS.with_suffix(".guardado").rename(CS)
+EV.write_text(json.dumps({"video": str(CS), "nota_medida": 8.2, "clase_medida": "A"}), encoding="utf-8")
+c, out = _pl()
+check("una evaluación sin huella no vale (misma regla que el motor)", c == 1 and "no trae la huella" in out, out)
+EV.write_text("{rota", encoding="utf-8")
+c, out = _pl()
+check("una evaluación ilegible cierra la puerta con una fila, sin traza", c == 1 and "no se puede leer" in out and "Traceback" not in out, out)
+evaluar_falso(7.4, "B")
+c, out = _pl()
+check("nota bajo 8 no pasa aunque la clase sea B (misma regla que el motor)", c == 1 and "se exige nota 8" in out, out)
+evaluar_falso(nota_short=6.8)
+c, out = correr("puertas.py", P, "--pieza", "short1")
+check("un Short con nota bajo 7 no pasa; con 7,2 sí (mínimo aparte del largo, que pide 8)",
+      c == 1 and "se exige nota 7" in out and "nota 7 o más del mismo Short" in out, out)
+evaluar_falso()
+c, out = correr("puertas.py", P, "--pieza", "short1")
+check("el Short con 7,2 pasa su evaluación", "se exige nota" not in out and "nota 7.2 clase B (huella de" in out, out)
+(R7 / "celu").mkdir()
+_cel = R7 / "celu" / "FIN-900_v1_youtube_celu.mp4"; _cel.write_bytes(_b)
+_d = json.loads(_tj); _d["videos"]["celu/" + _cel.name] = _h(_cel); TERMJ.write_text(json.dumps(_d), encoding="utf-8")
+_otro = json.loads(json.dumps(PUB)); _otro["piezas"][0]["archivo"] = "07_RENDER_ESTUDIO/celu/" + _cel.name; escribir_pub(_otro)
+c, out = _pl()
+check("la copia para el celular no se puede subir como pieza, aunque esté sellada", c == 1 and "copia para el celular" in out, out)
+escribir_pub(PUB); TERMJ.write_text(_tj, encoding="utf-8"); shutil.rmtree(R7 / "celu")
+evaluar_falso()
+c, out = _pl()
+check("con todo en su lugar otra vez, terminado y evaluación vuelven a pasar",
+      "huella del video comprobada" in out and "misma corrida de terminado.py" in out, out)
 c, out = aprobar("short1")
 check("aprobar el Short", c == 0, out)
+
+# 0.1.6: la carpeta de publicación sale de proyecto.json, como en el motor
+_pp = TMPD / "proyecto_publicar"; _pp.mkdir()
+check("sin proyecto.json la carpeta de publicación es 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
+(_pp / "proyecto.json").write_text(json.dumps({"publicar": "08_PUBLICAR_ESTUDIO"}), encoding="utf-8")
+check("con \"publicar\" en proyecto.json se usa esa carpeta (FIN-002: 08_PUBLICAR_ESTUDIO)",
+      comun.carpeta_publicar(_pp) == _pp / "08_PUBLICAR_ESTUDIO")
+(_pp / "proyecto.json").write_text(json.dumps({"publicar": "..\\otra"}), encoding="utf-8")
+check("un nombre con rutas o «..» no se acepta: vuelve a 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
+(_pp / "proyecto.json").write_text("{rota", encoding="utf-8")
+check("un proyecto.json ilegible no bota al gerente: 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
+(P / "proyecto.json").write_text(json.dumps({"publicar": "08_PUBLICAR_ESTUDIO"}), encoding="utf-8")
+c, out = correr("puertas.py", P, "--pieza", "largo")
+check("si proyecto.json apunta a otra carpeta, el gerente busca ahí publicacion.json (y no en 08_PUBLICAR)",
+      c == 1 and "falta 08_PUBLICAR" in out, out)
+(P / "proyecto.json").unlink()
+
+# 0.1.6: la nota mínima la decide el archivo, no la etiqueta "tipo"
+_otro = json.loads(json.dumps(PUB)); _otro["piezas"][0]["tipo"] = "short"; escribir_pub(_otro)
+c, out = correr("puertas.py", P, "--pieza", "largo")
+check("un largo etiquetado como Short no pasa (no se baja la nota mínima cambiando el tipo)",
+      c == 1 and "calza con el archivo | ✗" in out, out)
+_otro = json.loads(json.dumps(PUB)); _otro["piezas"][1]["tipo"] = "largo"; escribir_pub(_otro)
+c, out = correr("puertas.py", P, "--pieza", "short1")
+check("un Short etiquetado como largo no pasa (no toma prestada la nota del largo)",
+      c == 1 and "calza con el archivo | ✗" in out, out)
+escribir_pub(PUB)
+c, out = correr("puertas.py", P, "--pieza", "largo")
+check("con el tipo correcto, la fila del tipo pasa", "calza con el archivo | ✓" in out, out)
 
 # --- calendario
 c, out = correr("calendario.py", "importar", P)
@@ -189,6 +315,10 @@ class Req:
         return None, self.r
 
 
+PRIVACIDAD = []     # lo que el gerente le dijo a YouTube en cada subida o cambio de estado (desde el 02-11-2026,
+                    # una subida sin privacidad queda PÚBLICA por defecto: nunca puede faltar ni ser otra cosa que private)
+
+
 class FakeYT:
     def __init__(self, error=None, canal="UC_CANAL_BUENO", falla_miniatura=False):
         self.llamadas, self.error, self.canal, self.falla_miniatura = [], error, canal, falla_miniatura
@@ -206,6 +336,7 @@ class FakeYT:
     def insert(self, **k):
         self.llamadas.append((self.recurso, "insert", k))
         if self.recurso == "videos":
+            PRIVACIDAD.append(k["body"].get("status", {}).get("privacyStatus"))
             m = k["media_body"]; self.medios.append(m)
             self.subido = (m.ruta.parent == comun.TMP, huella(m.ruta), "publishAt" in k["body"]["status"])
             self.status = dict(k["body"]["status"])
@@ -218,6 +349,7 @@ class FakeYT:
         return Req({}, RuntimeError("miniatura rechazada") if self.falla_miniatura else None)
     def update(self, **k):
         self.llamadas.append((self.recurso, "update", k)); self.status = dict(k["body"]["status"])
+        PRIVACIDAD.append(k["body"].get("status", {}).get("privacyStatus"))
         return Req({"status": dict(self.status)})
 
 
@@ -344,7 +476,7 @@ check("lo cancelado no se vuelve a publicar con la aprobación vieja", c == 1 an
 # archivo y terminado
 (R7 / "FIN-900_v1_short1_9x16.mp4").write_bytes(b"short re-renderizado" * 50)
 c, out = correr("puertas.py", P, "--pieza", "short1", "--red", "instagram")
-check("si el video cambia, la aprobación deja de valer y terminado queda viejo", c == 1 and "cambió" in out and "más nuevo" in out, out)
+check("si el video cambia, la aprobación deja de valer y el terminado ya no es de ese archivo", c == 1 and "aprobar de nuevo" in out and "cambió después de terminado.py" in out, out)
 TERM.write_text(TERM_OK.replace("| 2 | punto 2 | ✓ |", "| 2 | punto 2 | ✗ |"), encoding="utf-8")
 c, out = correr("puertas.py", P, "--pieza", "largo")
 check("terminado con ✗ obligatorio cierra las puertas", c == 1 and "punto 2" in out, out)
@@ -402,6 +534,13 @@ check("progreso: alcanzaría fan funding (estimado) y no anuncios",
       res["metas"]["fan_funding"]["alcanzaria_estimado"] and not res["metas"]["anuncios"]["alcanzaria_estimado"])
 
 shutil.rmtree(TMPD, ignore_errors=True)
+check("toda subida y todo cambio de estado en YouTube dijo privacyStatus = private (nunca vacío ni público)",
+      len(PRIVACIDAD) >= 3 and all(x == "private" for x in PRIVACIDAD), str(PRIVACIDAD))
+import inspect as _ins
+_src = _ins.getsource(yt_api)
+check("yt_api.py no escribe nunca privacyStatus public ni unlisted",
+      '"privacyStatus": "public"' not in _src and '"privacyStatus": "unlisted"' not in _src
+      and "privacyStatus\"] = \"public" not in _src and "privacyStatus\"] = \"unlisted" not in _src)
 print(flush=True)
 if fallas:
     print(f"PRUEBA FALLIDA: {len(fallas)} puntos", flush=True)

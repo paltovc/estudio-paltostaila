@@ -113,6 +113,16 @@ subprocess.run([str(FFMPEG), "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=
 assert any("handler_name" in x for x in (metadatos_personales(_iph) or [])), "un handler_name de celular debía detectarse"
 assert metadatos_personales(tmp / "no_existe.mp4") is None, "un archivo ilegible debía quedar como no comprobado"
 print("OK   metadatos: todas las salidas los quitan y terminado.py sabe leerlos (GPS, celular, fecha)")
+from estudio import ataque_y_pico, huella
+import hashlib as _hl
+_son = tmp / "con_silencio.wav"       # 0,25 s de silencio, un tono que sube y su punto más fuerte en 0,65 s
+subprocess.run([str(FFMPEG), "-v", "error", "-y", "-f", "lavfi", "-i",
+                "aevalsrc='if(lt(t,0.25),0,sin(2*PI*880*t)*min(1,(t-0.25)/0.4)*if(lt(t,0.65),1,0.2))':d=1:s=48000", *SIN_METADATOS, _son], check=True)
+_at, _pi = ataque_y_pico(_son)
+assert 0.22 <= _at <= 0.30 and 0.60 <= _pi <= 0.68, f"ataque y pico mal medidos: {_at}, {_pi}"
+assert ataque_y_pico(tmp / "no_existe.wav") == (0.0, 0.0), "un sonido ilegible debía dar (0, 0), no romper"
+assert huella(_son) == _hl.sha256(_son.read_bytes()).hexdigest()
+print("OK   sonidos: mide cuándo empieza a oírse un efecto y dónde está su punto más fuerte; huella sha256")
 import revisar_idioma as ri
 assert ri.sospechosas("BILL $$$") == ["BILL"] and ri.sospechosas("FEES") == ["FEES"]
 assert ri.sospechosas("Comisiones que podrían evitarse") == [] and ri.sospechosas("CREENCIAS antes de invertir") == []
@@ -249,6 +259,19 @@ cfg.update({"escenas_capitulo": [2],
             "transiciones": {"normal": ["fade", 13], "capitulo": ["smoothleft", 17], "plano": ["fade", 7]},   # impares a propósito
             "rotulos": [{"frase": "Si ves este video", "chico": "PRUEBA", "grande": "El motor funciona", "segundos": 3}],
             "vertical": [{"nombre": "Short_Prueba", "desde": "Esta es una prueba", "titulo": "Prueba"}]})
+cfg["sonidos"] = dict(cfg.get("sonidos") or {}, efectos=[                # un proyecto nuevo ya nace con alinear = "ataque"
+    {"segundo": 2.0, "archivo": "bip_prueba.wav", "duracion": 0.6},      # 2,0 s cae en medio de una palabra (1,9 a 2,25)
+    {"frase": "Gracias", "archivo": "bip_prueba.wav", "duracion": 0.6},  # anclado a una frase: no se baja
+    {"segundo": 9.0, "archivo": "pico_prueba.wav", "alinear": "pico", "duracion": 0.3}])   # pico a 1,5 s: duracion se alarga
+(carpeta / "05_SONIDOS").mkdir(exist_ok=True)
+subprocess.run([str(FFMPEG), "-v", "error", "-y", "-f", "lavfi", "-i", "aevalsrc='if(lt(t,0.25),0,sin(2*PI*880*t))':d=0.8:s=48000",
+                "-map_metadata", "-1", carpeta / "05_SONIDOS" / "bip_prueba.wav"], check=True)
+subprocess.run([str(FFMPEG), "-v", "error", "-y", "-f", "lavfi", "-i", "aevalsrc='0.05*sin(2*PI*300*t)+if(between(t,1.5,1.52),0.9,0)':d=2:s=48000",
+                "-map_metadata", "-1", carpeta / "05_SONIDOS" / "pico_prueba.wav"], check=True)
+assert cfg["sonidos"].get("alinear") == "ataque", "un proyecto nuevo debía nacer con los efectos alineados por ataque"
+import estudio as _es0
+assert _es0.DEFAULTS["sonidos"]["alinear"] == "inicio" and _es0.DEFAULTS["sonidos"]["baja_sobre_voz"] == 0, \
+    "un proyecto que ya existía no puede cambiar de sonido al volver a armarse"
 (carpeta / "proyecto.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
 
 receta = carpeta / "06_RECETA" / "receta.csv"
@@ -263,6 +286,42 @@ if not linea.endswith("OK"):
     sys.exit(f"armar.py no dio los cuadros exactos con transiciones impares ({linea}). Carpeta conservada: {carpeta}")
 print("OK   armar.py: cuadros exactos con transiciones impares (" + linea + ")")
 paso("sonidos.py", str(carpeta))
+_cues = [q for q in (carpeta / "06_RECETA").glob("hoja_cues_*.csv") if "_anterior-" not in q.name]
+import csv as _csv
+_filas = list(_csv.reader(_cues[0].read_text(encoding="utf-8-sig").splitlines(), delimiter=";")) if _cues else []
+_ef = carpeta / "07_RENDER" / "tmp" / "efectos.wav"
+if len(_filas) != 5 or any(len(x) != 7 for x in _filas):
+    sys.exit(f"la hoja de cues debía tener el encabezado y 4 sonidos, todos con 7 columnas: {_filas}. Carpeta conservada: {carpeta}")
+_bip = [x for x in _filas if x[2] == "bip_prueba.wav"]
+if not ("ataque (-0,25" in _bip[0][4].replace(".", ",") and "en medio de una palabra" in _bip[0][4] and _bip[0][3] == "-22"
+        and "palabra" not in _bip[1][4] and _bip[1][3] == "-19" and all(x[6] == "revisar (anotar en licencias\\registro.md)" for x in _bip)):
+    sys.exit(f"sonidos.py: solo el efecto puesto por segundo en medio de una palabra debía bajar 3 dB: {_bip}. Carpeta conservada: {carpeta}")
+def _nivel(a, b):       # volumen medio de un tramo de la capa de efectos
+    r = subprocess.run([str(FFMPEG), "-hide_banner", "-ss", str(a), "-t", str(b - a), "-i", str(_ef), "-af", "volumedetect", "-f", "null", "-"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    import re as _r2
+    m = _r2.findall(r"max_volume: (-?[\d.]+) dB", r.stderr)
+    return float(m[-1]) if m else None
+_a2, _ = ataque_y_pico(_ef)
+if not 1.97 <= _a2 <= 2.04:
+    sys.exit(f"el efecto debía empezar a oírse en 2,0 s (sin el silencio del archivo) y se oye en {_a2}. Carpeta conservada: {carpeta}")
+_n1, _n2 = _nivel(2.05, 2.4), _nivel(_es0.buscar(_es0.palabras(_es0.Proyecto(carpeta))[1], "Gracias") + 0.05, _es0.buscar(_es0.palabras(_es0.Proyecto(carpeta))[1], "Gracias") + 0.4)
+if _n1 is None or _n2 is None or not 2.0 <= _n2 - _n1 <= 4.0:
+    sys.exit(f"el efecto en medio de una palabra debía sonar unos 3 dB más bajo que el anclado a una frase ({_n1} y {_n2} dB)")
+_p1, _p2 = _nivel(8.9, 9.1), _nivel(8.0, 8.8)
+if _p1 is None or _p2 is None or _p1 - _p2 < 6:
+    sys.exit(f"en modo pico, el punto más fuerte debía caer en 9,0 s ({_p1} dB ahí y {_p2} dB antes)")
+print("OK   sonidos.py: ataque y pico caen en su momento (medido en el audio), solo baja lo que cae en medio de una palabra, y la hoja de cues sale con sus 7 columnas")
+_cfg2 = json.loads((carpeta / "proyecto.json").read_text(encoding="utf-8")); _ef_guardados = _cfg2["sonidos"]["efectos"]
+_cfg2["sonidos"]["efectos"] = []; _cfg2["escenas_capitulo"] = []
+(carpeta / "proyecto.json").write_text(json.dumps(_cfg2, ensure_ascii=False, indent=2), encoding="utf-8")
+paso("sonidos.py", str(carpeta))
+if [q for q in (carpeta / "06_RECETA").glob("hoja_cues_*.csv") if "_anterior-" not in q.name] or not list((carpeta / "06_RECETA").glob("hoja_cues_*_anterior-*.csv")):
+    sys.exit("sin efectos, la hoja de cues anterior debía quedar guardada como _anterior y no como vigente")
+_cfg2["sonidos"]["efectos"] = _ef_guardados; _cfg2["escenas_capitulo"] = [2]
+(carpeta / "proyecto.json").write_text(json.dumps(_cfg2, ensure_ascii=False, indent=2), encoding="utf-8")
+paso("sonidos.py", str(carpeta))
+print("OK   sonidos.py: sin efectos, la hoja de cues vieja se retira (queda guardada)")
 paso("terminar.py", str(carpeta))
 srts = {q: q.stat().st_mtime_ns for q in (carpeta / "07_RENDER").glob("*.srt")}
 paso_falla("Ya existe", "terminar.py", str(carpeta))
@@ -311,7 +370,60 @@ _extra.unlink()
 if _r11.returncode == 0 or "| 11 |" not in _r11.stdout or "location" not in _r11.stdout:
     sys.exit("terminado.py debía rechazar (punto 11) un video de la versión con GPS:\n" + _r11.stdout[-800:])
 print("OK   terminado.py punto 11 rechaza una entrega con GPS")
-paso("terminado.py", str(carpeta))
+_fin = paso("terminado.py", str(carpeta))
+import re as _re13
+if not _re13.search(r"\| 13 \|.*\| ✓ \| máximo -?\d+(\.\d+)? dBTP en \d+ videos \|", _fin):
+    sys.exit("terminado.py debía medir el pico real (punto 13):\n" + _fin[-600:])
+print("OK   terminado.py mide el pico real (punto 13, recomendado)")
+_f1 = paso("ficha.py", str(carpeta))
+_fj = json.loads((carpeta / "ficha.json").read_text(encoding="utf-8"))
+if (_fj["estado"] != "armado, con pendientes" or "la evaluación" not in _fj["falta"] or not _fj["terminado"]["si"]
+        or _fj["terminado"]["vigente"] is not True or _fj.get("hecha_por") != "ficha.py" or "(actualizada)" not in _f1):
+    sys.exit(f"ficha.py debía leer el estado del video de sus archivos: {_fj}")
+if "(sin cambios)" not in paso("ficha.py", str(carpeta)):
+    sys.exit("ficha.py debía dejar la ficha intacta si nada cambió")
+import ficha as _fi, hashlib as _h2
+_cs = carpeta / "07_RENDER" / "VideoPrueba_v1_con-subtitulos.mp4"
+_evp = carpeta / "06_RECETA" / "evaluacion_VideoPrueba_v1_con-subtitulos.json"
+_pj = json.loads((carpeta / "proyecto.json").read_text(encoding="utf-8")); _pj["titulo"] = "Título de prueba"
+(carpeta / "proyecto.json").write_text(json.dumps(_pj, ensure_ascii=False, indent=2), encoding="utf-8")
+(carpeta / "08_PUBLICAR" / "x_miniatura_1.png").write_bytes(b"png")
+def _ev(nota, clase, sha=True, texto=None):
+    _evp.write_text(texto if texto is not None else json.dumps({"nota_medida": nota, "clase_medida": clase,
+                    **({"sha256": _h2.sha256(_cs.read_bytes()).hexdigest()} if sha else {})}), encoding="utf-8")
+    return _fi.ficha(carpeta)
+_r = _ev(8.4, "A")
+assert _r["estado"] == "listo para aprobar" and not _r["falta"], f"con todo comprobado debía quedar listo: {_r['falta']}"
+assert _ev(3.1, "C")["estado"] != "listo para aprobar", "una nota 3,1 clase C no puede quedar «listo para aprobar»"
+assert _ev(8.4, "A", sha=False)["estado"] != "listo para aprobar", "una evaluación sin huella no cuenta como comprobada"
+assert _ev(0, "", texto="{rota")["estado"] != "listo para aprobar", "una evaluación ilegible no cuenta como comprobada"
+assert _ev(0, "", texto="[1, 2]")["estado"] != "listo para aprobar", "una evaluación que no es un objeto no cuenta"
+_ev(8.4, "A")
+_yt0 = carpeta / "07_RENDER" / "VideoPrueba_v1_youtube.mp4"; _b0 = _yt0.read_bytes()
+_yt0.write_bytes(_b0 + b"0")
+_r = _fi.ficha(carpeta)
+assert _r["estado"] != "listo para aprobar" and any("cambió después de terminado" in x for x in _r["falta"]), \
+    f"si el video cambia después de terminado.py, la ficha no puede decir listo: {_r['falta']}"
+_yt0.write_bytes(_b0)
+assert _fi.ficha(carpeta)["estado"] == "listo para aprobar"
+_evp.unlink(); (carpeta / "08_PUBLICAR" / "x_miniatura_1.png").unlink()
+_aj = carpeta / "ficha.json"; _mio = _aj.read_text(encoding="utf-8")
+_aj.write_text('{"personaje": "ficha ajena"}', encoding="utf-8")
+_env2 = dict(os.environ, ESTUDIO_BASE=str(carpeta.parent / "base_fichas"), PYTHONIOENCODING="cp1252")
+_r3 = subprocess.run([py, "ficha.py", str(carpeta)], cwd=AQUI, capture_output=True, text=True, env=_env2, encoding="cp1252", errors="replace")
+assert _r3.returncode == 0 and _aj.read_text(encoding="utf-8") == '{"personaje": "ficha ajena"}' \
+    and list((carpeta.parent / "base_fichas" / "trabajo" / "fichas").glob("ficha_*.json")), \
+    "un ficha.json que no es del estudio no se toca: la ficha debía ir a trabajo\\fichas\n" + _r3.stdout[-400:] + _r3.stderr[-400:]
+_aj.write_text("esto no es json", encoding="utf-8")
+subprocess.run([py, "ficha.py", str(carpeta)], cwd=AQUI, capture_output=True, env=_env2)
+assert _aj.read_text(encoding="utf-8") == "esto no es json", "un ficha.json ilegible tampoco se toca"
+_aj.write_text(_mio, encoding="utf-8")
+(carpeta.parent / "base_fichas" / "proyectos" / "c").mkdir(parents=True)
+shutil.copytree(carpeta, carpeta.parent / "base_fichas" / "proyectos" / "c" / "VideoPrueba")
+_r4 = subprocess.run([py, "ficha.py", "tabla"], cwd=AQUI, capture_output=True, text=True, env=_env2, encoding="cp1252", errors="replace")
+assert _r4.returncode == 0 and "VideoPrueba" in _r4.stdout and list((carpeta.parent / "base_fichas" / "trabajo" / "fichas").glob("tabla_*.md")), \
+    "ficha.py tabla debía funcionar con salida cp1252 y dejar la tabla:\n" + _r4.stdout[-300:] + _r4.stderr[-500:]
+print("OK   ficha.py: «listo para aprobar» solo con todo comprobado; no pisa un ficha.json ajeno; la tabla sale en cp1252")
 _rc = subprocess.run([py, "prueba_camara.py", str(AQUI)], cwd=AQUI, capture_output=True, text=True, encoding="utf-8", errors="replace")
 if _rc.returncode:
     sys.exit("prueba_camara.py (grabado, montaje y doblaje con tomas con GPS) falló:\n" + _rc.stdout[-1500:] + _rc.stderr[-800:])

@@ -87,7 +87,8 @@ else:
         "carpetas": {k: v for k, v in {"imagenes": imagenes_ext}.items() if v},
         "escenas_capitulo": [], "planos": {}, "alias_clips": {}, "correcciones": [],
         "rotulos": [], "capitulos": [],
-        "sonidos": {"efectos": [], "lapiz": [], "clips_con_sonido": [], "recorte_clip": {}},
+        "sonidos": {"efectos": [], "lapiz": [], "clips_con_sonido": [], "recorte_clip": {},
+                    "alinear": "ataque", "baja_sobre_voz": -3},      # 0.14: solo los proyectos nuevos
         "vertical": [], "miniaturas": [],
     }
     if vertical:

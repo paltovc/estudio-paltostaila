@@ -1,8 +1,9 @@
+from comun import carpeta_publicar
 # Puertas antes de subir o programar: si una falla, no se publica nada.
 #   python puertas.py "<proyecto>" --pieza <clave> [--red youtube|tiktok|instagram]
-# Revisa: publicacion.json válido · nivel · terminado.py del mismo video con los puntos obligatorios 1 a 6 en ✓ y más
-# nuevo que el render · checklist de monetización DE ESTA VERSIÓN con «MONETIZACIÓN: OK» · evaluación A/B del mismo
-# video · aprobación vigente con la huella de la pieza completa y su contexto (y posterior a cualquier cancelación) ·
+# Revisa: publicacion.json válido · nivel · terminado.py con los puntos obligatorios en ✓ y con la HUELLA del archivo
+# que se sube (terminado_<base>.json) · checklist de monetización DE ESTA VERSIÓN con «MONETIZACIÓN: OK» · evaluación
+# con nota 8 o más (7 en los Shorts), clase A o B y la huella del video evaluado · aprobación vigente con la huella de la pieza completa y su contexto (y posterior a cualquier cancelación) ·
 # fecha futura · que no se haya enviado antes · enlace público con el mismo contenido y cupo (Metricool) ·
 # ventana horaria y Short ya público (vidIQ). Termina con 0 solo si todo pasa.
 import datetime as dt, re, sys
@@ -11,7 +12,8 @@ from comun import (APROBACIONES, a_utc, ahora_utc, config, contexto, huella, hue
                    proyecto_dir, registro, ruta_segura, ultimo_estado, ya_enviado)
 from validar import validar
 
-OBLIGATORIOS = {"1", "2", "3", "4", "5", "6"}     # puntos obligatorios de terminado.py del estudio
+OBLIGATORIOS = {"1", "2", "3", "4", "5", "6", "11"}   # obligatorios de terminado.py (11 = sin GPS ni datos del celular)
+NOTA_LARGO, NOTA_SHORT = 8, 7                    # decisión de Patricio (15-11-2026): fijas, no se leen de config.json
 VENTANA_VIDIQ = (-10, 60)                        # minutos alrededor de la hora: vidIQ publica en el momento
 
 
@@ -25,9 +27,12 @@ def _exacto(carpetas, nombres):
 
 
 def revisar_terminado(pdir, id_, ver, archivos):
+    """Devuelve (ok, detalle, huellas, carpeta). Desde la 0.1.4 el «terminado» tiene que ser de ESTOS archivos:
+    terminado.py (motor 0.14) deja terminado_<base>.json con el sha256 de cada video que revisó. El archivo que se
+    sube tiene que estar ahí, con la misma huella. La fecha no cuenta: sin ese .json la puerta queda cerrada."""
     t = _exacto(carpetas_render(pdir), [f"terminado_{id_}_{ver}.md"])
     if not t:
-        return False, f"falta terminado_{id_}_{ver}.md en 07_RENDER* (correr terminado.py del estudio)"
+        return False, f"falta terminado_{id_}_{ver}.md en 07_RENDER* (correr terminado.py del estudio)", {}, None
     texto = t.read_text(encoding="utf-8-sig")
     malos, vistos = [], set()
     for l in texto.splitlines():
@@ -46,24 +51,68 @@ def revisar_terminado(pdir, id_, ver, archivos):
         malos.append(f"faltan los puntos obligatorios {', '.join(sorted(faltan, key=int))}")
     if "SÍ: lo obligatorio pasa" not in texto:
         malos.append("el resumen no dice «SÍ: lo obligatorio pasa»")
-    viejo = [a.name for a in archivos if a and a.is_file() and a.stat().st_mtime > t.stat().st_mtime + 1]
-    if viejo:
-        malos.append(f"el video es más nuevo que {t.name} ({', '.join(viejo)}): correr terminado.py otra vez")
-    return (not malos), (t.name if not malos else "; ".join(malos))
+    tj = t.with_suffix(".json")
+    try:
+        hj = leer_json(tj)["videos"] if tj.is_file() else None
+    except Exception:
+        hj = None
+    if not isinstance(hj, dict) or not hj:
+        hj = {}
+        malos.append(f"falta {tj.name} con las huellas de los videos revisados (terminado anterior al motor 0.14, o "
+                     "ilegible): correr terminado.py otra vez")
+    else:
+        for a in archivos:
+            if not a or not a.is_file():
+                continue
+            try:
+                rel = a.resolve().relative_to(t.parent.resolve()).as_posix()
+            except ValueError:
+                rel = None
+            if (rel is not None and rel.lower().startswith("celu/")) or "_celu" in a.name.lower():
+                malos.append(f"{a.name} es la copia para el celular: se sube el video de la carpeta de render, no el de celu")
+            elif rel is None or rel not in hj:
+                malos.append(f"{a.name} no es uno de los videos que revisó terminado.py ({t.name})")
+            elif huella(a) != hj[rel]:
+                malos.append(f"{a.name} cambió después de terminado.py: correr terminado.py otra vez")
+    return (not malos), (f"{t.name} (huella del video comprobada)" if not malos else "; ".join(malos)), hj, t.parent
 
 
-def revisar_evaluacion(pdir, nombres, archivo):
-    # Pendiente en el estudio: que evaluar.py guarde la huella del video evaluado (hoy se usa nombre y fecha).
+def revisar_evaluacion(pdir, nombres, archivo, sellados=None, carpeta=None, nota_minima=8):
+    """La evaluación tiene que ser de ESTE video, comprobado por huella (evaluar.py la guarda desde el motor 0.14; una
+    evaluación sin huella no vale). Si se evaluó el hermano con subtítulos, ese hermano tiene que estar en la misma
+    corrida de terminado.py que el archivo que se sube. Nota mínima: 8 el largo (igual que el motor) y 7 los Shorts; clase A o B."""
     e = _exacto([Path(pdir) / "06_RECETA"], [f"evaluacion_{n}.json" for n in nombres])
     if not e:
         return False, f"falta 06_RECETA/evaluacion_{nombres[0]}.json (correr evaluar.py sobre ese video)"
-    d = leer_json(e)
-    if d.get("video") and Path(str(d["video"]).replace("\\", "/")).stem not in nombres:
-        return False, f"{e.name} evaluó otro video ({Path(d['video']).name})"
-    if archivo.stat().st_mtime > e.stat().st_mtime + 1:
-        return False, f"el video es más nuevo que {e.name}: evaluar otra vez"
-    clase = d.get("clase_medida")
-    return clase in ("A", "B"), f"{e.name}: nota {d.get('nota_medida')} clase {clase}"
+    try:
+        d = leer_json(e)
+        if not isinstance(d, dict):
+            raise ValueError("no es un objeto")
+    except Exception:
+        return False, f"{e.name} no se puede leer: evaluar otra vez"
+    evaluado = Path(str(d["video"]).replace("\\", "/")).stem if d.get("video") else None
+    if evaluado and evaluado not in nombres:
+        return False, f"{e.name} evaluó otro video ({Path(str(d['video']).replace(chr(92), '/')).name})"
+    if not d.get("sha256"):
+        return False, f"{e.name} no trae la huella del video evaluado (evaluación anterior al motor 0.14): evaluar otra vez"
+    if evaluado in (None, archivo.stem):
+        real = archivo
+    else:                                       # se evaluó el hermano con subtítulos
+        real = (Path(carpeta) if carpeta else archivo.parent) / (evaluado + archivo.suffix)
+        if not real.is_file():
+            return False, f"{e.name} evaluó {real.name}, que ya no está junto al terminado: evaluar otra vez"
+    if huella(real) != d["sha256"]:
+        return False, f"{real.name} cambió después de la evaluación ({e.name}): evaluar otra vez"
+    junto = ""
+    if real != archivo:
+        if (sellados or {}).get(real.name) != d["sha256"]:
+            return False, (f"{real.name} (el evaluado) no está entre los videos que revisó terminado.py junto con "
+                           f"{archivo.name}: correr terminado.py otra vez")
+        junto = f", de la misma corrida de terminado.py que {archivo.name}"
+    nota, clase = d.get("nota_medida"), d.get("clase_medida")
+    ok = isinstance(nota, (int, float)) and not isinstance(nota, bool) and nota >= nota_minima and clase in ("A", "B")
+    return ok, (f"{e.name}: nota {nota} clase {clase} (huella de {real.name} comprobada{junto})"
+                + ("" if ok else f" · se exige nota {nota_minima} o más y clase A o B"))
 
 
 def aprobacion(pub, clave, filas=None):
@@ -106,7 +155,7 @@ def revisar(pdir, clave, red=None, ahora=None, revisar_enlace=None, huella_enlac
     R.append(("publicacion.json válido", not err, "; ".join(err[:4]) if err else "ok"))
     if err:
         return R
-    pub = leer_json(pdir / "08_PUBLICAR" / "publicacion.json")
+    pub = leer_json(carpeta_publicar(pdir) / "publicacion.json")
     x = next((y for y in pub["piezas"] if y["clave"] == clave), None)
     R.append((f"existe la pieza «{clave}»", bool(x), "ok" if x else "no está en publicacion.json"))
     if not x:
@@ -118,20 +167,26 @@ def revisar(pdir, clave, red=None, ahora=None, revisar_enlace=None, huella_enlac
     nv = nivel(cfg)
     R.append(("nivel de autonomía válido y ≥ 1", nv is not None and nv >= 1, f"nivel {cfg.get('nivel')!r}"))
     arch = ruta_segura(pdir, x["archivo"])
-    ok, det = revisar_terminado(pdir, pub["id"], pub["version"], [arch])
+    ok, det, sellados, carp = revisar_terminado(pdir, pub["id"], pub["version"], [arch])
     R.append(("terminado.py del mismo video: lo obligatorio en ✓", ok, det))
-    chk = pdir / "08_PUBLICAR" / f"checklist_publicacion_monetizacion_{pub['version']}.md"
+    chk = carpeta_publicar(pdir) / f"checklist_publicacion_monetizacion_{pub['version']}.md"
     txt = chk.read_text(encoding="utf-8-sig") if chk.is_file() else ""
     ok = bool(txt) and re.search(r"MONETIZACI[ÓO]N:\s*OK", txt, re.I) and "corregir antes de publicar" not in txt.lower()
     R.append((f"checklist de monetización de la {pub['version']} con «MONETIZACIÓN: OK»", bool(ok),
               chk.name if ok else f"falta {chk.name} con la línea «MONETIZACIÓN: OK» (o dice «corregir antes de publicar»)"))
+    es_short = arch.name.lower().endswith("_9x16.mp4")
+    es_largo = arch.stem.lower().endswith(("_youtube", "_con-subtitulos"))
+    calza = es_short if x["tipo"] == "short" else (es_largo and not es_short)
+    R.append((f"{clave}: el tipo «{x['tipo']}» calza con el archivo", calza,
+              arch.name if calza else f"{arch.name}: un Short termina en _9x16.mp4 y un largo en _youtube.mp4 o "
+              "_con-subtitulos.mp4 (el tipo decide la nota mínima: no se cambia a mano)"))
     if x["tipo"] == "largo":
         nombres = [arch.stem, f"{pub['id']}_{pub['version']}_con-subtitulos", f"{pub['id']}_{pub['version']}_youtube"]
-        ok, det = revisar_evaluacion(pdir, nombres, arch)
-        R.append((f"{clave}: evaluación A o B del mismo video", ok, det))
+        ok, det = revisar_evaluacion(pdir, nombres, arch, sellados, carp, NOTA_LARGO)
+        R.append((f"{clave}: evaluación con nota {NOTA_LARGO} o más del mismo video", ok, det))
     elif cfg.get("exigir_evaluacion_shorts", True):
-        ok, det = revisar_evaluacion(pdir, [arch.stem], arch)
-        R.append((f"{clave}: evaluación A o B del mismo video", ok, det))
+        ok, det = revisar_evaluacion(pdir, [arch.stem], arch, sellados, carp, NOTA_SHORT)
+        R.append((f"{clave}: evaluación con nota {NOTA_SHORT} o más del mismo Short", ok, det))
     filas = registro()
     sha = huella(arch)
     hp = huella_pieza(pdir, x, ctx=contexto(pub, cfg))

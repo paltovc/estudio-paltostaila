@@ -5,7 +5,7 @@
 # Deja en <proyecto>\06_RECETA: evaluacion_<video>.md y .json (y la carpeta ritmo_<video> con el gráfico y las hojas).
 import json, re, statistics, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, FFPROBE, run, palabras, buscar, norm
+from estudio import Proyecto, FFMPEG, FFPROBE, run, palabras, buscar, norm, huella
 import ritmo
 
 pr = Proyecto()
@@ -82,6 +82,7 @@ def momentos_short(pals, frases, elementos, dur_total, largo=(30, 58)):
 
 def main():
     video = elegir_video()
+    sello = huella(video)      # antes de medir: si el archivo cambia durante la evaluación, la nota no se firma
     w, h = dims(video)
     tipo = opt("--tipo") or ("short" if h > w else "largo")
     segs, pals = palabras(pr)
@@ -223,7 +224,9 @@ def main():
     decision = {"A": "listo: publicar (después del control de calidad)", "B": "publicar después de los arreglos rápidos de abajo",
                 "C": "mejorar antes de publicar: rehacer las partes marcadas"}[clase]
     shorts = momentos_short(pals, frases, elementos, dur) if tipo == "largo" else []
-    res = {"video": str(video), "tipo": tipo, "duracion_s": dur, "nota_medida": total, "clase_medida": clase, "decision": decision,
+    if huella(video) != sello:
+        sys.exit(f"{video.name} cambió mientras se evaluaba: esperar a que termine el render y evaluar otra vez")
+    res = {"video": str(video), "sha256": sello, "bytes": video.stat().st_size, "tipo": tipo, "duracion_s": dur, "nota_medida": total, "clase_medida": clase, "decision": decision,
            "ejes": ejes, "pesos": pesos,
            "medidas": {"primera_palabra_s": primera, "palabras_primeros_5s": pal_5s, "primera_frase": frase1,
                        "cambios_por_minuto_con_elementos": round(cpm, 1), "tramos_quietos": quietos, "palabras_por_minuto": round(ppm),

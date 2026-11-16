@@ -1,3 +1,4 @@
+from comun import carpeta_publicar
 # Valida 08_PUBLICAR\publicacion.json de un proyecto (lo que se va a publicar, dónde y cuándo).
 #   python validar.py "<proyecto>"                      revisa; no toca nada
 #   python validar.py "<proyecto>" --adoptar <archivo>  respalda el publicacion.json actual como publicacion_<n>.json
@@ -21,7 +22,7 @@ RUTAS_POR_RED = {"youtube": ("api", "manual"), "tiktok": ("metricool", "manual")
 def validar(pdir, pub=None):
     pdir = Path(pdir)
     errores, avisos = [], []
-    pub = pub if pub is not None else leer_json(pdir / "08_PUBLICAR" / "publicacion.json")
+    pub = pub if pub is not None else leer_json(carpeta_publicar(pdir) / "publicacion.json")
     if pub is None:
         return ["falta 08_PUBLICAR/publicacion.json"], avisos
     for k in ("id", "version", "canal"):
@@ -110,7 +111,7 @@ def adoptar(pdir, nuevo):
         for x in e:
             p("ERROR", x)
         sys.exit("No se adopta: el archivo nuevo no es válido")
-    actual = Path(pdir) / "08_PUBLICAR" / "publicacion.json"
+    actual = carpeta_publicar(pdir) / "publicacion.json"
     import hashlib
     with bloqueo("adoptar_" + hashlib.sha256(str(Path(pdir).resolve()).lower().encode()).hexdigest()[:12]):
         if actual.exists():

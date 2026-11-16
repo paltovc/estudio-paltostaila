@@ -1,3 +1,4 @@
+from comun import carpeta_publicar
 # Aprobación de Patricio (o su pareja) para publicar piezas de un proyecto.
 #   python aprobar.py "<proyecto>" --tabla [--piezas a,b]
 #       muestra COMPLETO lo que se aprueba: archivos, títulos, descripción y textos por red sin recortar, etiquetas,
@@ -121,6 +122,6 @@ with bloqueo("aprobaciones"):
     ap = leer_json(APROBACIONES, {"aprobaciones": []})
     ap["aprobaciones"] += nuevas
     escribir_estado(APROBACIONES, ap)
-copia = escribir_nuevo(pdir / "08_PUBLICAR" / f"aprobacion_{pub['version']}.md", "\n".join(lineas) + "\n")
+copia = escribir_nuevo(carpeta_publicar(pdir) / f"aprobacion_{pub['version']}.md", "\n".join(lineas) + "\n")
 p("\n".join(lineas))
 p("LISTO", copia)
