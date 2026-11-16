@@ -12,6 +12,7 @@
 import csv, difflib, json, math, shutil, subprocess, sys, wave
 from pathlib import Path
 import numpy as np
+import os
 from estudio import Proyecto, FFMPEG, palabras, norm, mmss, huella, nombre_libre, duracion_medio
 
 try:
@@ -84,6 +85,7 @@ def se_entiende(wav_mono16, trabajo, cues):
                         "--device", "cpu", "--output_format", "json", "--output_dir", str(out)], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     js = out / (wav_mono16.stem + ".json")
+    js.unlink(missing_ok=True)
     if r.returncode or not js.exists():
         return None, "WhisperX falló: no se pudo comprobar si se entiende"
     oido = [t for s in json.loads(js.read_text(encoding="utf-8"))["segments"] for w in s["text"].split() for t in norm(w)]
@@ -122,7 +124,7 @@ def revisar_efectos(cues, voz, fx, mezcla):
     res = []
     for c in cues:
         t = c["t"]
-        d = {"t": round(t, 2), "sonido": c["sonido"], "alineado": c["alineado"]}
+        d = {"t": round(t, 2), "sonido": c["sonido"], "alineado": c["alineado"], "detectado": c.get("detectado", False)}
         if fx is not None:
             antes, en = rms(fx, t - 0.5, t - 0.08), rms(fx, t - 0.03, t + 0.35)
             d["sube_db"] = round(en - antes, 1)
@@ -204,7 +206,9 @@ def main():
         sys.exit(f"No encuentro {video}")
     destino = Path(opt("--salida")) if opt("--salida") else pr.salida / "escucha"
     destino.mkdir(parents=True, exist_ok=True)
-    trabajo = destino / "tmp"
+    trabajo = destino / f"tmp_escucha_{os.getpid()}"
+    if trabajo.resolve() == pr.tmp.resolve() or pr.tmp.resolve() in trabajo.resolve().parents:
+        sys.exit("--salida no puede ser la carpeta tmp del armado (ahí están la voz y los efectos)")
     trabajo.mkdir(exist_ok=True)
     sello = huella(video)
     st = a_wav(video, trabajo / "mezcla.wav", 2)
@@ -214,12 +218,21 @@ def main():
     cues, hoja = leer_cues()
     voz = a_wav(pr.tmp / "voz.wav", trabajo / "voz.wav", 1) if (pr.tmp / "voz.wav").exists() else None
     fx = a_wav(pr.tmp / "efectos.wav", trabajo / "fx.wav", 1) if (pr.tmp / "efectos.wav").exists() else None
+    aviso_pistas = ""
+    for nombre_p, pista in (("voz", voz), ("efectos", fx)):
+        if pista is not None and abs(len(pista) - len(mono)) / SR > 0.5:
+            aviso_pistas += f" la pista de {nombre_p} del armado no dura lo mismo que el video (es de otro armado): no se usó."
+            if nombre_p == "voz":
+                voz = None
+            else:
+                fx = None
     if not cues and fx is not None:      # video anterior a la 0.14 (sin hoja): los efectos se ubican en su propia pista
         paso = int(0.05 * SR)
         niv = [db(np.sqrt(np.mean(np.square(fx[k:k + paso])))) for k in range(0, len(fx) - paso, paso)]
         for k in range(6, len(niv)):
             if niv[k] > -50 and max(niv[k - 6:k]) < -62:
-                cues.append({"t": k * 0.05, "sonido": "efecto (ubicado en la pista de efectos)", "alineado": "sin hoja de cues"})
+                cues.append({"t": k * 0.05, "sonido": "efecto (ubicado en la pista de efectos)", "alineado": "sin hoja de cues",
+                             "detectado": True})
     cortes, acum = [], 0.0
     try:
         for a in pr.audios()[:-1]:
@@ -244,6 +257,13 @@ def main():
     # --- qué hay que escuchar: lista corta, con minuto y causa
     O = []       # (segundo, gravedad, texto)
     D = R["defectos"]
+    if D["lufs"] is None or D["pico_real_dbtp"] is None:
+        O.append((0, "revisar", "no comprobado: ffmpeg no pudo medir el volumen ni el pico real"))
+    else:
+        if abs(D["lufs"] + 14) > 1:
+            O.append((0, "revisar", f"volumen {D['lufs']} LUFS (el estudio usa -14 ±1)"))
+        if D["pico_real_dbtp"] > -1:
+            O.append((0, "revisar", f"pico real {D['pico_real_dbtp']} dBTP (máximo -1)"))
     if D["saturacion"]["muestras_al_tope"] > 20:
         O.append((0, "revisar", f"saturación: {D['saturacion']['muestras_al_tope']} muestras al tope"))
     for t in D["clics"][:10]:
@@ -256,7 +276,9 @@ def main():
     if D["mono"]["pierde_db"] < -3:
         O.append((0, "revisar", f"en mono (parlante del celular) pierde {abs(D['mono']['pierde_db'])} dB"))
     for e in R["efectos"]:
-        if e.get("suena") is False:
+        if e.get("detectado"):
+            pass                                        # ubicado en su propia pista: no hay contra qué comprobarlo
+        elif e.get("suena") is False:
             O.append((e["t"], "revisar", f"el efecto {e['sonido']} no se nota en su momento (sube {e['sube_db']} dB)"))
         elif abs(e.get("desfase_s", 0)) > 0.12:
             O.append((e["t"], "revisar", f"el efecto {e['sonido']} empieza a oírse {e['desfase_s']:+.2f} s respecto de su momento"))
@@ -272,7 +294,7 @@ def main():
     O.sort()
     R["para_escuchar"] = [{"minuto": mmss(t), "segundo": round(t, 1), "tipo": g, "que": q} for t, g, q in O]
     for k, x in enumerate(R["para_escuchar"][:12]):
-        x["imagen"] = imagen(video, x["segundo"], destino / f"sonido_{video.stem}_{int(x['segundo']):04d}.png")
+        x["imagen"] = imagen(video, x["segundo"], nombre_libre(destino / f"sonido_{video.stem}_{int(x['segundo']):04d}.png"))
 
     L = [f"# Escucha de {video.name}", "",
          f"Duración {mmss(R['duracion_s'])} · {D['lufs']} LUFS · pico real {D['pico_real_dbtp']} dBTP · "
@@ -283,7 +305,12 @@ def main():
               f"(modelo {S['modelo']}; diferencias de una palabra suelta son normales).", ""]
     else:
         L += [f"**Se entiende:** no comprobado ({R['se_entiende_nota']}).", ""]
-    L += [f"**Efectos comprobados:** {len(R['efectos'])}" + ("" if cues else " (sin hoja de cues no se pueden revisar uno a uno)"), ""]
+    det = sum(1 for e in R["efectos"] if e.get("detectado"))
+    L += [f"**Efectos:** {len(R['efectos']) - det} comprobados contra la hoja de cues"
+          + (f"; {det} solo ubicados en su pista (sin hoja de cues no hay contra qué comprobarlos)" if det else "")
+          + ("" if R["efectos"] or hoja else " · sin hoja de cues ni pista de efectos"), ""]
+    if aviso_pistas:
+        L += [f"**Aviso:**{aviso_pistas}", ""]
     if R.get("comparacion"):
         c = R["comparacion"]
         L += [f"**Comparado con {c['otro']}:** {c['segundos_distintos']} segundos con 3 dB o más de diferencia "
@@ -297,8 +324,8 @@ def main():
     md = nombre_libre(destino / f"escucha_{video.stem}.md")
     md.write_text("\n".join(L) + "\n", encoding="utf-8")
     md.with_suffix(".json").write_text(json.dumps(R, ensure_ascii=False, indent=1), encoding="utf-8")
-    for q in ("mezcla.wav", "voz.wav", "fx.wav", "otro.wav", "mezcla_16k.wav"):
-        (trabajo / q).unlink(missing_ok=True)
+    import shutil as _sh
+    _sh.rmtree(trabajo, ignore_errors=True)            # solo su carpeta temporal propia (tmp_escucha_<pid>)
     print("\n".join(L), flush=True)
     print("LISTO", md)
 

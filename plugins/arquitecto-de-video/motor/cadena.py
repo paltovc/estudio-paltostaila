@@ -1,6 +1,7 @@
 # Un comando por etapa: corre los scripts del motor en orden, guarda TODO en un log y muestra solo un resumen corto.
 # Sirve para gastar menos uso de Claude: Claude lee el resumen (10-20 líneas), no la salida completa.
-#   python cadena.py "<proyecto>" revisar   evaluar → terminado → escuchar (sin transcribir) → ficha     (solo lee)
+#   python cadena.py "<proyecto>" revisar   evaluar → terminado → escuchar (sin transcribir) → ficha     (no toca videos;
+#                                           escribe sus informes)
 #   python cadena.py "<proyecto>" escuchar  escuchar completo (transcribe la mezcla: tarda)                  (solo lee)
 #   python cadena.py "<proyecto>" final     terminar → vertical → evaluar → terminado → escuchar → ficha    (arma la versión)
 #   python cadena.py "<proyecto>" shorts    vertical → terminado → ficha                                    (arma los Shorts)
@@ -59,9 +60,12 @@ def main():
             salida = (r.stdout or "") + (r.stderr or "")
             L.write(salida); L.flush()
             seg = (datetime.now() - ini).seconds
-            claves = [l.strip() for l in salida.splitlines() if CLAVE.match(l.strip())][-8:]
-            if r.returncode and not claves:
-                claves = [l.strip() for l in salida.splitlines() if l.strip()][-3:]
+            todas = [l.strip() for l in salida.splitlines() if CLAVE.match(l.strip())]
+            critico = re.compile(r"^(\*\*Se entiende|\*\*Aviso|NO SE FIRMA|\*\*NO|ERROR|.*no comprobado)")
+            fijas = [l for l in todas if critico.match(l)]
+            claves = fijas + [l for l in todas if l not in fijas][-(max(3, 10 - len(fijas))):]
+            if r.returncode:
+                claves += [l.strip() for l in (r.stderr or salida).splitlines() if l.strip()][-2:]
             res.append(f"**{nombre}** · {'ok' if r.returncode == 0 else 'código ' + str(r.returncode)} · {seg} s")
             res += [f"- {c[:220]}" for c in claves]
             if r.returncode and nombre in ARMA:

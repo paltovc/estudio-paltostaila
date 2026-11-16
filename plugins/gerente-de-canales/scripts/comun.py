@@ -276,8 +276,11 @@ def carpeta_publicar(pdir):
     nombre = "08_PUBLICAR"
     try:
         d = leer_json(pdir / "proyecto.json")
-        n = d.get("publicar") if isinstance(d, dict) else None
-        if isinstance(n, str) and n.strip() and re.fullmatch(r"[A-Za-z0-9_ .-]+", n.strip()) and ".." not in n:
+        c = d.get("carpetas") if isinstance(d, dict) else None
+        n = c.get("publicar") if isinstance(c, dict) else None
+        if n is None and isinstance(d, dict):
+            n = d.get("publicar")                # respaldo: un proyecto.json antiguo con la clave en la raíz
+        if isinstance(n, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_ .-]*", n.strip()) and ".." not in n:
             nombre = n.strip()
     except Exception:
         pass

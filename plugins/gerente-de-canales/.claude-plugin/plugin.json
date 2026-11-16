@@ -1,7 +1,7 @@
-{
+﻿{
   "name": "gerente-de-canales",
-  "version": "0.1.6",
-  "description": "Gerente de canales del Estudio Palto Style: estrategia al empezar un proyecto, calendario por mercados (Latinoamérica, España, Oceanía), publicación aprobada en YouTube (API propia), TikTok e Instagram (Metricool o a mano), métricas, avance hacia la monetización y vigilancia mensual de políticas. Trabaja junto al plugin arquitecto-de-video, que produce los videos.",
+  "version": "0.1.7",
+  "description": "Gerente de canales del Estudio Palto Style: estrategia al empezar un proyecto, calendario por mercados (LatinoamÃ©rica, EspaÃ±a, OceanÃ­a), publicaciÃ³n aprobada en YouTube (API propia), TikTok e Instagram (Metricool o a mano), mÃ©tricas, avance hacia la monetizaciÃ³n y vigilancia mensual de polÃ­ticas. Trabaja junto al plugin arquitecto-de-video, que produce los videos.",
   "author": {
     "name": "Estudio Paltostaila"
   },

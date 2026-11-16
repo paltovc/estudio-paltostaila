@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "estudio-paltostaila",
   "owner": {
     "name": "Estudio Paltostaila"
@@ -11,14 +11,14 @@
       "name": "arquitecto-de-video",
       "source": "./plugins/arquitecto-de-video",
       "description": "Estudio de video y audio con 16 agentes: tendencias, guion, imagenes con personaje constante, clips de Flow, voz, subtitulos dinamicos con estilo propio por canal, elementos animados que no tapan caras, sala de edicion, edicion de tomas a camara (cursos), juez independiente, entregas sin metadatos personales y en el formato ideal para YouTube, TikTok e Instagram.",
-      "version": "0.14.4",
+      "version": "0.14.5",
       "license": "MIT"
     },
     {
       "name": "gerente-de-canales",
       "source": "./plugins/gerente-de-canales",
       "description": "Gerente de canales: estrategia, calendario por mercados, publicacion aprobada (YouTube con API propia, TikTok e Instagram por Metricool o a mano), metricas, monetizacion y vigilancia de politicas. Trabaja con arquitecto-de-video.",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "license": "MIT"
     }
   ]
