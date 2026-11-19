@@ -269,22 +269,29 @@ def opt(args, k, defecto=None):
 
 
 def carpeta_publicar(pdir):
-    """Carpeta de publicación del proyecto: la que dice proyecto.json en "publicar" (el motor la respeta; FIN-002 usa
-    08_PUBLICAR_ESTUDIO) y, si no dice nada, 08_PUBLICAR. Tiene que ser una carpeta directa del proyecto: un nombre
-    con rutas, «..» o absoluto no se acepta y se usa la de siempre."""
+    """Carpeta de publicación del proyecto, leída igual que el motor (estudio.py): "carpetas" → "publicar" en
+    proyecto.json; si no existe esa clave (o no hay proyecto.json), 08_PUBLICAR. Una clave "publicar" en la raíz
+    NO se lee: el motor tampoco la lee. Si carpetas.publicar existe pero no es una carpeta directa del proyecto
+    (vacía, con barras, «..», «.», espacios al inicio o al final) el gerente se detiene: nunca vuelve en silencio
+    a 08_PUBLICAR, donde podría quedar un paquete de otra versión."""
     pdir = Path(pdir)
-    nombre = "08_PUBLICAR"
     try:
         d = leer_json(pdir / "proyecto.json")
-        c = d.get("carpetas") if isinstance(d, dict) else None
-        n = c.get("publicar") if isinstance(c, dict) else None
-        if n is None and isinstance(d, dict):
-            n = d.get("publicar")                # respaldo: un proyecto.json antiguo con la clave en la raíz
-        if isinstance(n, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_ .-]*", n.strip()) and ".." not in n:
-            nombre = n.strip()
     except Exception:
-        pass
-    return pdir / nombre
+        d = None    # ilegible: el motor no puede haber armado nada con él; queda la de siempre
+    if not isinstance(d, dict) or "carpetas" not in d:
+        return pdir / "08_PUBLICAR"
+    c = d["carpetas"]
+    if not isinstance(c, dict):
+        sys.exit(f"proyecto.json de {pdir.name}: «carpetas» no es una lista de carpetas con nombre; corregirlo antes de publicar")
+    if "publicar" not in c:
+        return pdir / "08_PUBLICAR"
+    n = c["publicar"]
+    if not (isinstance(n, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_ .-]*", n) and ".." not in n
+            and not n.endswith((" ", "."))):
+        sys.exit(f"proyecto.json de {pdir.name}: carpetas.publicar = {n!r} no es una carpeta directa del proyecto "
+                 "(sin barras, «..» ni espacios al final). El gerente no adivina la carpeta: corregirlo y repetir")
+    return pdir / n
 
 
 def proyecto_dir(arg):

@@ -247,8 +247,14 @@ def main():
         R["se_entiende"], R["se_entiende_nota"] = None, "no se pidió (--sin-transcribir)"
     else:
         w16 = trabajo / "mezcla_16k.wav"
-        subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", *SIN_METADATOS, str(w16)])
-        R["se_entiende"], R["se_entiende_nota"] = se_entiende(w16, trabajo, cues)
+        r16 = subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", *SIN_METADATOS,
+                              str(w16)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if r16.returncode or not w16.exists():
+            err = (r16.stderr or "").strip().splitlines()
+            R["se_entiende"] = None
+            R["se_entiende_nota"] = "ffmpeg no pudo preparar el audio para transcribir" + (f": {err[-1][:160]}" if err else "")
+        else:
+            R["se_entiende"], R["se_entiende_nota"] = se_entiende(w16, trabajo, cues)
     if opt("--comparar"):
         R["comparacion"] = comparar(mono, opt("--comparar"), trabajo)
     if huella(video) != sello:

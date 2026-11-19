@@ -250,16 +250,32 @@ check("sin proyecto.json la carpeta de publicación es 08_PUBLICAR", comun.carpe
 (_pp / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "08_PUBLICAR_ESTUDIO"}}), encoding="utf-8")
 check("con \"publicar\" en proyecto.json se usa esa carpeta (FIN-002: 08_PUBLICAR_ESTUDIO)",
       comun.carpeta_publicar(_pp) == _pp / "08_PUBLICAR_ESTUDIO")
-(_pp / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "..\\otra"}}), encoding="utf-8")
-check("un nombre con rutas o «..» no se acepta: vuelve a 08_PUBLICAR (1)", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
-(_pp / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "."}}), encoding="utf-8")
-check("un nombre con rutas o «..» no se acepta: vuelve a 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
+# 0.1.8: un valor presente pero inválido detiene al gerente (no vuelve en silencio a 08_PUBLICAR)
+def _se_detiene(pj):
+    (_pp / "proyecto.json").write_text(json.dumps(pj), encoding="utf-8")
+    try:
+        comun.carpeta_publicar(_pp)
+        return False
+    except SystemExit as e:
+        return "proyecto.json" in str(e.code)
+for _v, _que in (("..\\otra", "«..» y barra"), (".", "«.»"), ("", "vacío"), ("08_PUBLICAR/ES", "subcarpeta"),
+                 ("08_PUBLICAR\\ES", "subcarpeta con barra invertida"), (" 08_X", "espacio al inicio"),
+                 ("08_X ", "espacio al final"), (5, "un número")):
+    check(f"carpetas.publicar inválido ({_que}): el gerente se detiene con un mensaje", _se_detiene({"carpetas": {"publicar": _v}}))
+check("«carpetas» que no es un diccionario: el gerente se detiene", _se_detiene({"carpetas": ["08_PUBLICAR"]}))
+(_pp / "proyecto.json").write_text(json.dumps({"publicar": "OTRA"}), encoding="utf-8")
+check("una clave «publicar» en la raíz no se lee (el motor tampoco): 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
+(_pp / "proyecto.json").write_text(json.dumps({"publicar": "OTRA", "carpetas": {"voz": "02_VOZ"}}), encoding="utf-8")
+check("«carpetas» sin «publicar»: 08_PUBLICAR, como el motor", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
 (_pp / "proyecto.json").write_text("{rota", encoding="utf-8")
 check("un proyecto.json ilegible no bota al gerente: 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
 (P / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "08_PUBLICAR_ESTUDIO"}}), encoding="utf-8")
 c, out = correr("puertas.py", P, "--pieza", "largo")
 check("si proyecto.json apunta a otra carpeta, el gerente busca ahí publicacion.json (y no en 08_PUBLICAR)",
       c == 1 and "falta 08_PUBLICAR" in out, out)
+(P / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "08_PUBLICAR/ES"}}), encoding="utf-8")
+c, out = correr("puertas.py", P, "--pieza", "largo")
+check("puertas.py con carpetas.publicar inválido se detiene (no revisa 08_PUBLICAR)", c != 0 and "carpetas.publicar" in out, out)
 (P / "proyecto.json").unlink()
 
 # 0.1.6: la nota mínima la decide el archivo, no la etiqueta "tipo"
