@@ -13,7 +13,7 @@ import csv, difflib, json, math, shutil, subprocess, sys, wave
 from pathlib import Path
 import numpy as np
 import os
-from estudio import Proyecto, FFMPEG, palabras, norm, mmss, huella, nombre_libre, duracion_medio
+from estudio import Proyecto, FFMPEG, SIN_METADATOS, palabras, norm, mmss, huella, nombre_libre, duracion_medio
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -40,7 +40,7 @@ def elegir_video():
 
 def a_wav(origen, destino, canales=2):
     r = subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(origen), "-vn", "-ac", str(canales), "-ar", str(SR),
-                        "-c:a", "pcm_s16le", "-map_metadata", "-1", str(destino)], capture_output=True, text=True,
+                        "-c:a", "pcm_s16le", *SIN_METADATOS, str(destino)], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     if r.returncode or not Path(destino).exists():
         return None
@@ -247,7 +247,7 @@ def main():
         R["se_entiende"], R["se_entiende_nota"] = None, "no se pidió (--sin-transcribir)"
     else:
         w16 = trabajo / "mezcla_16k.wav"
-        subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", str(w16)])
+        subprocess.run([str(FFMPEG), "-v", "error", "-y", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000", *SIN_METADATOS, str(w16)])
         R["se_entiende"], R["se_entiende_nota"] = se_entiende(w16, trabajo, cues)
     if opt("--comparar"):
         R["comparacion"] = comparar(mono, opt("--comparar"), trabajo)

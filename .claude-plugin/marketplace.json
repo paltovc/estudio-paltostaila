@@ -11,7 +11,7 @@
       "name": "arquitecto-de-video",
       "source": "./plugins/arquitecto-de-video",
       "description": "Estudio de video y audio con 16 agentes: tendencias, guion, imagenes con personaje constante, clips de Flow, voz, subtitulos dinamicos con estilo propio por canal, elementos animados que no tapan caras, sala de edicion, edicion de tomas a camara (cursos), juez independiente, entregas sin metadatos personales y en el formato ideal para YouTube, TikTok e Instagram.",
-      "version": "0.14.5",
+      "version": "0.14.6",
       "license": "MIT"
     },
     {
