@@ -73,3 +73,15 @@ Notas:
 - `vertical`: `desde`/`hasta` por frase o `desde_s`/`hasta_s` por segundo (los escribe `cortos.py`); `modo` "marco" o "recorte" con `centro_x` de 0 a 1.
 - `estilo` de un rótulo: sin estilo = caja azul arriba a la izquierda; `"pregunta"` = arriba al centro (también si el texto chico empieza con PREGUNTA); `"definicion"` = caja clara arriba a la derecha.
 - Video vertical como formato principal: `"video": {"ancho": 1080, "alto": 1920}`; subtítulos y rótulos se escalan solos, pero revisar los encuadres de los planos.
+
+
+## Campos nuevos del motor 0.15 (todos opcionales; sin ellos el motor hace lo mismo que la 0.14.3)
+| Campo | Para qué | Detalle |
+|---|---|---|
+| `canal`, `idioma`, `tipo_video` (narrado, animado, persona, musical, curso) | Varios canales, idiomas y evaluación por tipo | `motor-0150-general.md` |
+| `grabado.luz` | Luz automática y realce de cara | `motor-0150-camara.md` |
+| `grabado.enfasis` | Zooms de énfasis | `motor-0150-camara.md` |
+| `grabado.angulos` | Ángulos virtuales | `motor-0150-camara.md` |
+| `apoyo`, `apoyo_material`, `apoyo_separacion` | Material de apoyo | `motor-0150-camara.md` |
+| `subtitulos.sonido`, `sonido_volumen`, `sonido_en`, `sonido_cada`, `sonido_max_por_min`, `margen_caras`; preset `reel`; `"sonido"` en elementos | Capa viva con sonido | `capa-viva.md`, `motor-0150-camara.md` |
+| `vertical_esquivar_caras` (raíz) o `esquivar_caras` por corte | Shorts que esquivan caras | `capa-viva.md` |

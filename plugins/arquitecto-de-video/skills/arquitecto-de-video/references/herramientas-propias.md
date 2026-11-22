@@ -140,3 +140,8 @@ Nunca se clona la voz de la pareja (ni de nadie) sin un pedido expreso. El video
 | `reemplazar_imagen.py plan.json [--analizar \| --muestras]` | Cambia imágenes dentro de un video ya terminado sin tocar el original: busca el tramo de cada imagen vieja, pone la nueva con el mismo movimiento y vuelve a poner encima los subtítulos quemados y los rótulos de la edición (`"conservar": ["titulo", "numero"]`). En tramos animados (`"letreros"`) cambia solo los carteles siguiendo el movimiento. Renderiza a `*.parcial.mp4`, revisa códigos de ffmpeg y cantidad de cuadros, y recién ahí deja la versión con nombre nuevo + `*.cambios.json`. |
 
 Flujo (FIN-001, 7 nov 2026): `revisar_idioma.py` → imágenes nuevas (con `texto_imagen.py`, o con Codex/ChatGPT si la persona lo aprueba: gasta su plan) en una carpeta aparte → `reemplazar_imagen.py plan.json --analizar` → `--muestras` → render → revisar cuadros de cada tramo antes de entregar. En los cruces entre escenas (~0,3 s) puede verse la imagen vieja.
+
+
+## Motor 0.15 (15-11-2026, pendiente de prueba en el PC)
+- Persona a cámara (luz, énfasis, ángulos virtuales, material de apoyo, sonidos en subtítulos, preset `reel`, Shorts que esquivan caras): `motor-0150-camara.md`.
+- Idiomas en cualquier dirección (`doblaje.py --origen/--destino`, `revisar_idioma.py` e idioma objetivo), historia de un canal (`canal.py`), brecha de idioma en tendencias, pendientes de la semana (listas de edición, fast start, montaje mono, origen común de los finales, `ritmo.py --salida`): `motor-0150-general.md`.

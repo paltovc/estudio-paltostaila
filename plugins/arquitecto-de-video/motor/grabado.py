@@ -14,9 +14,17 @@
 #             "orden": [{"archivo": "C0012.MP4", "desde": 3.2, "hasta": 45.0, "nota": "intro"}, ...]}
 # Sin "orden" se usa el orden propuesto (06_RECETA/orden_propuesto.json): todas las frases, quitando las que se
 # repiten más adelante (se queda la última versión, que suele ser la buena).
-import difflib, json, re, shutil, subprocess, sys
+#
+# 0.15 (todo opcional; sin estos campos el armado es el de siempre). Detalle en references/motor-0150-camara.md:
+#   "grabado": {"luz": {"auto": true, "realce_cara": 0.15, "balance": "auto"},          iluminación automática (luz.py)
+#               "enfasis": {"zoom": 1.12, "dura": 0.6, "max_por_min": 6, "palabras": ["clave"], "marcas": [{"segundo": 12}]},
+#               "angulos": {"modo": "alternar", "planos": ["general", "medio", "cerrado"], "cambio_cada": [4, 9]}}
+#   "apoyo": [{"en": "frase exacta", "archivo": "foto.jpg", "dura": 3, "modo": "completo"}]   material de apoyo (apoyo.py)
+# Prioridad de la cámara: 1) ángulos (encuadre base; cambian en cortes o pausas)  2) punch (solo en un corte del mismo
+# plano donde el ángulo no cambió)  3) énfasis (zoom suave encima del encuadre, nunca cruza un corte).
+import difflib, json, random, re, shutil, subprocess, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, FFPROBE, run, norm, nombre_libre, entregar, parcial_de
+from estudio import Proyecto, FFMPEG, FFPROBE, run, norm, nombre_libre, entregar, parcial_de, palabras, buscar
 from color import cadena
 try:
     from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
@@ -201,18 +209,226 @@ def w_corta(w):
 
 
 # ---------- 3. armar ----------
-def stats(ruta, look):
+def stats(ruta, look, luz=""):
     vals = {"Y": [], "S": []}
     d = dur(ruta)
     for f in (0.2, 0.5, 0.8):
         r = subprocess.run([FFMPEG, "-v", "info", "-ss", f"{d * f:.2f}", "-i", str(ruta), "-frames:v", "1", "-vf",
-                            cadena(ruta, look) + ",signalstats,metadata=print", "-f", "null", "-"],
+                            cadena(ruta, look, luz=luz) + ",signalstats,metadata=print", "-f", "null", "-"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         y = re.findall(r"signalstats\.YAVG=([\d.]+)", r.stderr)
         s = re.findall(r"signalstats\.SATAVG=([\d.]+)", r.stderr)
         if y and s:
             vals["Y"].append(float(y[-1])); vals["S"].append(float(s[-1]))
     return (sum(vals["Y"]) / len(vals["Y"]), sum(vals["S"]) / len(vals["S"])) if vals["Y"] else (None, None)
+
+
+# ---------- 3b. cámara virtual (0.15): ángulos desde una sola cámara, zooms de énfasis y encuadre sobre la cara ----------
+LUZ = G.get("luz") or {}
+ENF = G.get("enfasis") or {}
+ANG = G.get("angulos") or {}
+PLANOS = {"general": 1.0, "medio": 1.25, "cerrado": 1.5, **(ANG.get("zoom") or {})}     # zoom de cada plano
+
+
+def cara_de_toma(ruta, rangos):
+    """Dónde está la cara en lo que se usa de una toma: {"asp", "cx", "cy", "ancho", "alto"} (medianas, en fracción del
+    cuadro ya girado; asp = ancho/alto del cuadro). Si no hay una cara estable solo trae "asp"; None si no se pudo mirar."""
+    try:
+        import caras
+    except Exception as ex:
+        print(f"AVISO cámara: no se pueden buscar caras ({ex}); el encuadre queda al centro", flush=True)
+        return None
+    tiempos = [a + (b - a) * f for a, b in sorted(rangos, key=lambda r: r[0] - r[1])[:4] for f in (0.25, 0.5, 0.75)][:8]
+    vistas, asp, mirados = [], None, 0
+    for t in tiempos:
+        im = caras.cuadro(ruta, t)
+        if im is None:
+            continue
+        mirados += 1
+        asp = im.width / im.height
+        c = caras.cara_principal(im)
+        if c:
+            vistas.append(c)
+    if asp is None:
+        return None
+    if not vistas or len(vistas) * 2 < mirados:
+        return {"asp": asp}
+    med = lambda k: sorted(v[k] for v in vistas)[len(vistas) // 2]
+    return {"asp": asp, "cx": med(0), "cy": med(1), "ancho": med(2), "alto": med(3)}
+
+
+def zoom_max(cara):
+    """Zoom más cerrado que deja la cabeza entera dentro del cuadro (con pelo y un poco de aire). Sin cara: sin tope."""
+    if not cara or "cx" not in cara:
+        return 9.0
+    alto_rel = max(1.0, (W / H) / cara["asp"])        # alto de la toma escalada (zoom 1), medido en altos de salida
+    ancho_rel = max(1.0, cara["asp"] / (W / H))
+    return max(1.0, min(0.86 / (1.9 * cara["alto"] * alto_rel), 0.90 / (1.6 * cara["ancho"] * ancho_rel)))
+
+
+def encuadre(z, cara, q=1):
+    """Recorte de (W*q) x (H*q) sobre la toma escalada con zoom z, centrado en la cara si se conoce y sin cortar la
+    cabeza. Devuelve (filtro "scale=...,crop=...", (fx, fy)): dónde queda el centro de la cara dentro del recorte."""
+    Wq, Hq = W * q, H * q
+    zw, zh = int(Wq * z) // 2 * 2, int(Hq * z) // 2 * 2
+    esc = f"scale={zw}:{zh}:force_original_aspect_ratio=increase"
+    if not cara or "cx" not in cara:
+        return f"{esc},crop={Wq}:{Hq}:(iw-{Wq})/2:(ih-{Hq})/2", (0.5, 0.5)
+    iw, ih = (zh * cara["asp"], zh) if cara["asp"] >= zw / zh else (zw, zw / cara["asp"])
+    x = min(max(iw * cara["cx"] - Wq / 2, 0), max(iw - Wq, 0))
+    y_cara = ih * cara["cy"] - 0.42 * Hq                                   # la cara un poco sobre el centro
+    y_tope = ih * (cara["cy"] - 0.95 * cara["alto"]) - 0.03 * Hq           # la cabeza completa (con pelo) queda dentro
+    y = min(max(min(y_cara, y_tope), 0), max(ih - Hq, 0))
+    return f"{esc},crop={Wq}:{Hq}:{int(x)}:{int(y)}", ((iw * cara["cx"] - x) / Wq, (ih * cara["cy"] - y) / Hq)
+
+
+class Camara:
+    """Plan de cámara de todo el video (en el tiempo ya editado) y encuadre de cada pieza al armar."""
+
+    def __init__(self, cortes, total):
+        self.cortes, self.total, self.pz, self.notas = cortes, total, 1.0, []
+        try:
+            _, self.pals = palabras(pr)
+        except (SystemExit, Exception):
+            self.pals = []
+            print("AVISO cámara: sin transcripción del video editado (corre «cortar»): solo se usan los cortes y las marcas por segundo", flush=True)
+        self.caras = {}
+        for a in dict.fromkeys(c["archivo"] for c in cortes):
+            self.caras[a] = cara_de_toma(ruta_toma(a), [(c["a"], c["b"]) for c in cortes if c["archivo"] == a])
+            ca = self.caras[a]
+            print(f"cámara {a}: " + (f"cara en ({ca['cx']:.2f}, {ca['cy']:.2f}), alto {ca['alto']:.2f}; zoom máximo {zoom_max(ca):.2f}"
+                                     if ca and "cx" in ca else "sin cara estable: encuadre al centro"), flush=True)
+        self.cambios = self._angulos()
+        self.enf = self._enfasis()
+        self.usados = set()
+
+    def _angulos(self):
+        """[(segundo, plano, "inicio" | "corte" | "pausa")]: en qué momento se pasa a cada plano."""
+        planos = [p for p in ANG.get("planos", ["general", "medio", "cerrado"]) if p in PLANOS] or ["general"]
+        if not ANG or ANG.get("modo") == "fijo" or len(planos) < 2:
+            return [(0.0, planos[0] if ANG else "general", "inicio")]
+        cc = ANG.get("cambio_cada", [4, 9])
+        lo, hi = (float(cc[0]), float(cc[-1])) if isinstance(cc, (list, tuple)) else (float(cc), float(cc))
+        donde, pausa = ANG.get("cambia_en", "ambos"), float(ANG.get("pausa", 0.22))
+        t_cortes = [c["salida"] for c in self.cortes[1:]]
+        cand = [(t, "corte") for t in t_cortes] if donde in ("ambos", "cortes") else []
+        if donde in ("ambos", "pausas"):
+            for w, w2 in zip(self.pals, self.pals[1:]):
+                t = (w["end"] + w2["start"]) / 2
+                fin_frase = w["word"].rstrip("»\"'”)").endswith((".", "?", "!", "…"))
+                if (w2["start"] - w["end"] >= pausa or fin_frase) and all(abs(t - s) > 0.4 for s in t_cortes):
+                    cand.append((t, "pausa"))
+        rng = random.Random(15)                       # siempre el mismo plan para el mismo video
+        cambios, actual, previo, t_ult, objetivo = [(0.0, planos[0], "inicio")], planos[0], None, 0.0, rng.uniform(lo, hi)
+        for t, tipo in sorted(cand):
+            if t >= self.total - lo:                  # no cambiar justo antes del final
+                break
+            if t - t_ult >= (lo if tipo == "corte" else objetivo):      # en un corte basta el mínimo: ahí el cambio ayuda
+                if ANG.get("modo", "alternar") == "variar":
+                    otros = [p for p in planos if p != actual and (p != previo or len(planos) < 3)]
+                    sig = rng.choice(otros)
+                else:                                 # alternar: en el orden de la lista, en ronda
+                    sig = planos[(planos.index(actual) + 1) % len(planos)]
+                previo, actual = actual, sig
+                cambios.append((t, actual, tipo)); t_ult, objetivo = t, rng.uniform(lo, hi)
+        return cambios
+
+    def _enfasis(self):
+        """[(segundo de la palabra o marca, motivo)]: dónde va un zoom de énfasis, ya con los límites de frecuencia."""
+        if not ENF:
+            return []
+        marcas = []
+        for mk in ENF.get("marcas", []):
+            try:
+                t = float(mk["segundo"]) if "segundo" in mk else buscar(self.pals, mk["frase"])
+                marcas.append((t + float(mk.get("desfase", 0)), "marca"))
+            except (ValueError, KeyError) as ex:
+                print("AVISO énfasis: marca sin momento:", ex, flush=True)
+        lista = list(ENF.get("palabras") or [])
+        if ENF.get("claves", not lista and not ENF.get("marcas")):     # sin lista propia ni marcas: las palabras clave
+            lista += pr.cfg.get("subtitulos", {}).get("palabras_clave", [])
+        toks, halladas = [tok(w["word"]) for w in self.pals], []
+        for obj in [norm(x) for x in lista if norm(x)]:
+            for i in range(len(toks) - len(obj) + 1):
+                if toks[i:i + len(obj)] == obj:
+                    halladas.append((self.pals[i]["start"], " ".join(obj)))
+        sep, tope = float(ENF.get("separacion", 4)), int(ENF.get("max_por_min", 6))
+        ok = sorted(marcas)                            # las marcas puestas a mano siempre entran
+        for t, motivo in sorted(halladas):
+            if all(abs(t - u) >= sep for u, _ in ok) and sum(1 for u, _ in ok if abs(u - t) < 30) < tope:
+                ok.append((t, motivo))
+        return sorted(ok)
+
+    def piezas(self, i, f0, n):
+        """Divide los n cuadros del tramo i (que parte en el cuadro f0 del video) en piezas con su encuadre:
+        [{"k0": cuadro inicial dentro del tramo, "n": cuadros, "z": zoom, "plano", "cara", "enf": None o
+        (cuadros de entrada, cuadro donde empieza a salir o None, zoom extra), "nota"}]."""
+        c = self.cortes
+        arch, ini = c[i]["archivo"], c[i]["salida"]
+        fin = c[i + 1]["salida"] if i + 1 < len(c) else self.total
+        cara = self.caras.get(arch)
+        plano_en = lambda t: [p for s, p, _ in self.cambios if s <= t + 1e-6][-1]
+        cambio_aqui = any(tipo == "corte" and abs(s - ini) < 1e-6 for s, _, tipo in self.cambios)     # el ángulo cambia en este corte
+        punch = float(G["punch"])
+        if i > 0 and c[i - 1]["archivo"] == arch and not cambio_aqui and punch > 1:
+            self.pz = punch if self.pz == 1.0 else 1.0        # corte en el mismo plano sin cambio de ángulo: punch alternado
+        else:
+            self.pz = 1.0
+        inicios = [(0, ini)] + [(k, s) for k, s in ((round(s * FPS) - f0, s) for s, _, tipo in self.cambios
+                                                    if tipo == "pausa" and ini + 0.2 < s < fin - 0.2) if 6 < k < n - 6]
+        zoom_e, dura = float(ENF.get("zoom", 1.12)), float(ENF.get("dura", 0.6))
+        NI, sost = max(2, round(dura * FPS)), round(float(ENF.get("sostiene", 1.2)) * FPS)
+        out = []
+        for j, (k0, t_ref) in enumerate(inicios):
+            k1 = inicios[j + 1][0] if j + 1 < len(inicios) else n
+            plano = plano_en(t_ref)
+            pedido = PLANOS[plano] * (self.pz if j == 0 else 1.0)
+            z = max(1.0, min(pedido, zoom_max(cara)))
+            if z < pedido - 0.01:
+                self.notas.append(f"{ini + k0 / FPS:7.2f}  plano {plano}: zoom {pedido:.2f} bajado a {z:.2f} para no cortar la cabeza")
+            base = {"z": z, "plano": plano, "cara": cara, "enf": None, "nota": "punch" if j == 0 and self.pz > 1 else ""}
+            cursor, a_s, b_s = k0, (f0 + k0) / FPS, (f0 + k1) / FPS
+            for n_e, (t, motivo) in enumerate(self.enf):
+                if n_e in self.usados or not (a_s <= t < b_s):
+                    continue
+                self.usados.add(n_e)
+                ki = max(round((t - dura * 0.5) * FPS) - f0, k0 + round(0.3 * FPS), cursor)     # lejos del corte anterior
+                z_e = min(zoom_e, zoom_max(cara) / z)
+                if ki / FPS + f0 / FPS > t + 0.4 or k1 - ki < NI + round(0.5 * FPS) or z_e < 1.03:
+                    self.notas.append(f"{t:7.2f}  énfasis «{motivo}» omitido: " + ("ya no cabe sin cortar la cabeza" if z_e < 1.03 else "muy cerca de un corte"))
+                    continue
+                kf = ki + NI + sost + NI
+                sale = NI + sost
+                if k1 - kf < round(0.4 * FPS):        # el corte llega antes: se queda cerca hasta el corte (el corte lo suelta)
+                    kf, sale = k1, None
+                if ki > cursor:
+                    out.append({**base, "k0": cursor, "n": ki - cursor})
+                out.append({**base, "k0": ki, "n": kf - ki, "enf": (NI, sale, z_e), "nota": f"énfasis «{motivo}»"})
+                cursor = kf
+            if k1 > cursor:
+                out.append({**base, "k0": cursor, "n": k1 - cursor})
+            if j + 1 < len(inicios):
+                self.pz = 1.0                          # después de un cambio de ángulo en una pausa, el punch parte de nuevo
+        return out
+
+    def filtro(self, p, color_vf):
+        """Filtro de ffmpeg de una pieza: color + encuadre fijo, o encuadre con zoom suave (ease) si lleva énfasis."""
+        if not p["enf"]:
+            enc, _ = encuadre(p["z"], p["cara"])
+            return f"{color_vf},{enc},fps={FPS},setsar=1,format=yuv420p"
+        NI, sale, z_e = p["enf"]
+        enc, (fx, fy) = encuadre(p["z"], p["cara"], 2)        # al doble de tamaño: el zoom no pierde nitidez ni tiembla
+        suave = lambda u: f"({u})*({u})*(3-2*({u}))"           # entra y sale con ease (smoothstep)
+        zexp = f"1+{z_e - 1:.4f}*({suave(f'clip(on/{NI},0,1)')}" + (f"-{suave(f'clip((on-{sale})/{NI},0,1)')}" if sale is not None else "") + ")"
+        return (f"{color_vf},{enc},fps={FPS},zoompan=z='{zexp}':x='max(0,min(iw-iw/zoom,iw*{fx:.4f}-iw/zoom/2))':"
+                f"y='max(0,min(ih-ih/zoom,ih*{fy:.4f}-ih/zoom/2))':d=1:s={W}x{H}:fps={FPS},setsar=1,format=yuv420p")
+
+    def informe(self):
+        md = [f"# Cámara de {pr.id}", "", "Prioridad: 1) ángulos  2) punch (corte en el mismo plano sin cambio de ángulo)  3) énfasis.", "",
+              "## Cambios de plano", *[f"- {t:7.2f}  {p}  ({tipo})" for t, p, tipo in self.cambios], "",
+              "## Énfasis previstos", *[f"- {t:7.2f}  {m}" for t, m in self.enf], "",
+              "## Notas (lo que se ajustó u omitió)", *[f"- {x}" for x in self.notas]]
+        (pr.dir / "06_RECETA" / "camara.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
 
 def armar():
@@ -224,7 +440,16 @@ def armar():
     look = G["look"]
     archivos = list(dict.fromkeys(c["archivo"] for c in cortes))
     ref = G.get("referencia_color") or max(archivos, key=lambda a: sum(c["b"] - c["a"] for c in cortes if c["archivo"] == a))
-    st = {a: stats(ruta_toma(a), look) for a in archivos}
+    luces = {}                     # 0.15: iluminación automática por toma (luz.py); va después del HDR->SDR y antes del look
+    if LUZ.get("auto"):
+        import luz as _luz
+        informes = {}
+        for a in archivos:
+            usados = [(c["a"], c["b"]) for c in cortes if c["archivo"] == a]
+            luces[a], informes[a] = _luz.para_toma(ruta_toma(a), LUZ, min(u[0] for u in usados), max(u[1] for u in usados))
+            print(f"luz {a}: {informes[a]['resumen']}", flush=True)
+        (TMP / "luz.json").write_text(json.dumps(informes, ensure_ascii=False, indent=1), encoding="utf-8")
+    st = {a: stats(ruta_toma(a), look, luces.get(a, "")) for a in archivos}
     yr, sr = st[ref]
     ajuste = {}
     for a, (y, s) in st.items():   # igualar brillo y saturación con la toma de referencia
@@ -236,6 +461,7 @@ def armar():
     jl, punch = float(G["jl"]), float(G["punch"])
     lista_v, lista_a, zoom = [], [], 1.0
     total = cortes[-1]["salida"] + cortes[-1]["b"] - cortes[-1]["a"]
+    cam = Camara(cortes, total) if (ENF or ANG) else None      # 0.15: sin "enfasis" ni "angulos", el encuadre de siempre
     for i, c in enumerate(cortes):
         ruta = ruta_toma(c["archivo"])
         mismo_antes = i > 0 and cortes[i - 1]["archivo"] == c["archivo"]
@@ -246,22 +472,46 @@ def armar():
         f0 = round((c["salida"] + (da if i else 0)) * FPS)
         fin_salida = cortes[i + 1]["salida"] + db if i + 1 < len(cortes) else total
         n = round(fin_salida * FPS) - f0
-        zw, zh = int(W * zoom) // 2 * 2, int(H * zoom) // 2 * 2
-        vf = (f"{cadena(ruta, look)}{ajuste[c['archivo']]},scale={zw}:{zh}:force_original_aspect_ratio=increase,"
-              f"crop={W}:{H}:(iw-{W})/2:(ih-{H})/2,fps={FPS},setsar=1,format=yuv420p")
-        v = TMP / f"v_{i:03d}.mp4"
-        run([FFMPEG, "-v", "error", "-y", "-ss", f"{max(0, c['a'] + da):.3f}", "-i", ruta, "-an", "-vf", vf, "-frames:v", str(n),
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-r", str(FPS), *SIN_METADATOS, v])
+        color_vf = f"{cadena(ruta, look, luz=luces.get(c['archivo'], ''))}{ajuste[c['archivo']]}"
+        nota_cam = ""
+        if cam is None:
+            zw, zh = int(W * zoom) // 2 * 2, int(H * zoom) // 2 * 2
+            vf = (f"{color_vf},scale={zw}:{zh}:force_original_aspect_ratio=increase,"
+                  f"crop={W}:{H}:(iw-{W})/2:(ih-{H})/2,fps={FPS},setsar=1,format=yuv420p")
+            v = TMP / f"v_{i:03d}.mp4"
+            run([FFMPEG, "-v", "error", "-y", "-ss", f"{max(0, c['a'] + da):.3f}", "-i", ruta, "-an", "-vf", vf, "-frames:v", str(n),
+                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-r", str(FPS), *SIN_METADATOS, v])
+            lista_v.append(v)
+        else:                       # cámara virtual: el tramo se arma en piezas, cada una con su encuadre
+            zoom = 1.0
+            piezas = cam.piezas(i, f0, n)
+            for k, p in enumerate(piezas):
+                v = TMP / f"v_{i:03d}_{k:02d}.mp4"
+                run([FFMPEG, "-v", "error", "-y", "-ss", f"{max(0, c['a'] + da) + p['k0'] / FPS:.3f}", "-i", ruta, "-an",
+                     "-vf", cam.filtro(p, color_vf), "-frames:v", str(p["n"]),
+                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-r", str(FPS), *SIN_METADATOS, v])
+                lista_v.append(v)
+            nota_cam = "  " + " · ".join(dict.fromkeys(f"{p['plano']} x{p['z']:.2f}" + (f" ({p['nota']})" if p["nota"] else "") for p in piezas))
         a_ = TMP / f"a_{i:03d}.wav"
         d = c["b"] - c["a"]
         run([FFMPEG, "-v", "error", "-y", "-ss", f"{c['a']:.3f}", "-t", f"{d:.3f}", "-i", ruta, "-vn", "-af",
              f"afade=t=in:d=0.012,afade=t=out:st={max(0, d - 0.012):.3f}:d=0.012", "-ac", "2", "-ar", "48000", *SIN_METADATOS, a_])
-        lista_v.append(v); lista_a.append(a_)
-        print(f"  tramo {i + 1}/{len(cortes)}  {c['archivo']} {c['a']:.1f}-{c['b']:.1f}{'  punch-in' if zoom > 1 else ''}", flush=True)
+        lista_a.append(a_)
+        print(f"  tramo {i + 1}/{len(cortes)}  {c['archivo']} {c['a']:.1f}-{c['b']:.1f}{'  punch-in' if zoom > 1 else ''}{nota_cam}", flush=True)
+    if cam is not None:
+        cam.informe()
+        print(f"cámara: {len(cam.cambios) - 1} cambios de plano, {sum(1 for x in cam.notas if 'omitido' in x)} énfasis omitidos de "
+              f"{len(cam.enf)}; detalle en 06_RECETA/camara.md", flush=True)
     (TMP / "v.txt").write_text("".join(f"file '{p.name}'\n" for p in lista_v), encoding="utf-8")
     (TMP / "a.txt").write_text("".join(f"file '{p.name}'\n" for p in lista_a), encoding="utf-8")
     nombre_v = "solo_video_borrador_{}s.mp4".format(int(limite)) if "--borrador" in sys.argv else "solo_video.mp4"
-    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "v.txt", "-c", "copy", *SIN_METADATOS, f"../{nombre_v}"], cwd=TMP)
+    apoyos = pr.cfg.get("apoyo") or []          # 0.15: material de apoyo encima de la persona (la voz sigue debajo)
+    run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "v.txt", "-c", "copy", *SIN_METADATOS,
+         "base_sin_apoyo.mp4" if apoyos else f"../{nombre_v}"], cwd=TMP)
+    if apoyos:
+        import apoyo as _ap
+        puestos = _ap.aplicar(pr, TMP / "base_sin_apoyo.mp4", pr.tmp / nombre_v, apoyos, W, H, FPS)
+        print(f"apoyo: {len(puestos)} de {len(apoyos)} inserciones puestas (tmp/apoyo_aplicado.json)", flush=True)
     (pr.tmp / (Path(nombre_v).stem + ".json")).write_text(json.dumps({"clips": {}, "origen": "grabado.py", "tramos": len(cortes)}), encoding="utf-8")
     lv = G["limpiar_voz"]          # true (básica), false, o "suave" / "media" / "fuerte" / "radio" (audio.py)
     if isinstance(lv, str):

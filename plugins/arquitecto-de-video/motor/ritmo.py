@@ -4,7 +4,8 @@
 #   python ritmo.py "video.mp4"                         -> carpeta ritmo_<nombre> al lado del video
 #   python ritmo.py "referente.mp4" --comparar "nuestro.mp4"   -> además compara los dos
 #   python ritmo.py "video.mp4" --umbral 0.25 --salida "C:\carpeta"
-#   (el informe va siempre en una subcarpeta nueva ritmo_<video>, ritmo_<video>_2...: nunca encima de otra)
+#   (el informe va siempre en una subcarpeta nueva ritmo_<video>, ritmo_<video>_2...: nunca encima de otra; desde el
+#    0.15 la carpeta se crea en exclusiva y --salida tiene que ser una carpeta, no un archivo)
 # Sirve con el video de un referente que la persona entregó, con referente.py o con nuestros propios renders.
 import json, re, statistics, sys
 from pathlib import Path
@@ -185,6 +186,21 @@ def informe(d, salida, otro=None):
     print("\n".join(m[:14]), flush=True)
 
 
+def carpeta_nueva(p):
+    """0.15: crea la carpeta del informe en exclusiva (si otra corrida o la persona ya tiene una con ese nombre, usa la
+    siguiente libre: _2, _3...). Así ningún archivo de la persona queda debajo de ritmo.json, las hojas o el gráfico."""
+    p = Path(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    for _ in range(1000):
+        q = nombre_libre(p)
+        try:
+            q.mkdir()                     # sin exist_ok: si apareció entre medio, se prueba la siguiente
+            return q
+        except FileExistsError:
+            continue
+    sys.exit(f"No pude crear una carpeta nueva para el informe junto a {p}")
+
+
 def main():
     a = sys.argv[1:]
     if not a or a[0].startswith("-"):
@@ -193,7 +209,9 @@ def main():
     umbral = float(opt("--umbral", 0.3))
     pedida = opt("--salida")                  # en una carpeta de la persona: siempre una subcarpeta propia y nueva
     base = Path(pedida) if pedida else Path(a[0]).parent
-    d, vol, salida = analizar(a[0], nombre_libre(base / f"ritmo_{Path(a[0]).stem}"), umbral)
+    if base.exists() and not base.is_dir():
+        sys.exit(f"--salida tiene que ser una carpeta (el informe va en una subcarpeta nueva dentro): {base} es un archivo")
+    d, vol, salida = analizar(a[0], carpeta_nueva(base / f"ritmo_{Path(a[0]).stem}"), umbral)
     series, otro = [(d, vol)], None
     if opt("--comparar"):
         otro, vol2, _ = analizar(opt("--comparar"), salida / "comparado", umbral)

@@ -9,6 +9,10 @@ try:
     from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
 except Exception:
     SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
+try:
+    from estudio import SIN_LISTAS             # 0.15: entregas sin listas de edición (edts/elst)
+except Exception:
+    SIN_LISTAS = ["-use_editlist", "0"]
 
 pr = Proyecto()
 F = pr["subtitulos"]["fuente"]
@@ -29,7 +33,53 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def seguir(video, t0, dur, ancho_fuente):
+class MapaVertical:
+    """(0.15, opción B) Lo que no hay que tapar tal como queda en el Short 9:16: toma las caras, cabezas y texto del video
+    armado (caras.Mapa) y los lleva al cuadro de 1080x1920 según el modo del corte: "marco" (video completo al centro),
+    "recorte" (franja fija) o "seguir" (franja que sigue al sujeto; `puntos` = [(segundo desde el inicio, centro)])."""
+
+    def __init__(self, video, modo, t0, cx=0.5, puntos=None, con_texto=True):
+        import caras
+        self.base = caras.Mapa(video, pr.ancho, pr.alto, con_texto)
+        self.modo, self.t0, self.cx, self.puntos = modo, t0, cx, puntos or []
+
+    def _centro(self, t):
+        if self.modo != "seguir" or not self.puntos:
+            return self.cx
+        r, pts = t - self.t0, self.puntos
+        if r <= pts[0][0]:
+            return pts[0][1]
+        for (ta, ca), (tb, cb) in zip(pts, pts[1:]):
+            if r < tb:
+                return ca + (cb - ca) * (r - ta) / max(tb - ta, 0.01)
+        return pts[-1][1]
+
+    def _llevar(self, r, t):
+        x0, y0, x1, y1 = r
+        if self.modo in ("recorte", "seguir"):
+            s = 1920 / pr.alto
+            ox = max(0, min(pr.ancho * s - 1080, pr.ancho * s * self._centro(t) - 540))
+            x0, y0, x1, y1 = x0 * s - ox, y0 * s, x1 * s - ox, y1 * s
+        else:
+            s = 1080 / pr.ancho
+            oy = (1920 - pr.alto * s) / 2
+            x0, y0, x1, y1 = x0 * s, y0 * s + oy, x1 * s, y1 * s + oy
+        x0, x1 = max(0, x0), min(1080, x1)
+        return (x0, y0, x1, y1) if x1 - x0 > 4 and y1 - y0 > 4 else None      # lo que quedó fuera del recorte no cuenta
+
+    def regiones(self, a, b, maximo=8):
+        n = max(1, min(maximo, int(b - a) + 1))
+        tiempos = [a + 0.25 + (b - a - 0.5) * i / max(1, n - 1) for i in range(n)] if b - a > 1 else [(a + b) / 2]
+        out = []
+        for t in tiempos:
+            for r, p, tipo in self.base.en(t):
+                c = self._llevar(r, t)
+                if c:
+                    out.append((c, p / len(tiempos), tipo))
+        return out
+
+
+def seguir(video, t0, dur, ancho_fuente, puntos=None):
     """Reencuadre automático (como Auto Reframe de CapCut): dónde está el sujeto en cada segundo.
     Usa la cara si OpenCV está instalado; si no, lo que más se mueve y tiene más detalle. Devuelve la expresión de x
     para el crop de 1080 px sobre el video escalado a 1920 de alto, suavizada para que la cámara no salte."""
@@ -78,6 +128,8 @@ def seguir(video, t0, dur, ancho_fuente):
         t = i / 2
         if ultimo is None or abs(c - ultimo[1]) > 0.03 or t - ultimo[0] >= 4 or i == len(suave) - 1:
             pts.append((t, c)); ultimo = (t, c)
+    if puntos is not None:               # 0.15: quien llama puede pedir los puntos (para saber dónde queda cada cara)
+        puntos.extend(pts)
     X = lambda c: f"max(0,min(iw-1080,iw*{c:.4f}-540))"
     expr = X(pts[-1][1])
     for (ta, ca), (tb, cb) in reversed(list(zip(pts, pts[1:]))):
@@ -106,14 +158,34 @@ def corte(segs, pals, v):
         for a, b, txt in cues(segs, 60):
             if b > t0 and a < t1:
                 lineas.append(f"Dialogue: 0,{ts(max(a - t0, 0))},{ts(min(b, t1) - t0)},Sub,,0,0,0,,{txt}\n")
+    x_seguir = None
     if viva and v.get("elementos", True):
+        # 0.15 (opción B): los elementos esquivan caras, cabezas y texto en el 9:16 y se ocultan si no hay lugar libre.
+        # Se enciende con "vertical_esquivar_caras": true en proyecto.json o "esquivar_caras": true en el corte.
+        sub = pr["subtitulos"]
+        esquivar = v.get("esquivar_caras", pr.cfg.get("vertical_esquivar_caras", False)) and sub.get("evitar_caras", True)
+        solo = pr.salida / "tmp" / "solo_video.mp4"
+        if esquivar and pr.cfg.get("elementos") and solo.exists():
+            puntos = []
+            if v.get("modo") == "seguir":
+                x_seguir = seguir(solo, t0, dur, None, puntos)
+            viva.usar_mapa(solo, mapa=MapaVertical(solo, v.get("modo", "marco"), t0, float(v.get("centro_x", 0.5)), puntos,
+                                                   sub.get("evitar_texto", True)))
+            viva.ocultar_si_tapa = True
         lineas += [l + "\n" for l in viva.elementos(t0, t1)]
+        if viva.mapa is not None:
+            rep = [f"{a:7.1f} s  {str(tipo):14s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in viva.movidos]
+            rep.insert(0, f"# {pr.base_nombre} · Short {v['nombre']} · segundo del video largo · tipo · de -> a · «oculto» = no había lugar libre de caras")
+            (pr.tmp / f"capa_viva_lugares_{slug(v['nombre'])}.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
+            print(f"  capa viva 9:16: {sum(1 for m in viva.movidos if 'ocult' in str(m[1]))} elementos ocultos y "
+                  f"{sum(1 for m in viva.movidos if 'ocult' not in str(m[1]))} corridos para no tapar caras "
+                  f"(tmp/capa_viva_lugares_{slug(v['nombre'])}.txt)", flush=True)
     ass = f"tmp/vertical_{v['nombre']}.ass"
     (pr.salida / ass).write_text("".join(lineas), encoding="utf-8-sig")
     if dur > 180:
         sys.exit(f"{v['nombre']}: dura {dur:.0f} s; un Short de YouTube puede durar como maximo 3 minutos")
     if v.get("modo") == "seguir":    # pantalla completa y el recorte sigue al sujeto
-        x = seguir(pr.salida / "tmp" / "solo_video.mp4", t0, dur, None)
+        x = x_seguir or seguir(pr.salida / "tmp" / "solo_video.mp4", t0, dur, None)
         vf = (f"[0:v]scale=-2:1920,crop=1080:1920:x='{x}':y=0,"
               f"ass={ass},fade=t=in:d=0.3,fade=t=out:st={dur - 0.6:.3f}:d=0.6,scale=out_range=tv,format=yuv420p[v]")
     elif v.get("modo") == "recorte":   # pantalla completa: recorta del 16:9 una franja vertical (cuidado con personajes en los bordes)
@@ -130,7 +202,7 @@ def corte(segs, pals, v):
          "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", "tmp/narracion.m4a", "-filter_complex", vf,
          "-map", "[v]", "-map", "1:a", "-af", f"afade=t=in:d=0.2,afade=t=out:st={dur - 0.6:.3f}:d=0.6",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-color_range", "tv", "-r", str(pr.fps),
-         "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
+         "-c:a", "aac", "-b:a", "192k", "-t", f"{dur:.3f}", "-shortest", *SIN_METADATOS, *SIN_LISTAS, "-movflags", "+faststart", parcial], cwd=pr.salida)
     entregar(pr.salida / parcial, pr.salida / nombre)
     print(f"LISTO {pr.salida / nombre} ({dur:.1f} s)", flush=True)
 

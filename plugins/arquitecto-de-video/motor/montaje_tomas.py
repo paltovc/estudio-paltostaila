@@ -34,6 +34,10 @@ try:
     from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
 except Exception:
     SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
+try:
+    from estudio import SIN_LISTAS             # 0.15: entregas sin listas de edición (edts/elst)
+except Exception:
+    SIN_LISTAS = ["-use_editlist", "0"]
 
 FOTO = {".jpg", ".jpeg", ".png", ".webp"}
 LOOKS.setdefault("calido_foto", dict(c=1.02, s=1.0, g=1.0, med=(0.04, 0.01, -0.04), alt=(0.02, 0.0, -0.02), vin=1))
@@ -141,7 +145,10 @@ def unir_con_transiciones(lista, cuadros, TRS, W, H, fps, tmp):
 def audio(cfg, base, sal, objetivo=-14.0):
     a = cfg["audio"]
     dur = a["hasta"] - a["desde"]
-    filtro = f"afade=t=in:d={a.get('entrada', 0.3)},afade=t=out:st={dur - a.get('salida', 2.5):.3f}:d={a.get('salida', 2.5)}"
+    # 0.15: siempre estéreo a 48 kHz (lo que piden YouTube, TikTok e Instagram). Una canción mono se duplica igual en los
+    # dos canales (aformat hace la mezcla estándar de ffmpeg); el volumen se mide DESPUÉS, así que sigue quedando a -14 LUFS.
+    filtro = (f"aresample=48000,aformat=channel_layouts=stereo,"
+              f"afade=t=in:d={a.get('entrada', 0.3)},afade=t=out:st={dur - a.get('salida', 2.5):.3f}:d={a.get('salida', 2.5)}")
     tmp = sal.with_name("_audio_previo.wav")
     run([FFMPEG, "-v", "error", "-y", "-ss", a["desde"], "-t", f"{dur:.3f}", "-i", base / a["archivo"], "-af", filtro, "-ar", 48000, *SIN_METADATOS, tmp])
     ganancia = 0.0
@@ -200,7 +207,7 @@ def main():
     run([FFMPEG, "-v", "error", "-y", "-i", tmp / "imagen.mp4", "-i", tmp / "audio.wav",
          "-vf", f"fade=t=in:d=0.4,fade=t=out:st={total - 1.2:.3f}:d=1.2", "-c:v", "libx264", "-preset", "medium", "-crf", 18,
          "-pix_fmt", "yuv420p", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
-         "-c:a", "aac", "-b:a", "256k", "-t", f"{total:.3f}", *SIN_METADATOS, "-movflags", "+faststart", parcial])
+         "-c:a", "aac", "-b:a", "256k", "-ac", "2", "-t", f"{total:.3f}", *SIN_METADATOS, *SIN_LISTAS, "-movflags", "+faststart", parcial])
     entregar(parcial, final)
     rev = base / "05_REVISION"; rev.mkdir(exist_ok=True)
     run([FFMPEG, "-v", "error", "-y", "-i", final, "-vf", "fps=1/2,scale=270:-1,tile=8x3", "-frames:v", 1, "-q:v", 4,

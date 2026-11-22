@@ -2,10 +2,11 @@
 #   python terminado.py "<proyecto>" [--version v8]
 # Deja 07_RENDER\terminado_<ID>_<version>.md con cada punto (✓ / ✗ / –) y termina con código 0 solo si todo lo
 # obligatorio pasa. Claude la corre antes de decir "listo" y entrega el resultado tal cual.
-# Obligatorio: 1-6 y 11. Recomendado: 7-10, 12 y 13 (si falla, se avisa pero no bloquea).
+# Obligatorio: 1-6 y 11 (y 14 cuando los finales traen el sello de origen de terminar.py, desde el 0.15).
+# Recomendado: 7-10, 12, 13, 15 (y 14 sin sello) (si falla, se avisa pero no bloquea).
 import json, re, subprocess, sys
 from pathlib import Path
-from estudio import Proyecto, FFMPEG, duracion_medio, metadatos_personales, formato_plataformas, huella
+from estudio import Proyecto, FFMPEG, duracion_medio, metadatos_personales, formato_plataformas, huella, slug
 
 pr = Proyecto()
 args = sys.argv[1:]
@@ -34,6 +35,16 @@ ANTES = sellos()      # se sella ANTES de medir: si un render cambia un video du
 
 def punto(n, obligatorio, texto, ok, detalle=""):
     R.append((n, obligatorio, texto, ok, detalle))
+
+
+def lugares_malos(txt):
+    """Elementos de un registro de la capa viva (capa_viva_lugares*.txt) que todavía tapan algo («ahora» ≥ 1)."""
+    malos = []
+    for l in txt.splitlines():
+        m = re.search(r"^\s*([\d.]+) s\s+(\w+).*ahora ([\d.]+)\)", l)
+        if m and float(m.group(3)) >= 1:
+            malos.append(f"{m.group(2)} en {m.group(1)} s")
+    return malos
 
 
 def ff(*a):
@@ -86,13 +97,37 @@ if pr.cfg.get("elementos"):
     elif not (txt.splitlines() or [""])[0].startswith(f"# version: {base} ·"):
         punto(5, True, "La capa viva no tapa caras ni texto de la imagen", None, "el registro es de otra versión: volver a correr terminar.py")
     else:
-        malos = []
-        for l in txt.splitlines():
-            m = re.search(r"^\s*([\d.]+) s\s+(\w+).*ahora ([\d.]+)\)", l)
-            if m and float(m.group(3)) >= 1:
-                malos.append(f"{m.group(2)} en {m.group(1)} s")
+        malos = lugares_malos(txt)
         punto(5, True, "La capa viva no tapa caras ni texto de la imagen", not malos,
               ("revisar a mano: " + ", ".join(malos)) if malos else "sin conflictos")
+    # 0.15: los registros de los Shorts (vertical.py con «esquivar caras»), con el mismo criterio; si no hay, como antes
+    malos_c, viejos_c, vistos_c = [], [], 0
+    for c in (pr.cfg.get("vertical") or []):
+        if not (isinstance(c, dict) and c.get("nombre")):
+            continue
+        q = pr.tmp / f"capa_viva_lugares_{slug(c['nombre'])}.txt"
+        if not q.exists():
+            continue
+        t = q.read_text(encoding="utf-8")
+        if not (t.splitlines() or [""])[0].startswith(f"# {base} ·"):
+            if (pr.salida / f"{base}_{slug(c['nombre'])}_9x16.mp4").exists():   # el Short de esta versión existe con un registro de otra
+                viejos_c.append(c["nombre"])
+            continue
+        vistos_c += 1
+        malos_c += [f"{x} (Short {c['nombre']})" for x in lugares_malos(t)]
+    avisos = [l.lstrip("# ").strip() for l in txt.splitlines() if l.startswith("# AVISO")]
+    if malos_c or viejos_c or vistos_c or avisos:
+        n_, ob_, tx_, ok_, det_ = R.pop()
+        if malos_c:
+            ok_ = False
+            det_ = (det_ + " · " if det_ and det_ != "sin conflictos" else "") + "revisar a mano: " + ", ".join(malos_c)
+        elif viejos_c and ok_ is True:
+            ok_ = None
+            det_ += f" · el registro de {', '.join(viejos_c)} es de otra versión: volver a correr vertical.py"
+        elif vistos_c and not viejos_c:
+            det_ += f" · Shorts revisados: {vistos_c}, sin conflictos"
+        det_ += "".join(f" · {a}" for a in avisos)
+        R.append((n_, ob_, tx_, ok_, det_))
 else:
     punto(5, True, "La capa viva no tapa caras ni texto de la imagen", True, "sin elementos")
 # 6. versión anterior conservada
@@ -173,6 +208,43 @@ if salen:
     punto(13, False, "Pico real de -1 dBTP o menos", None if sin_medir and not altos else not altos,
           "; ".join(altos) if altos else (("no se pudo medir: " + ", ".join(sin_medir)) if sin_medir
                                           else f"máximo {max(medidos)} dBTP en {len(medidos)} videos"))
+
+# 14. origen común de los dos finales (0.15): terminar.py deja <base>_origen.json con la huella del armado y de cada final.
+#     Con sello es OBLIGATORIO (un final rehecho por separado ya no calza); sin sello (finales hechos antes del 0.15) queda
+#     como recomendado, para no invalidar lo que ya estaba terminado.
+og = pr.salida / f"{base}_origen.json"
+if not og.exists():
+    punto(14, False, "Los dos finales salen del mismo armado (sello de terminar.py)", False,
+          "sin sello (finales anteriores al motor 0.15): para sellarlo, terminar.py --rehacer")
+else:
+    try:
+        d_og = json.loads(og.read_text(encoding="utf-8"))
+        fin_og = d_og["finales"]
+        if not isinstance(fin_og, dict):
+            raise TypeError("finales")
+    except (OSError, ValueError, KeyError, TypeError):
+        d_og = None
+    if d_og is None:
+        punto(14, True, "Los dos finales salen del mismo armado (sello de terminar.py)", None, f"{og.name} no se puede leer")
+    elif not d_og.get("solo_video"):
+        # corrección B1 (juicio 0.15): un sello «sin origen» (terminar.py --solo-audio sobre finales anteriores al 0.15,
+        # antes de esta corrección) vale lo mismo que no tener sello: recomendado, no bloquea lo ya terminado
+        punto(14, False, "Los dos finales salen del mismo armado (sello de terminar.py)", False,
+              "sello sin origen (se cambió solo el audio de finales anteriores al motor 0.15): para sellarlo, terminar.py --rehacer")
+    else:
+        malos = [n.name for n in (yt, cs) if not n.exists() or fin_og.get(n.name) != ANTES.get(n.name)]
+        punto(14, True, "Los dos finales salen del mismo armado (sello de terminar.py)", not malos,
+              f"armado {d_og['solo_video'][:8]}" if not malos else
+              "no calzan con el sello: " + ", ".join(malos) + " (uno se rehízo por separado): volver a correr terminar.py --rehacer")
+# 15. sin listas de edición (recomendado, 0.15): algunas apps leen mal edts/elst (primer cuadro repetido, audio corrido)
+if salen:
+    from estudio import listas_de_edicion
+    le = {p.name: listas_de_edicion(p) for p in salen}
+    con = [f"{k}: {'; '.join(v)}" for k, v in le.items() if v]
+    sin_leer = [k for k, v in le.items() if v is None]
+    punto(15, False, "Sin listas de edición en los MP4", None if sin_leer and not con else not con,
+          ("con listas: " + " · ".join(con)) if con else (("no se pudo leer: " + ", ".join(sin_leer)) if sin_leer
+                                                          else f"{len(salen)} videos sin listas"))
 
 ok = all(r[3] is True for r in R if r[1])          # «no comprobado» (None) no cuenta como aprobado
 nc = [str(r[0]) for r in R if r[1] and r[3] is None]

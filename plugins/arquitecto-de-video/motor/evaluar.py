@@ -17,6 +17,36 @@ RIESGOS = ["garantizado", "garantizada", "sin riesgo", "hazte rico", "hacerte ri
            "nunca pierdes", "duplica tu dinero", "rentabilidad asegurada", "secreto que los bancos", "libertad financiera en"]
 BUCLES = ["más adelante", "al final", "lo tercero", "lo más importante", "pero hay algo", "ahora vamos", "y aquí viene", "quédate",
           "te voy a mostrar", "primera pregunta", "segunda pregunta", "tercera pregunta"]
+# 0.15: pesos por tipo de video ("tipo_video" en proyecto.json; sin él, narrado = los de siempre). Misma escala 0-10,
+# mismos ejes, mismas clases y la huella del video igual: solo cambia cuánto pesa cada eje en la nota.
+PESOS_POR_TIPO = {
+    "narrado": {"gancho": 0.25, "ritmo": 0.15, "voz_y_audio": 0.10, "subtitulos_y_capa_viva": 0.10, "estructura": 0.15, "empaque": 0.15, "riesgos": 0.10},
+    "animado": {"gancho": 0.25, "ritmo": 0.20, "voz_y_audio": 0.10, "subtitulos_y_capa_viva": 0.05, "estructura": 0.15, "empaque": 0.15, "riesgos": 0.10},
+    "persona": {"gancho": 0.25, "ritmo": 0.10, "voz_y_audio": 0.20, "subtitulos_y_capa_viva": 0.10, "estructura": 0.15, "empaque": 0.10, "riesgos": 0.10},
+    "musical": {"gancho": 0.20, "ritmo": 0.30, "voz_y_audio": 0.15, "subtitulos_y_capa_viva": 0.05, "estructura": 0.10, "empaque": 0.15, "riesgos": 0.05},
+    "curso":   {"gancho": 0.15, "ritmo": 0.10, "voz_y_audio": 0.20, "subtitulos_y_capa_viva": 0.10, "estructura": 0.25, "empaque": 0.10, "riesgos": 0.10},
+}
+# Corrección M3 (juicio 0.15, decisión de Patricio): el tipo de video no puede bajar el peso de «riesgos de monetización»
+# bajo el de siempre (narrado). Si un tipo lo trae más bajo, se sube al piso y el resto de los ejes se reparte el 90 %
+# en la misma proporción. Sin "tipo_video" en proyecto.json no cambia nada.
+PISO_RIESGOS = PESOS_POR_TIPO["narrado"]["riesgos"]
+
+
+def pesos_de_tipo(tipo_cfg):
+    """(tipo_video, pesos usados, declarado en proyecto.json, piso de riesgos aplicado, aviso o None)."""
+    declarado = bool(tipo_cfg)
+    tv, aviso = str(tipo_cfg or "narrado").lower(), None
+    if tv not in PESOS_POR_TIPO:
+        aviso = f"AVISO tipo_video «{tv}» desconocido: se usan los pesos de narrado"
+        tv = "narrado"
+    pesos = dict(PESOS_POR_TIPO[tv])
+    piso = declarado and pesos["riesgos"] < PISO_RIESGOS
+    if piso:
+        otros = sum(v for k, v in pesos.items() if k != "riesgos")
+        pesos = {k: (PISO_RIESGOS if k == "riesgos" else round(v * (1 - PISO_RIESGOS) / otros, 4)) for k, v in pesos.items()}
+    return tv, pesos, declarado, piso, aviso
+
+
 CIERRE = ["comenta", "comentarios", "suscríbete", "suscribete", "próximo video", "siguiente video", "sígueme", "guarda este"]
 
 
@@ -215,7 +245,9 @@ def main():
             t = 0
         mejoras.append((t, "riesgos", f"Frase riesgosa «{rz}»: promete o asegura resultados; reescribir con lenguaje responsable (y revisar monetizacion.md)."))
 
-    pesos = {"gancho": 0.25, "ritmo": 0.15, "voz_y_audio": 0.10, "subtitulos_y_capa_viva": 0.10, "estructura": 0.15, "empaque": 0.15, "riesgos": 0.10}
+    tipo_video, pesos, tipo_declarado, piso_aplicado, aviso_tipo = pesos_de_tipo(pr.cfg.get("tipo_video"))
+    if aviso_tipo:
+        print(aviso_tipo, flush=True)
     validos = {k: v for k, v in ejes.items() if v is not None}
     total = round(sum(validos[k] * pesos[k] for k in validos) / sum(pesos[k] for k in validos), 1)
     clase = "A" if total >= 8 else "B" if total >= 6 else "C"
@@ -226,7 +258,8 @@ def main():
     shorts = momentos_short(pals, frases, elementos, dur) if tipo == "largo" else []
     if huella(video) != sello:
         sys.exit(f"{video.name} cambió mientras se evaluaba: esperar a que termine el render y evaluar otra vez")
-    res = {"video": str(video), "sha256": sello, "bytes": video.stat().st_size, "tipo": tipo, "duracion_s": dur, "nota_medida": total, "clase_medida": clase, "decision": decision,
+    res = {"video": str(video), "sha256": sello, "bytes": video.stat().st_size, "tipo": tipo, "tipo_video": tipo_video,
+           "duracion_s": dur, "nota_medida": total, "clase_medida": clase, "decision": decision,
            "ejes": ejes, "pesos": pesos,
            "medidas": {"primera_palabra_s": primera, "palabras_primeros_5s": pal_5s, "primera_frase": frase1,
                        "cambios_por_minuto_con_elementos": round(cpm, 1), "tramos_quietos": quietos, "palabras_por_minuto": round(ppm),
@@ -235,16 +268,24 @@ def main():
                        "miniaturas": [m.name for m in minis], "frases_riesgosas": hallados},
            "momentos_para_shorts": shorts,
            "mejoras": [{"minuto": mmss(t), "segundo": round(t, 1), "eje": e, "que_hacer": q} for t, e, q in sorted(mejoras, key=lambda x: x[0])]}
+    if tipo_declarado:       # M3: queda escrito con qué tipo y qué pesos se evaluó (sin tipo_video, el .json no cambia)
+        res.update(tipo_video_declarado=str(pr.cfg.get("tipo_video")), piso_riesgos=PISO_RIESGOS, piso_riesgos_aplicado=piso_aplicado)
     out = pr.dir / "06_RECETA" / f"evaluacion_{video.stem}"
     out.with_suffix(".json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
-    etiqueta = {"gancho": "Gancho (25 %)", "ritmo": "Ritmo visual (15 %)", "voz_y_audio": "Voz y audio (10 %)",
-                "subtitulos_y_capa_viva": "Subtítulos y capa viva (10 %)", "estructura": "Estructura y retención (15 %)",
-                "empaque": "Título y miniatura (15 %)", "riesgos": "Riesgos de monetización (10 %)"}
+    nombres_eje = {"gancho": "Gancho", "ritmo": "Ritmo visual", "voz_y_audio": "Voz y audio",
+                   "subtitulos_y_capa_viva": "Subtítulos y capa viva", "estructura": "Estructura y retención",
+                   "empaque": "Título y miniatura", "riesgos": "Riesgos de monetización"}
+    etiqueta = {k: f"{n} ({round(pesos[k] * 100)} %)" for k, n in nombres_eje.items()}
     md = [f"# Evaluación de {video.name}", "",
           f"**Nota medida: {total}/10 · Clase {clase}** — {decision}.",
-          f"Tipo: {tipo}, {mmss(dur)}. Esta nota mide qué tan preparado está el video frente a lo que suele funcionar; "
+          f"Tipo: {tipo} · video {tipo_video} (pesos de ese tipo), {mmss(dur)}. Esta nota mide qué tan preparado está el video frente a lo que suele funcionar; "
           "no garantiza vistas. El agente evaluador la ajusta mirando el video.", "",
           "| eje | nota |", "|---|---|"] + [f"| {etiqueta[k]} | {v if v is not None else 'sin datos'} |" for k, v in ejes.items()]
+    if tipo_declarado:
+        md += ["", f"Pesos usados (tipo_video «{tipo_video}» de proyecto.json): "
+               + ", ".join(f"{k} {round(v * 100, 1)} %" for k, v in pesos.items())
+               + f". Piso del eje riesgos: {round(PISO_RIESGOS * 100)} %"
+               + (f" (aplicado: el tipo lo traía en {round(PESOS_POR_TIPO[tipo_video]['riesgos'] * 100)} %)." if piso_aplicado else ".")]
     md += ["", "## Mejoras, en orden de aparición"] + [f"- **{m['minuto']}** [{m['eje']}] {m['que_hacer']}" for m in res["mejoras"]]
     if shorts:
         md += ["", "## Mejores momentos para Shorts (para `vertical` en proyecto.json)"] + \

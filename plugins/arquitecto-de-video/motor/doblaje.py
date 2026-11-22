@@ -1,20 +1,29 @@
-# Doblaje y subtítulos de un video a otro idioma (pensado para pasar los videos en inglés de la pareja al español).
-# Nada clona voces: la voz nueva es una voz del estudio (edge-tts) o la que se genere en la página de voz del canal.
+# Doblaje y subtítulos de un video a otro idioma, en cualquier dirección entre español, inglés y portugués (0.15;
+# antes solo inglés → español, que sigue siendo lo que pasa si no se dice nada).
+# Nada clona voces: la voz nueva es una voz del estudio (edge-tts) o la que se genere en la página de voz del canal
+# (o una voz local con licencia, p. ej. Kokoro, cargada como archivos con --desde-archivos).
 #
-#   1) python doblaje.py preparar "<video.mp4>" [--idioma en] [--carpeta <trabajo>]
+#   1) python doblaje.py preparar "<video.mp4>" [--origen en] [--destino es] [--carpeta <trabajo>]
+#        (--idioma es el nombre antiguo de --origen y sigue sirviendo)
 #        transcribe (WhisperX o faster-whisper, local) y deja <video>_doblaje\segmentos.json con cada frase:
-#        {"id", "inicio", "fin", "original", "traduccion": ""} + original.srt
-#   2) Claude (o la persona) llena "traduccion" en segmentos.json. Regla: que se pueda decir en el mismo tiempo
-#        (unos 15 caracteres por segundo); mejor una frase más corta que una voz apurada.
-#   3) python doblaje.py voz "<carpeta>" [--voz es-CL-LorenzoNeural] [--velocidad_max 25]
+#        {"id", "inicio", "fin", "original", "traduccion": "", "max_caracteres"} + original.srt
+#   2) Claude (o la persona) llena "traduccion" (en el idioma destino) en segmentos.json. Regla: que se pueda decir en el
+#        mismo tiempo: "max_caracteres" sale del ritmo del idioma destino (CPS: es 15, en 14, pt 15 caracteres por segundo;
+#        se cambia con --cps); mejor una frase más corta que una voz apurada.
+#   3) python doblaje.py voz "<carpeta>" [--voz <voz>] [--velocidad_max 25]
+#        sin --voz usa la del idioma destino (VOCES: es-CL-LorenzoNeural, en-US-GuyNeural, pt-BR-AntonioNeural; para
+#        Oceanía en-AU-WilliamNeural). La voz tiene que ser del idioma destino (o multilingüe): si no, se detiene.
 #        genera la voz frase por frase calzada con su tiempo (si no cabe, la acelera hasta --velocidad_max %; si aún no cabe,
 #        usa la pausa siguiente y lo avisa) -> voz_traducida.wav + traduccion.srt
 #        O con voces hechas afuera (página de voz con licencia): textos_para_voz.txt tiene las frases numeradas;
 #        guardar 001.mp3, 002.mp3 ... en <carpeta>\voces y correr: python doblaje.py voz "<carpeta>" --desde-archivos
 #   4) python doblaje.py mezclar "<carpeta>" [--original -16|sin] [--quemar]
-#        <video>_ES.mp4: imagen original + voz nueva; el audio original queda debajo y baja solo cuando habla la voz nueva
-#        (estilo documental, conserva música y ambiente) o "sin" lo quita. --quemar: también una versión con subtítulos.
+#        <video>_<DESTINO>.mp4 (_ES, _EN o _PT): imagen original + voz nueva; el audio original queda debajo y baja solo
+#        cuando habla la voz nueva (estilo documental) o "sin" lo quita. --quemar: también una versión con subtítulos.
+#        Las dos salen con fast start y sin listas de edición (0.15).
 #   Solo subtítulos (sin voz): después del paso 2, python doblaje.py subtitulos "<carpeta>" -> traduccion.srt
+# Licencias: edge-tts no trae licencia comercial explícita (ver voces.py): para lo que se publica, la voz de la página con
+# licencia (--desde-archivos). Cada corrida con edge-tts lo deja escrito en avisos.txt.
 import asyncio, json, re, shutil, subprocess, sys
 from pathlib import Path
 
@@ -27,7 +36,30 @@ try:
 except Exception:
     SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
 
+try:
+    from estudio import SIN_LISTAS             # 0.15: entregas sin listas de edición (edts/elst)
+except Exception:
+    SIN_LISTAS = ["-use_editlist", "0"]
+
 ESTUDIO = Path.home() / "EstudioPaltostaila"
+IDIOMAS = ("es", "en", "pt")
+# voz del estudio por idioma destino (edge-tts; nombres de `voces.py listar --idioma <xx>`, revisar ahí si alguna deja
+# de estar). Para publicar, mejor la página de voz con licencia o una voz local con licencia (--desde-archivos).
+VOCES = {"es": "es-CL-LorenzoNeural", "en": "en-US-GuyNeural", "pt": "pt-BR-AntonioNeural"}
+OTRAS_VOCES = {"en": ["en-AU-WilliamNeural", "en-AU-NatashaNeural", "en-US-JennyNeural"], "pt": ["pt-BR-FranciscaNeural"],
+               "es": ["es-CL-CatalinaNeural", "es-MX-JorgeNeural"]}
+# caracteres por segundo que se pueden decir con calma (aproximado; el español y el portugués usan palabras más largas)
+CPS = {"es": 15, "en": 14, "pt": 15}
+AVISO_LICENCIA = ("AVISO licencia: la voz se hizo con edge-tts (servicio de Edge usado de forma no oficial, sin licencia "
+                  "comercial explícita). Sirve para probar y para borradores; para publicar, generar las frases en la "
+                  "página de voz con licencia y usar --desde-archivos (ver voces.py).")
+
+
+def _idioma(x, defecto):
+    x = (x or defecto).lower()[:2]
+    if x not in IDIOMAS:
+        sys.exit(f"Idioma «{x}» no soportado: usar es, en o pt")
+    return x
 
 
 def run(cmd, **kw):
@@ -89,7 +121,11 @@ def frases(segs, maximo=12.0):
     return [{k: f[k] for k in ("id", "inicio", "fin", "original", "traduccion")} for f in out]
 
 
-def preparar(video, idioma="en", carpeta=None):
+def preparar(video, idioma="en", carpeta=None, destino="es", cps=None):
+    idioma, destino = _idioma(idioma, "en"), _idioma(destino, "es")
+    if idioma == destino:
+        sys.exit(f"El origen y el destino son el mismo idioma ({idioma}): no hay nada que doblar")
+    cps = float(cps or CPS[destino])
     video = Path(video)
     c = Path(carpeta) if carpeta else video.with_name(video.stem + "_doblaje")
     c.mkdir(parents=True, exist_ok=True)
@@ -104,11 +140,21 @@ def preparar(video, idioma="en", carpeta=None):
     run([FFMPEG, "-v", "error", "-y", "-i", video, "-vn", "-ac", 1, "-ar", 16000, *SIN_METADATOS, wav])
     print("transcribiendo (puede tardar unos minutos por minuto de video)...", flush=True)
     segs = frases(transcribir(wav, idioma, c))
-    (c / "segmentos.json").write_text(json.dumps({"video": str(video.resolve()), "idioma": idioma, "segmentos": segs},
+    for s in segs:                       # guía para la traducción: lo que cabe en ese tiempo al ritmo del idioma destino
+        s["max_caracteres"] = max(4, int((s["fin"] - s["inicio"]) * cps))
+    # "idioma" = idioma de origen (nombre de siempre); "origen"/"destino"/"cps" desde el 0.15
+    (c / "segmentos.json").write_text(json.dumps({"video": str(video.resolve()), "idioma": idioma, "origen": idioma,
+                                                  "destino": destino, "cps": cps, "segmentos": segs},
                                                  ensure_ascii=False, indent=1), encoding="utf-8")
     escribir_srt(segs, "original", c / "original.srt")
-    print(f"{len(segs)} frases -> {c / 'segmentos.json'}  (llenar \"traduccion\")")
+    print(f"{len(segs)} frases {idioma} -> {destino} -> {c / 'segmentos.json'}  (llenar \"traduccion\" en {destino}, "
+          f"hasta \"max_caracteres\" por frase: {cps:g} caracteres por segundo)")
     return c
+
+
+def destino_de(d):
+    """Idioma destino de una carpeta de doblaje (las hechas antes del 0.15 son inglés → español)."""
+    return _idioma(d.get("destino"), "es")
 
 
 def cargar(c):
@@ -133,10 +179,20 @@ async def _tts(texto, voz, destino, vel):
     await edge_tts.Communicate(texto, voz, rate=f"{vel:+d}%").save(str(destino))
 
 
-def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
+def voz(c, nombre_voz=None, vel_max=25, desde_archivos=False):
     c = Path(c)
     d = cargar(c)
+    dest = destino_de(d)
+    nombre_voz = nombre_voz or VOCES[dest]
+    if not desde_archivos and not nombre_voz.lower().startswith(dest + "-") and "multilingual" not in nombre_voz.lower():
+        sys.exit(f"La voz {nombre_voz} no es del idioma destino ({dest}). Usar {VOCES[dest]}"
+                 + (f" (u otra: {', '.join(OTRAS_VOCES.get(dest, []))})" if OTRAS_VOCES.get(dest) else "")
+                 + f", una multilingüe, o ver python voces.py listar --idioma {dest}")
     segs = [s for s in d["segmentos"] if s.get("traduccion")]
+    cps = float(d.get("cps") or CPS[dest])
+    apuradas = [f"frase {s['id']} ({s['inicio']:.1f} s): {len(s['traduccion'])} caracteres en {s['fin'] - s['inicio']:.1f} s "
+                f"(caben ~{int((s['fin'] - s['inicio']) * cps)} a {cps:g}/s en {dest}): acortarla"
+                for s in segs if len(s["traduccion"]) > (s["fin"] - s["inicio"]) * cps * 1.15 + 3]
     (c / "textos_para_voz.txt").write_text("".join(f"{s['id']:03d}  ({s['fin'] - s['inicio']:.1f} s)  {s['traduccion']}\n" for s in segs),
                                           encoding="utf-8")
     vdir = c / "voces"                 # voces hechas afuera (página de voz con licencia): aquí solo se LEE
@@ -206,30 +262,34 @@ def voz(c, nombre_voz="es-CL-LorenzoNeural", vel_max=25, desde_archivos=False):
     au.normalizar(c / "voz_traducida_paso.wav", c / "voz_traducida.wav")
     (c / "voz_traducida_paso.wav").unlink()
     escribir_srt(d["segmentos"], "traduccion", c / "traduccion.srt")
+    avisos = ([] if desde_archivos else [AVISO_LICENCIA + f" Voz: {nombre_voz}."]) + apuradas + avisos
     (c / "avisos.txt").write_text("\n".join(avisos) + "\n", encoding="utf-8")
     print(*avisos, sep="\n")
-    print("listo:", c / "voz_traducida.wav", "y", c / "traduccion.srt")
+    print("listo:", c / "voz_traducida.wav", "y", c / "traduccion.srt", f"({dest})")
 
 
 def mezclar(c, original="-16", quemar=False):
     c = Path(c)
     d = cargar(c)
     video = Path(d["video"])
-    sal = nombre_libre(c / f"{video.stem}_ES.mp4")
+    suf = destino_de(d).upper()                   # _ES como siempre; _EN o _PT para los otros destinos
+    sal = nombre_libre(c / f"{video.stem}_{suf}.mp4")
     if original == "sin":
         fc = "[1:a]anull[aud]"
     else:
         import audio as au
         fc = au.filtro_musica(1, 0, float(original), True, "aud")
     run([FFMPEG, "-v", "error", "-y", "-i", video, "-i", c / "voz_traducida.wav", "-filter_complex", fc,
-         "-map", "0:v", "-map", "[aud]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", sal])
+         "-map", "0:v", "-map", "[aud]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", *SIN_METADATOS, *SIN_LISTAS,
+         "-movflags", "+faststart", sal])
     print("listo:", sal)
     if quemar:
         sub = c / "traduccion.srt"
-        sal2 = nombre_libre(c / f"{video.stem}_ES_subtitulado.mp4")      # un segundo --quemar no pisa el anterior
+        sal2 = nombre_libre(c / f"{video.stem}_{suf}_subtitulado.mp4")      # un segundo --quemar no pisa el anterior
         run([FFMPEG, "-v", "error", "-y", "-i", sal.name, "-vf",
              "subtitles=traduccion.srt:force_style='FontName=Arial,FontSize=20,Bold=1,Outline=2,MarginV=40'",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", *SIN_METADATOS, sal2.name], cwd=c)
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", *SIN_METADATOS, *SIN_LISTAS,
+             "-movflags", "+faststart", sal2.name], cwd=c)          # 0.15: fast start también en la subtitulada
         print("listo:", sal2)
     try:
         from estudio import metadatos_personales
@@ -251,9 +311,9 @@ def main():
     if not a:
         sys.exit("Uso: ver el encabezado de doblaje.py")
     if a[0] == "preparar":
-        preparar(a[1], op("--idioma", "en"), op("--carpeta"))
+        preparar(a[1], op("--origen") or op("--idioma", "en"), op("--carpeta"), op("--destino", "es"), op("--cps"))
     elif a[0] == "voz":
-        voz(a[1], op("--voz", "es-CL-LorenzoNeural"), int(op("--velocidad_max", 25)), "--desde-archivos" in a)
+        voz(a[1], op("--voz"), int(op("--velocidad_max", 25)), "--desde-archivos" in a)
     elif a[0] == "subtitulos":
         d = cargar(a[1])
         escribir_srt(d["segmentos"], "traduccion", Path(a[1]) / "traduccion.srt")

@@ -12,7 +12,9 @@
 #     {"tipo": "fichas", "items": ["Entender", "Evaluar", "Decidir"], "en": {"frase": "entender evaluar"}, "cada": 0.6},
 #     {"tipo": "lluvia", "simbolo": "billetes", "en": {"frase": "ganó miles"}, "dura": 2.5},
 #     {"tipo": "texto", "texto": "x2", "en": {"frase": "el precio se duplica"}, "dura": 1.5}]
-# Presets de estilo: finanzas, rosa, bachata, curso, documental (cada proyecto puede cambiar color, fuente y posición).
+# Presets de estilo: finanzas, rosa, bachata, curso, documental, reel (cada proyecto puede cambiar color, fuente y posición).
+# 0.15 (references/motor-0150-camara.md): preset "reel"; sonidos con los subtítulos y los elementos ("sonido": "pop",
+# los mezcla sonidos.py); "margen_caras"; la tarjeta-lista se mide girada; en Shorts los elementos pueden esquivar caras.
 from pathlib import Path
 import math, random, re, unicodedata
 from estudio import buscar, ts, norm as tokens
@@ -32,7 +34,15 @@ PRESETS = {
                        sombra=0, caja=True, palabras=3, entrada="fundido", destellos=False, mano="Segoe Print"),
     "documental": dict(fuente="Georgia", tam=62, color="F3E9D2", clave="E9C46A", clave2="F3E9D2", borde="1B1B1B", grosor=4,
                        sombra=2, caja=False, palabras=4, entrada="fundido", destellos=False, mano="Segoe Print"),
+    # 0.15: reel de una persona hablando: 1-2 palabras grandes, centro-bajo, entrada pop, palabra clave en color de acento
+    "reel":       dict(fuente="Arial Black", tam=96, color="FFFFFF", clave="FFFFFF", clave2="FFE14D", borde="101010", grosor=9,
+                       sombra=4, caja=False, palabras=2, entrada="pop", destellos=False, mano="Ink Free",
+                       posicion=0.78, posicion_vertical=0.66),
 }
+# 0.15: nombres cortos de sonido para "subtitulos.sonido" y "sonido" de un elemento (archivos del banco CC0 del estudio,
+# paquete Interfaz de Kenney). También se acepta el nombre de cualquier archivo del banco o de 05_SONIDOS.
+SONIDOS = {"pop": "drop_002.ogg", "clic": "click_002.ogg", "click": "click_002.ogg", "tic": "tick_002.ogg",
+           "suave": "select_002.ogg", "campana": "confirmation_002.ogg", "golpe": "bong_001.ogg", "cambio": "switch_002.ogg"}
 PALETA = ["FFD23F", "6AD15B", "4FC3F7", "FF7AC6", "FF8C42", "FFFFFF"]
 
 
@@ -53,6 +63,18 @@ def norm(s):
 
 def limpio(s):
     return s.replace("{", "(").replace("}", ")").replace("\\", "/")
+
+
+def caja_girada(caja, grados, origen=None):
+    """(0.15) Caja recta que contiene a `caja` girada `grados` (como \\frz de ASS: positivo = contra el reloj) alrededor
+    de `origen` (por defecto su esquina de arriba a la izquierda, que es sobre lo que gira un dibujo \\an7\\pos)."""
+    if not grados:
+        return tuple(caja)
+    x0, y0, x1, y1 = caja
+    ox, oy = origen or (x0, y0)
+    s, co = math.sin(math.radians(grados)), math.cos(math.radians(grados))
+    pts = [(ox + (x - ox) * co + (y - oy) * s, oy - (x - ox) * s + (y - oy) * co) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+    return (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
 
 
 # ---------- dibujos vectoriales (modo \p1, coordenadas en píxeles, centradas en 0,0) ----------
@@ -203,7 +225,8 @@ class Vivo:
         self.esc = (W if vertical else H) / 1080
         self.claves = [norm(x) for x in sub.get("palabras_clave", [])]
         self.claves_frases = [[norm(t) for t in x.split()] for x in sub.get("palabras_clave", []) if " " in x]
-        pos = sub.get("posicion_vertical" if vertical else "posicion", "abajo")
+        k_pos = "posicion_vertical" if vertical else "posicion"
+        pos = sub.get(k_pos, base.get(k_pos, "abajo"))          # 0.15: un preset puede traer su posición (reel)
         self.y = {"arriba": 0.30, "medio": 0.50, "abajo": 0.70 if vertical else 0.84}.get(pos, pos if isinstance(pos, float) else 0.7)
         if vertical:   # zona segura de Reels/TikTok/Shorts: sin la franja de arriba, los botones de la derecha ni el texto de abajo
             self.y = min(max(self.y, 0.14), 0.76)
@@ -212,12 +235,37 @@ class Vivo:
         self.mapa, self.movidos = None, []
         self.ocupado = []          # (desde, hasta, caja) de lo que ya está fijo en pantalla (contador): los demás lo evitan
         self._pos_progreso = None
+        # 0.15: aire alrededor de caras y cabezas al medir (fracción de su tamaño; 0 = medir justo sobre la cabeza, como antes)
+        self.margen_caras = float(sub.get("margen_caras", 0.08))
+        self.ocultar_si_tapa = False   # 0.15, Shorts con «esquivar caras»: lo que no encuentra lugar libre no se muestra
 
-    def usar_mapa(self, video, con_texto=True):
-        """Activa "no tapar caras": cada elemento se corre a donde no cubra cabezas, caras, globos ni texto de la imagen."""
+    def usar_mapa(self, video, con_texto=True, mapa=None):
+        """Activa "no tapar caras": cada elemento se corre a donde no cubra cabezas, caras, globos ni texto de la imagen.
+        mapa (0.15): un mapa ya hecho, con las regiones en píxeles de ESTE cuadro (lo usa vertical.py en los Shorts)."""
+        if mapa is not None:
+            self.mapa = mapa
+            return
         import caras
         if Path(video).exists() and not self.vertical:
             self.mapa = caras.Mapa(video, self.W, self.H, con_texto)
+
+    def _regiones(self, a, b, muestras=8):
+        """Lo que no hay que tapar entre a y b, con el margen alrededor de caras y cabezas."""
+        if self.mapa is None:
+            return []
+        import caras
+        return caras.con_margen(self.mapa.regiones(a, b, muestras), self.margen_caras)
+
+    def _oculto(self, d, a, b, caja, muestras=8):
+        """(0.15) En un Short con «esquivar caras»: True si el elemento, ya en su mejor lugar, todavía tapa una cara, una
+        cabeza o texto de la imagen. Entonces no se muestra y queda anotado."""
+        if not self.ocultar_si_tapa or self.mapa is None or d.get("fijo"):
+            return False
+        import caras
+        if caras.tapa(caja, self._regiones(a, b, muestras)) < 1:
+            return False
+        self.movidos.append((round(a, 1), f"{d.get('tipo')} oculto", (round(caja[0]), round(caja[1])), None, 0, 0.0))
+        return True
 
     def _lugar(self, d, defecto, a, b, caja, candidatos=None, muestras=8, pos=None):
         """Posición del elemento: la pedida si no tapa nada importante; si tapa, la mejor alternativa cercana.
@@ -227,9 +275,13 @@ class Vivo:
             return x, y
         import caras
         occ = [o for oa, ob, o in self.ocupado if oa < b and ob > a]
-        reg = self.mapa.regiones(a, b, muestras) if self.mapa is not None else []
+        reg = self._regiones(a, b, muestras)
         if not reg and not occ:
             return x, y
+        if candidatos is None and self.vertical and self.mapa is not None:
+            # 0.15 (Shorts con «esquivar caras»): lugares dentro de la zona segura del 9:16, bajo el título y sin la columna de botones
+            candidatos = [(round(fx * self.W), round(fy * self.H)) for fy in (0.34, 0.42, 0.50, 0.58, 0.66, 0.72)
+                          for fx in (0.22, 0.46, 0.68)]
         def pen(p):                     # tapar algo importante o el contador, más salirse del cuadro (se cortaría el texto)
             c = caja(*p)
             area = max(1.0, (c[2] - c[0]) * (c[3] - c[1]))
@@ -388,6 +440,8 @@ class Vivo:
         b = a + float(d.get("dura", 2.0))
         r = round(float(d.get("tam", 0.07)) * (self.W if self.vertical else self.H * 1.1))
         x, y = self._lugar(d, "arriba-izq", t0 + a, t0 + b, lambda x, y: (x - r, y - r, x + r, y + r))
+        if self._oculto(d, t0 + a, t0 + b, (x - r, y - r, x + r, y + r)):
+            return []
         nombre, ev = d.get("icono", "estrella"), []
         col = d.get("color")
         base = f"Dialogue: 6,{ts(a)},{ts(b)},VivoDibujo,,0,0,0,,{{\\an5\\pos({x},{y}){self._pop(0)}"
@@ -461,10 +515,17 @@ class Vivo:
         s = self.esc
         ancho = round((0.56 if self.vertical else 0.34) * self.W)
         alto = round((110 + 62 * len(items)) * s)
-        def caja_lista(x, y):
+        giro = d.get("giro", -3)
+        def caja_recta(x, y):       # la tarjeta sin girar: su esquina (x0, y0) es donde se dibuja
+            if self.vertical and self.mapa is not None:      # 0.15, Short con mapa: se mide la misma caja que se dibuja
+                x0 = int(min(max(x - ancho // 2, 0.05 * self.W), 0.84 * self.W - ancho))
+                y0 = int(min(max(y - alto // 2, 0.14 * self.H), 0.78 * self.H - alto))
+                return (x0, y0, x0 + ancho, y0 + alto)
             x0 = int(min(max(x - ancho // 2, 0.03 * self.W), 0.97 * self.W - ancho))
             y0 = int(min(max(y - alto // 2, 0.04 * self.H), 0.74 * self.H - alto))
             return (x0, y0, x0 + ancho, y0 + alto)
+        def caja_lista(x, y):       # 0.15: lo que la tarjeta ocupa de verdad: va girada (\frz) sobre su esquina
+            return caja_girada(caja_recta(x, y), giro)
         cands = [(round(fx * self.W), round(fy * self.H)) for fy in (0.20, 0.32, 0.44, 0.56) for fx in (0.18, 0.34, 0.50, 0.66, 0.82)]
         defecto = "derecha" if not self.vertical else "centro"
         if self.mapa is None or self.vertical or d.get("fijo"):
@@ -479,14 +540,16 @@ class Vivo:
                 x0 = int(min(max(x - ancho // 2, 0.05 * self.W), 0.84 * self.W - ancho))
                 y0 = int(min(max(y - alto // 2, 0.14 * self.H), 0.78 * self.H - alto))
             else:
-                x0, y0 = caja_lista(x, y)[:2]
+                x0, y0 = caja_recta(x, y)[:2]
+            if self._oculto(d, t0 + a, t0 + b, caja_girada((x0, y0, x0 + ancho, y0 + alto), giro)):
+                return []
             lugares.append((t0 + a, t0 + b, (x0, y0)))
         else:
             import caras
             pedido = None
             for p, q in tramos:
                 m = max(3, min(8, int(q - p) + 1))
-                reg_t = self.mapa.regiones(p, q, m)
+                reg_t = self._regiones(p, q, m)
                 antes_mov = len(self.movidos)
                 x, y = self._lugar(d, defecto, p, q, caja_lista, cands, muestras=m, pos=pedido)
                 if caras.tapa(caja_lista(x, y), reg_t) >= 1:
@@ -507,7 +570,7 @@ class Vivo:
                     lugares.append((p, q, None))
                     continue
                 pedido = (x, y)
-                lugares.append((p, q, caja_lista(x, y)[:2]))
+                lugares.append((p, q, caja_recta(x, y)[:2]))
             # lo que se pierde por ocultar queda anotado con «ahora 1.0» para que terminado.py pida revisarlo a mano
             visibles = [(p, q) for p, q, pos in lugares if pos is not None]
             if not visibles:
@@ -562,7 +625,13 @@ class Vivo:
         total_h = sum(anchos) + (len(items) - 1) * sep
         caja_f = lambda x, y: (self.W // 2 - total_h // 2, y - alto // 2, self.W // 2 + total_h // 2, y + alto // 2)
         cands = [(self.W // 2, round(fy * self.H)) for fy in (0.08, 0.16, 0.26, 0.38, 0.50, 0.62, 0.72)]
+        if self.vertical and self.mapa is not None:      # 0.15, Short con mapa: en vertical las fichas van en columna
+            col_w, col_h = max(anchos), len(items) * alto + (len(items) - 1) * sep
+            caja_f = lambda x, y: (round(self.W * 0.46) - col_w // 2, y - col_h // 2, round(self.W * 0.46) + col_w // 2, y + col_h // 2)
+            cands = [(self.W // 2, round(fy * self.H)) for fy in (0.38, 0.46, 0.54, 0.62)]
         cy = self._lugar(d, "centro", t0 + a, t0 + b, caja_f, cands)[1]
+        if self._oculto(d, t0 + a, t0 + b, caja_f(self.W // 2, cy)):
+            return []
         if self.vertical:   # en columna
             total = len(items) * alto + (len(items) - 1) * sep
             ys = [cy - total // 2 + k * (alto + sep) for k in range(len(items))]
@@ -624,6 +693,8 @@ class Vivo:
         txt = limpio(d["texto"])
         mw, mh = len(txt) * tam * 0.31 + bord, tam * 0.6 + bord
         x, y = self._lugar(d, "centro", t0 + a, t0 + b, lambda x, y: (x - mw, y - mh, x + mw, y + mh))
+        if self._oculto(d, t0 + a, t0 + b, (x - mw, y - mh, x + mw, y + mh)):
+            return []
         color = d.get("color", self.e["clave"])
         estilo = f"\\fs{tam}\\c{c(color)}\\bord{bord}"
         n = nombre_animacion(d.get("entrada", "pop"))
@@ -718,7 +789,7 @@ class Vivo:
         lugares = []
         for p, q in tramos:
             m = max(3, min(8, int(q - p)))
-            reg_t = self.mapa.regiones(p, q, m) if self.mapa is not None else []
+            reg_t = self._regiones(p, q, m)
             tapa = lambda pos: caras.tapa(caja(*pos), reg_t)
             if tapa(pedido) < 0.3:
                 x, y = pedido                     # se queda: solo tapar una cara o un texto de la imagen obliga a moverlo (rozarlos no)
@@ -828,6 +899,43 @@ class Vivo:
 
 def activo(pr):
     return pr.cfg.get("subtitulos", {}).get("estilo") == "vivo" or bool(pr.cfg.get("elementos"))
+
+
+def cues_sonido(pr, pals):
+    """(0.15) Sonidos que acompañan a la capa viva; apagado si no se pide. Devuelve [(segundo, nombre, volumen o None,
+    etiqueta)] para que sonidos.py los mezcle bajo la voz (este archivo no toca audio).
+      "subtitulos": {"sonido": "pop", "sonido_volumen": -14, "sonido_en": "claves" | "grupos", "sonido_cada": 1.5,
+                     "sonido_max_por_min": 12}   un sonido corto en las palabras clave (o al entrar cada grupo)
+      en un elemento: "sonido": "pop" (y "sonido_volumen" opcional)   suena cuando el elemento entra
+    nombre: uno de SONIDOS (pop, clic, tic, suave, campana, golpe, cambio) o un archivo del banco de sonidos."""
+    sub = pr.cfg.get("subtitulos", {})
+    elementos = [d for d in pr.cfg.get("elementos", []) if d.get("sonido")]
+    if not sub.get("sonido") and not elementos:
+        return []
+    W, H = getattr(pr, "ancho", 1920), getattr(pr, "alto", 1080)
+    v = Vivo(pr, pals, W, H, vertical=H > W)
+    out = []
+    if sub.get("sonido"):
+        cada, tope = float(sub.get("sonido_cada", 1.5)), int(sub.get("sonido_max_por_min", 12))
+        por_grupo = sub.get("sonido_en", "claves") == "grupos"
+        puestos = []
+        for g in v._grupos(0.0, 1e9):
+            i = g[0] if por_grupo else next((j for j in g if v._es_clave(j)), None)
+            if i is None:
+                continue
+            t = pals[i]["start"]
+            if (puestos and t - puestos[-1] < cada) or sum(1 for u in puestos if t - u < 60) >= tope:
+                continue                               # con medida: nunca un sonido encima de otro ni una lluvia de pops
+            puestos.append(t)
+            out.append((t, sub["sonido"], sub.get("sonido_volumen"), f"subtítulo «{limpio(pals[i]['word'])}»"))
+    for d in elementos:
+        try:
+            t = v._t(d["en"])
+        except (ValueError, KeyError) as ex:
+            print("AVISO sonido de elemento sin momento:", ex, flush=True)
+            continue
+        out.append((t, d["sonido"], d.get("sonido_volumen", sub.get("sonido_volumen")), f"elemento {d.get('tipo', '')}"))
+    return sorted(out, key=lambda x: x[0])
 
 
 def insertar(cabecera, estilos):

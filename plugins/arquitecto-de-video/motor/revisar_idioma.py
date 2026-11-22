@@ -1,6 +1,7 @@
 # Revisa un video terminado (del estudio o editado en CapCut) y avisa dónde aparece texto que parece de otro idioma
 # (por defecto, inglés) dentro de la imagen: etiquetas, carteles, libros, boletas.
-#   python revisar_idioma.py "<video.mp4>" [--cada 1] [--desde 0] [--hasta 0]
+#   python revisar_idioma.py "<video.mp4>" [--destino es|en|pt] [--cada 1] [--desde 0] [--hasta 0]
+#   (0.15) --destino = idioma en que debería estar el video (por defecto es): avisa el texto que no parece de ese idioma.
 # Deja junto al video:  <video>_idioma.txt (minuto · texto · palabras sospechosas) y <video>_idioma.jpg (cuadros marcados).
 # Lee cada segundo con RapidOCR (local, sin internet). No toca el video. Siguiente paso típico: traducir esas imágenes
 # (texto_imagen.py o Codex/ChatGPT) y cambiarlas con reemplazar_imagen.py.
@@ -26,14 +27,47 @@ EL LA LOS LAS UN UNA DE DEL Y EN CON POR PARA ES SU SUS TU TUS MI MIS AL LO QUE 
 """.split())
 
 
-def sospechosas(texto):
+# 0.15: el idioma destino puede ser es (por defecto, como siempre), en o pt.
+ES_PROPIAS = set("""
+EL LOS LAS DEL UNA UNOS UNAS PARA CON POR PERO MUY HAY USTED USTEDES NOSOTROS ELLOS DINERO AHORRO AHORRAR GASTOS
+CUENTA CUENTAS BANCO DEUDA DEUDAS PRECIO TIENDA TRABAJO SUELDO HOY AÑO AÑOS MES SEMANA VIDA FAMILIA CASA COSTO
+""".split())
+PT_PROPIAS = set("""
+VOCÊ VOCE NÃO NAO UM UMA DOS DAS NOS NAS PARA COM POR MAS MUITO DINHEIRO POUPANÇA POUPAR GASTOS CONTA CONTAS BANCO
+DÍVIDA DIVIDA PREÇO LOJA TRABALHO SALÁRIO SALARIO HOJE ANO ANOS MÊS SEMANA VIDA FAMÍLIA CASA CUSTO ISSO ESSE ESSA
+""".split())
+NOMBRE = {"es": "español", "en": "inglés", "pt": "portugués"}
+PALABRA = r"[A-Za-zÁÉÍÓÚÑáéíóúñÜüÃÕÇÂÊÔÀãõçâêôà]{3,}"
+ES_MARCA = r"Ñ|CIÓN$|CIONES$|IDAD$|IDADES$"
+
+
+def _ingles(u):
+    return u in INGLES or bool(re.search(r"(ING|TION|NESS|SHIP|IGHT|OUGH)$|TH|W|K|SH|OO", u))
+
+
+def sospechosas(texto, destino="es"):
+    """Palabras que no parecen del idioma destino. es: inglés (como siempre) y portugués (solo con marcas claras: ã, õ,
+    ç, -ção); en: español y portugués (tildes, ñ, ç y palabras propias); pt: inglés y español."""
     out = []
-    for p in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñÜü]{3,}", texto):
+    if destino == "es":
+        for p in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñÜü]{3,}", texto):       # igual que antes del 0.15
+            u = p.upper()
+            if u in ES_COMUNES or re.search(r"[ÁÉÍÓÚÑÜ]", u):
+                continue
+            if _ingles(u):
+                out.append(p)
+        out += [p for p in re.findall(PALABRA, texto) if re.search(r"[ÃÕÇÂÊÔÀ]|ÇÃO$|ÇÕES$", p.upper())]
+        return out
+    for p in re.findall(PALABRA, texto):
         u = p.upper()
-        if u in ES_COMUNES or re.search(r"[ÁÉÍÓÚÑÜ]", u):
-            continue
-        if u in INGLES or re.search(r"(ING|TION|NESS|SHIP|IGHT|OUGH)$|TH|W|K|SH|OO", u):
-            out.append(p)
+        if destino == "en":
+            if re.search(r"[ÁÉÍÓÚÑÜÃÕÇÂÊÔÀ]", u) or u in ES_PROPIAS or u in PT_PROPIAS or re.search(ES_MARCA + "|ÇÃO$|MENTE$", u):
+                out.append(p)
+        elif destino == "pt":
+            if re.search(r"[ÃÕÇÂÊÔ]", u) or u in PT_PROPIAS:
+                continue                                          # tiene marcas o es palabra común del portugués
+            if _ingles(u) or u in (ES_PROPIAS - PT_PROPIAS) or re.search(ES_MARCA, u):
+                out.append(p)
     return out
 
 
@@ -43,6 +77,9 @@ def main():
         sys.exit(__doc__ if __doc__ else "Uso: python revisar_idioma.py video.mp4")
     op = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     v = Path(a[0])
+    destino = (op("--destino") or op("--idioma") or "es").lower()[:2]
+    if destino not in NOMBRE:
+        sys.exit("--destino tiene que ser es, en o pt")
     cada, desde = float(op("--cada", 1)), float(op("--desde", 0))
     dur = duracion_medio(v)
     hasta = float(op("--hasta", 0)) or dur
@@ -63,7 +100,7 @@ def main():
             for caja, txt, conf in res or []:
                 if float(conf) < 0.6:
                     continue
-                s = sospechosas(txt)
+                s = sospechosas(txt, destino)
                 if s:
                     malas.append((txt, s, caja))
             if malas:
@@ -73,7 +110,7 @@ def main():
     if not leidos or fallidos > max(2, 0.05 * (leidos + fallidos)):
         sys.exit(f"ERROR: solo se pudieron leer {leidos} de {leidos + fallidos} cuadros; la revisión no es válida")
     txt = nombre_libre(v.with_name(v.stem + "_idioma.txt"))
-    lineas = [f"# Texto que parece en inglés en {v.name} (revisado cada {cada:g} s, {leidos} cuadros leídos; confirmar a ojo: hay falsos positivos)", ""]
+    lineas = [f"# Texto que no parece {NOMBRE[destino]} (idioma destino) en {v.name} (revisado cada {cada:g} s, {leidos} cuadros leídos; confirmar a ojo: hay falsos positivos)", ""]
     for t, malas, _ in hallazgos:
         lineas.append(f"{int(t // 60)}:{t % 60:04.1f}\t" + " | ".join(f"{x[0]}  [{', '.join(x[1])}]" for x in malas))
     if not hallazgos:

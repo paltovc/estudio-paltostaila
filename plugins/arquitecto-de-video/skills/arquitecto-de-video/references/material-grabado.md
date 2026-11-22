@@ -27,3 +27,14 @@ Para cuando el material son tomas de alguien hablando y hay que elegir lo bueno 
    - voz limpia (`limpiar_voz`): filtro de graves, reducción de ruido suave y compresión leve.
    Deja `tmp/solo_video.mp4` y `02_VOZ/<ID>_voz-grabado.wav`, y apunta `proyecto.json` a esa voz.
 6. **Terminar:** `terminar.py` (volumen a -14 LUFS, subtítulos con el preset `curso` u otro, rótulos, capa viva) y `vertical.py` para los cortes. Revisar en la sala de edición (`sala-de-edicion.md`) con formato celular y zona segura para confirmar que los subtítulos no tapan la boca.
+
+
+# Estilo reel y redes para persona a cámara (motor 0.15, pendiente de prueba)
+
+Sobre el flujo de `grabado.py` de arriba, el motor 0.15 suma (detalle, campos y comandos en `motor-0150-camara.md`):
+- **Luz automática** (`luz.py`): exposición, balance de blancos y realce suave de la cara, después del paso de HDR a SDR y antes del look.
+- **Zooms de énfasis** en palabras clave o segundos marcados, distintos del punch que tapa cortes.
+- **Ángulos virtuales** (plano general, medio y cerrado) desde una sola cámara, sin cortar la cabeza.
+- **Material de apoyo** (`apoyo.py`): propone qué imagen o clip va cuando se nombra algo (`06_RECETA/apoyo_propuesto.json`, se aprueba) y lo inserta completo, en esquina o dividido.
+- **Sonidos en subtítulos y elementos**, apagados por defecto.
+La receta de edición del canal (`recetas-de-edicion.md`, receta 1 «Reel de persona hablando») dice cuánto de cada cosa usar. Revisar siempre en la sala con formato celular.

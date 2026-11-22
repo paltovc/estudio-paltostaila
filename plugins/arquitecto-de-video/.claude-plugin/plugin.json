@@ -1,7 +1,7 @@
 {
   "name": "arquitecto-de-video",
-  "version": "0.14.7",
-  "description": "Estudio de video y audio con 16 agentes: tendencias y anÃ¡lisis de videos exitosos, guion, imÃ¡genes con personaje constante, clips de Flow, voz, subtÃ­tulos dinÃ¡micos y elementos animados, sala de ediciÃ³n, ediciÃ³n de tomas a cÃ¡mara, diseÃ±o de miniaturas, evaluaciÃ³n con nota y clasificaciÃ³n antes de publicar, juez independiente que busca lo negativo en todo el proceso, render y paquete para YouTube, TikTok e Instagram.",
+  "version": "0.16.0",
+  "description": "Estudio de video multicanal (español, inglés, portugués) con 16 agentes: abrir canales, tendencias, guion con ganchos, imágenes con personaje constante, clips de Flow, voz, subtítulos y capa viva, persona a cámara, videos musicales y cursos, sala de edición, miniaturas, evaluación, juez independiente y paquete para YouTube, TikTok e Instagram.",
   "author": {
     "name": "Estudio Paltostaila"
   },
@@ -9,10 +9,14 @@
     "video",
     "youtube",
     "tiktok",
+    "instagram",
     "shorts",
+    "reels",
     "subtitulos",
     "flow",
     "narracion",
+    "multicanal",
+    "idiomas",
     "agentes"
   ],
   "license": "MIT"

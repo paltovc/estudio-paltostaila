@@ -44,6 +44,10 @@ Cada prompt sigue `references/prompts.md` de la skill arquitecto-de-video (herra
 
 **Imágenes con texto en otro idioma:** `texto_imagen.py` (detectar → traducir → reemplazar) antes de pedir una imagen nueva; si el relleno se nota, rehacer con el prompt en español. Imágenes chicas: `mejorar.py imagen --escala 2`.
 
+**Luz, lente y lo que delata a la IA:** cada prompt dice de dónde viene la luz, qué tan dura es y de qué color (esquema con nombre), dónde está el sujeto en el cuadro, qué está enfocado (lente en imágenes realistas) y el bloque de exclusiones; antes de entregarlo, la revisión de 20 segundos y, al recibir, descartar lo que tenga los rasgos de imagen hecha con IA (`references/direccion-de-arte.md`). Canales nuevos: los prompts de prueba de la fase 4 de **nuevo-canal** salen de aquí.
+
+**Cámara y capas:** cada prompt lleva el bloque de cámara (plano, ángulo, lente o «2D plano», posición del sujeto) y sigue el orden de capas de `references/direccion-de-arte.md`; la capa del personaje se copia igual en todos los prompts. En la tabla de entrega, una columna `plano` (general, conjunto, medio, primer plano, detalle) para ver de un vistazo que no se repitan dos seguidos. Al revisar imágenes, anotar en `03_IMAGENES/registro_intentos.md` los intentos que informe quien las generó (opcional).
+
 **Reglas comunes del estudio:**
 - Trabajar solo dentro de la carpeta del video que te indiquen. No modificar, mover ni borrar archivos originales (audios, imágenes, clips descargados); lo nuevo va con nombre nuevo.
 - No gastar créditos, no publicar, no abrir ventanas del navegador, no enviar mensajes.

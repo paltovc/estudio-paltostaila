@@ -4,6 +4,8 @@
 #   python terminar.py "C:\ruta\video" --borrador 60    borrador con todo, sobre el armado de 60 s
 #   python terminar.py "C:\ruta\video" --muestras 16,80 fotogramas con subtitulos en esos segundos
 #   python terminar.py "C:\ruta\video" --solo-audio     rehace el audio y lo cambia sin recodificar la imagen
+# 0.15: las entregas salen sin listas de edición (SIN_LISTAS) y, al terminar los dos finales, queda
+# 07_RENDER\<ID>_<versión>_origen.json con la huella del armado del que salieron (terminado.py lo comprueba, punto 14).
 import json, os, re, sys
 from pathlib import Path
 from estudio import Proyecto, FFMPEG, run, palabras, buscar, cues, ts, mmss, clips_pendientes, apartar_anterior, escribir_entrega
@@ -12,6 +14,10 @@ try:
     from estudio import SIN_METADATOS          # T1: las entregas salen sin GPS, celular ni fecha del original
 except Exception:
     SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
+try:
+    from estudio import SIN_LISTAS             # 0.15: entregas sin listas de edición (edts/elst)
+except Exception:
+    SIN_LISTAS = ["-use_editlist", "0"]
 
 pr = Proyecto()
 ARG = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
@@ -129,6 +135,9 @@ def preparar():
         if SUB.get("evitar_caras", True) and pr.cfg.get("elementos"):    # el registro se escribe siempre, aunque nada se haya movido
             rep = [f"{a:7.1f} s  {tipo:7s} {p0} -> {p1}  (tapaba {c0}, ahora {c1})" for a, tipo, p0, p1, c0, c1 in v.movidos]
             rep.insert(0, f"# version: {pr.base_nombre} · segundo · tipo · de -> a · (castigo antes; 'ahora' = lo que aún tapa de caras, cabezas o texto; ≥ 1 = revisar a mano)")
+            import caras as _caras
+            if _caras.sin_ocr():       # 0.15: se pidió evitar texto y RapidOCR no estaba (la línea va con «#»: terminado.py no la cuenta como elemento)
+                rep.append("# AVISO: no se buscó el texto de la imagen (RapidOCR no está activo): solo se evitaron caras, cabezas y globos")
             (pr.tmp / "capa_viva_lugares.txt").write_text("\n".join(rep) + "\n", encoding="utf-8")
             print(f"capa viva: {len(v.movidos)} elementos corridos para no tapar caras o texto (tmp/capa_viva_lugares.txt)", flush=True)
         dinamicos = v.subtitulos() if SUB.get("estilo") == "vivo" else []
@@ -187,37 +196,84 @@ def main():
              "-map", "0:v", "-map", "1:a", "-vf",
              (lambda l: (l + "," if l else "") + "ass=tmp/todo.ass,fade=t=in:d=0.5")(__import__("efectos").cadena(pr.cfg.get("efectos_video"))),
              *ENCODE, "-c:a", "aac",
-             "-shortest", *SIN_METADATOS, "-movflags", "+faststart", nombre], cwd=pr.salida)
+             "-shortest", *SIN_METADATOS, *SIN_LISTAS, "-movflags", "+faststart", nombre], cwd=pr.salida)
         print("LISTO", pr.salida / nombre, flush=True)
         return
     finales = ((f"{pr.base_nombre}_youtube.mp4", "tmp/rotulos.ass"),                # sin subtitulos (el .srt se sube aparte)
                (f"{pr.base_nombre}_con-subtitulos.mp4", "tmp/todo.ass"))
     if "--solo-audio" in sys.argv:
+        previo = origen_comun_previo()      # la imagen se copia: el origen común sigue siendo el del armado anterior
         for nombre, _ in finales:
             parcial = nombre.replace(".mp4", ".parcial.mp4")
             run([FFMPEG, "-v", "error", "-y", "-i", nombre, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
-                 "-c", "copy", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
+                 "-c", "copy", *SIN_METADATOS, *SIN_LISTAS, "-movflags", "+faststart", parcial], cwd=pr.salida)
             guardada = apartar_anterior(pr.salida / nombre)
             if guardada:
                 print("la entrega anterior quedó como", guardada.name, flush=True)
             (pr.salida / parcial).rename(pr.salida / nombre)
             print("audio cambiado:", nombre, flush=True)
+        from estudio import huella as _huella
+        if previo:
+            sellar_origen([n for n, _ in finales], dict(previo, narracion=_huella(pr.tmp / "narracion.m4a")), "solo-audio")
+        else:
+            # corrección B1 (juicio 0.15): sin un sello previo que calce (finales hechos antes del 0.15) no se escribe un
+            # sello sin origen: el punto 14 de terminado.py sigue como recomendado y no bloquea lo ya terminado
+            print("AVISO: no había sello de origen que calzara con los finales: no se escribe sello nuevo. "
+                  + ("Queda el sello que había, que no calzaba o no sabía de qué armado salieron los finales: terminado.py "
+                     "lo revisa (punto 14). " if ORIGEN.exists() else
+                     "Finales anteriores al motor 0.15: el punto 14 de terminado.py queda como recomendado. ")
+                  + "Para sellarlo: terminar.py --rehacer", flush=True)
         return
     fades = f"fade=t=in:d=0.5,fade=t=out:st={dur - 1.2:.3f}:d=1.2"
     import efectos as _fx
     look = _fx.cadena(pr.cfg.get("efectos_video"))          # grano, viñeta, antiguo, vhs... debajo de los textos
     if look:
         print(f"efectos de imagen: {', '.join(pr.cfg['efectos_video'])}", flush=True)
+    from estudio import huella as _huella
+    armado = {"solo_video": _huella(pr.salida / solo), "narracion": _huella(pr.tmp / "narracion.m4a")}   # antes de usarlos
     for nombre, ass in finales:
         parcial = nombre.replace(".mp4", ".parcial.mp4")
         run([FFMPEG, "-v", "error", "-y", "-i", solo, "-i", "tmp/narracion.m4a", "-map", "0:v", "-map", "1:a",
-             "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", *SIN_METADATOS, "-movflags", "+faststart", parcial], cwd=pr.salida)
+             "-vf", f"{look + ',' if look else ''}ass={ass},{fades}", *ENCODE, "-c:a", "copy", "-shortest", *SIN_METADATOS, *SIN_LISTAS, "-movflags", "+faststart", parcial], cwd=pr.salida)
         guardada = apartar_anterior(pr.salida / nombre)
         if guardada:
             print("la entrega anterior quedó como", guardada.name, flush=True)
         (pr.salida / parcial).rename(pr.salida / nombre)
         print("listo:", pr.salida / nombre, flush=True)
+    if (_huella(pr.salida / solo), _huella(pr.tmp / "narracion.m4a")) != (armado["solo_video"], armado["narracion"]):
+        print("AVISO: el armado o la narración cambiaron mientras se hacían los finales: no se sella el origen común "
+              "(terminado.py lo va a marcar); volver a correr terminar.py --rehacer", flush=True)
+    else:
+        sellar_origen([n for n, _ in finales], armado, "completo")
     print("LISTO", flush=True)
+
+
+ORIGEN = pr.salida / f"{pr.base_nombre}_origen.json"
+
+
+def origen_comun_previo():
+    """El armado del que salieron los finales actuales, si el sello anterior sigue calzando con ellos; si no, None."""
+    from estudio import huella as _huella
+    try:
+        d = json.loads(ORIGEN.read_text(encoding="utf-8"))
+        ok = all((pr.salida / n).exists() and _huella(pr.salida / n) == h for n, h in d["finales"].items())
+        return {"solo_video": d["solo_video"], "narracion": d.get("narracion")} if ok and d.get("solo_video") else None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def sellar_origen(nombres, armado, modo):
+    """0.15: deja <base>_origen.json con la huella del armado (tmp/solo_video.mp4) del que salieron los dos finales y la
+    huella de cada final. terminado.py lo compara: si un final se rehízo por separado, ya no calza. El sello anterior
+    queda guardado como *_anterior-<fecha> (escribir_entrega)."""
+    from estudio import huella as _huella
+    d = {"base": pr.base_nombre, "modo": modo, "solo_video": (armado or {}).get("solo_video"),
+         "narracion": (armado or {}).get("narracion"),
+         "finales": {n: _huella(pr.salida / n) for n in nombres if (pr.salida / n).exists()}}
+    if not d["solo_video"]:
+        print("AVISO: no se sabe de qué armado salieron los finales anteriores (no había sello o ya no calzaba): el sello "
+              "queda sin origen y terminado.py no podrá confirmarlo; para sellarlo, terminar.py --rehacer", flush=True)
+    escribir_entrega(ORIGEN, json.dumps(d, ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":

@@ -26,6 +26,66 @@ def cuadro(video, t):
     return Image.open(io.BytesIO(r.stdout)).convert("RGB")
 
 
+OCR = {"activo": None, "avisado": False}     # None = todavía no se buscó texto; False = se pidió y RapidOCR no estaba
+
+
+def sin_ocr():
+    """True si se pidió buscar el texto de la imagen y el lector (RapidOCR) no estaba activo."""
+    return OCR["activo"] is False
+
+
+def _avisar_ocr(motivo):
+    OCR["activo"] = False
+    if not OCR["avisado"]:          # una sola vez por corrida, para que quede en el log
+        OCR["avisado"] = True
+        print(f"AVISO caras: se pidió evitar el texto de la imagen pero el lector de texto no está activo ({motivo}). "
+              "Solo se evitan caras, cabezas y globos. Para activarlo: python -m pip install rapidocr_onnxruntime", flush=True)
+
+
+def _caras(a):
+    """Caras reales (OpenCV, Haar frontal) en píxeles del cuadro: [(x, y, ancho, alto)], sin margen."""
+    import cv2
+    h = a.shape[0]
+    ruta = Path(getattr(cv2, "data", None).haarcascades if hasattr(cv2, "data") else "") / "haarcascade_frontalface_default.xml"
+    if not ruta.exists():
+        return []
+    cas = cv2.CascadeClassifier(str(ruta))
+    if cas.empty():
+        return []
+    gris = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
+    return [tuple(int(v) for v in c) for c in cas.detectMultiScale(gris, 1.1, 5, minSize=(int(h * 0.06), int(h * 0.06)))]
+
+
+def cara_principal(im):
+    """(0.15) La cara real más grande del cuadro como (cx, cy, ancho, alto) en fracción del cuadro, sin margen;
+    None si no hay cara (o si OpenCV no está). La usan luz.py, grabado.py y apoyo.py para medir y encuadrar."""
+    try:
+        a = np.array(im.convert("RGB"))
+        enc = _caras(a)
+    except Exception:
+        return None
+    if not enc:
+        return None
+    h, w = a.shape[:2]
+    x, y, fw, fh = max(enc, key=lambda e: e[2] * e[3])
+    return ((x + fw / 2) / w, (y + fh / 2) / h, fw / w, fh / h)
+
+
+def con_margen(regiones, m):
+    """(0.15) Las mismas regiones con las caras y cabezas agrandadas una fracción m de su tamaño por cada lado, para que
+    una tarjeta no quede pegada a la cabeza (antes se medía justo sobre ella). Globos y texto no cambian."""
+    if not m:
+        return regiones
+    out = []
+    for (x0, y0, x1, y1), p, tipo in regiones:
+        if tipo in ("cara", "cabeza"):
+            dx, dy = (x1 - x0) * m, (y1 - y0) * m
+            out.append(((x0 - dx, y0 - dy, x1 + dx, y1 + dy), p, tipo))
+        else:
+            out.append(((x0, y0, x1, y1), p, tipo))
+    return out
+
+
 def detectar(im, con_texto=True):
     """Lista de ((x0, y0, x1, y1) en fracción del cuadro, peso, tipo)."""
     import cv2
@@ -33,13 +93,9 @@ def detectar(im, con_texto=True):
     h, w = a.shape[:2]
     out = []
     # 1) caras reales
-    ruta = Path(getattr(cv2, "data", None).haarcascades if hasattr(cv2, "data") else "") / "haarcascade_frontalface_default.xml"
-    if ruta.exists():
-        cas = cv2.CascadeClassifier(str(ruta))
-        if not cas.empty():
-            gris = cv2.cvtColor(a, cv2.COLOR_RGB2GRAY)
-            for (x, y, fw, fh) in cas.detectMultiScale(gris, 1.1, 5, minSize=(int(h * 0.06), int(h * 0.06))):
-                out.append((((x - fw * 0.2) / w, (y - fh * 0.3) / h, (x + fw * 1.2) / w, (y + fh * 1.2) / h), PESO_CARA, "cara"))
+    for (x, y, fw, fh) in _caras(a):
+        out.append((((x - fw * 0.2) / w, (y - fh * 0.3) / h, (x + fw * 1.2) / w, (y + fh * 1.2) / h), PESO_CARA, "cara"))
+    candidatas = []      # manchas blancas con forma de cabeza: se decide al final, mirándolas todas juntas
     # 2) cabezas dibujadas y globos: manchas blancas grandes
     hsv = cv2.cvtColor(a, cv2.COLOR_RGB2HSV)
     blanco = ((hsv[:, :, 2] > 205) & (hsv[:, :, 1] < 45)).astype(np.uint8) * 255
@@ -67,9 +123,18 @@ def detectar(im, con_texto=True):
         # cabeza redonda (los ojos y la boca bajan la redondez medida: se acepta también lo casi cuadrado y bien lleno)
         if (circ > 0.62 and 0.65 < proporcion < 1.5 and lleno > 0.65) or (0.72 < proporcion < 1.38 and lleno > 0.6 and circ > 0.35) \
                 or (con_ojos and lleno > 0.45):
+            candidatas.append((frac, con_ojos, (x, y, bw, bh)))
+        elif frac > 0.01:                                                   # globo, nube, cartel blanco
+            out.append(((x / w, y / h, (x + bw) / w, (y + bh) / h), PESO_GLOBO, "globo"))
+    # 0.15: un guante o una mano blanca y redonda no es una cabeza. Con rasgos (ojos) siempre es cabeza; sin rasgos solo
+    # si no hay otra con rasgos claramente más grande (personaje de espaldas) o, si ninguna tiene rasgos, la mayor.
+    mayor_con = max((f for f, ojos, _ in candidatas if ojos), default=0.0)
+    mayor_sin = max((f for f, ojos, _ in candidatas if not ojos), default=0.0)
+    for frac, ojos, (x, y, bw, bh) in candidatas:
+        if ojos or (mayor_con and frac >= 0.6 * mayor_con) or (not mayor_con and frac == mayor_sin and frac >= 0.008):
             m = 0.18
             out.append((((x - bw * m) / w, (y - bh * m) / h, (x + bw * (1 + m)) / w, (y + bh * (1 + m)) / h), PESO_CARA, "cabeza"))
-        elif frac > 0.01:                                                   # globo, nube, cartel blanco
+        elif frac > 0.01:                                                   # mancha blanca grande sin rasgos: pesa como un globo
             out.append(((x / w, y / h, (x + bw) / w, (y + bh) / h), PESO_GLOBO, "globo"))
     # 3) texto de la imagen
     if con_texto:
@@ -80,6 +145,7 @@ def detectar(im, con_texto=True):
                 _ocr
             except NameError:
                 _ocr = RapidOCR()
+            OCR["activo"] = True
             res, _ = _ocr(a)
             for caja, txt, conf in res or []:
                 if float(conf) < 0.6 or len(txt.strip()) < 2:
@@ -87,7 +153,7 @@ def detectar(im, con_texto=True):
                 xs, ys = [p[0] for p in caja], [p[1] for p in caja]
                 out.append((((min(xs) - 4) / w, (min(ys) - 4) / h, (max(xs) + 4) / w, (max(ys) + 4) / h), PESO_TEXTO, "texto"))
         except ImportError:
-            pass
+            _avisar_ocr("RapidOCR no está instalado")      # 0.15: antes se saltaba en silencio
     return out
 
 
@@ -170,6 +236,8 @@ def main():
     while sal.exists():                           # nunca encima de otra imagen
         sal = video.with_name(f"{video.stem}_caras_{t}_{k}.jpg"); k += 1
     im.save(sal, quality=88)
+    if sin_ocr():
+        print("OJO: en esta revisión NO se buscó el texto de la imagen (RapidOCR no está activo)", flush=True)
     print("LISTO", sal)
 
 

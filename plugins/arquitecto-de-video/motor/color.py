@@ -1,6 +1,7 @@
 # Color para material grabado: pasa el HDR del celular (HDR10/HLG, se ve gris y lavado fuera del celular) a SDR
 # y aplica un "look" igual en todas las tomas. Muestra antes y después antes de renderizar nada.
-#   python color.py muestras "<salida>" "archivo.mp4@12.5" "foto.jpg" ... [--look calido] [--alto 960]
+#   python color.py muestras "<salida>" "archivo.mp4@12.5" "foto.jpg" ... [--look calido] [--alto 960] [--luz]
+#   (--luz, 0.15: agrega la iluminación automática de luz.py; el orden siempre es HDR->SDR -> luz -> LUT/look)
 #   (desde otro script)  from color import cadena; vf = cadena(ruta, "calido")
 import json, subprocess, sys
 from pathlib import Path
@@ -30,17 +31,29 @@ def es_hdr(ruta):
     return t in ("smpte2084", "arib-std-b67")
 
 
-def cadena(ruta, look="calido", brillo=0.0):
-    """Filtro de ffmpeg: HDR->SDR si hace falta + look. brillo: -0.1 a 0.15 para tomas oscuras o claras."""
+def hdr_sdr(ruta):
+    """Solo el paso de HDR a SDR (cadena vacía si el archivo no es HDR o es una foto). Lo usa luz.py para medir."""
+    if Path(ruta).suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp") and es_hdr(ruta):
+        return ("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=reinhard:param=0.6:desat=0,"
+                "zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
+    return ""
+
+
+def cadena(ruta, look="calido", brillo=0.0, luz=""):
+    """Filtro de ffmpeg: HDR->SDR si hace falta + look. brillo: -0.1 a 0.15 para tomas oscuras o claras.
+    luz (0.15): filtro de luz.py (exposición, balance de blancos, realce de cara); va después del paso a SDR y antes
+    de la LUT y del look. Vacío = igual que siempre."""
     lut = None
     if str(look).startswith("lut:"):      # una LUT .cube propia o gratuita (como los LUT de CapCut o DaVinci)
         lut = Path(str(look)[4:])
         look = "natural"
     L = LOOKS[look]
     partes = []
-    if Path(ruta).suffix.lower() not in (".jpg", ".jpeg", ".png", ".webp") and es_hdr(ruta):
-        partes.append("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=reinhard:param=0.6:desat=0,"
-                      "zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
+    sdr = hdr_sdr(ruta)
+    if sdr:
+        partes.append(sdr)
+    if luz:
+        partes.append(luz)
     if lut:
         ruta_lut = str(lut.resolve()).replace("\\", "/").replace(":", "\\:")
         partes.append(f"lut3d=file='{ruta_lut}'")
@@ -79,12 +92,17 @@ def muestras():
         ruta, _, t = p.rpartition("@") if "@" in p else (p, "", "")
         ruta = Path(ruta); t = float(t) if t else None
         antes = fotograma(ruta, t, "", tmp / f"_a{i}.jpg", alto)
-        despues = fotograma(ruta, t, cadena(ruta, look), tmp / f"_d{i}.jpg", alto)
+        fl = ""
+        if "--luz" in args:                       # 0.15: la muestra incluye la luz automática de luz.py
+            import luz as _luz
+            fl, inf = _luz.para_toma(ruta, {"auto": True})
+            print("luz", ruta.name, inf["resumen"], flush=True)
+        despues = fotograma(ruta, t, cadena(ruta, look, luz=fl), tmp / f"_d{i}.jpg", alto)
         hoja = Image.new("RGB", (antes.width + despues.width + 30, alto + 50), (20, 20, 24))
         hoja.paste(antes, (10, 45)); hoja.paste(despues, (antes.width + 20, 45))
         d = ImageDraw.Draw(hoja)
         d.text((14, 10), f"ANTES  {ruta.name}" + (f" @ {t:.1f}s" if t is not None else ""), fill=(230, 230, 230), font=fuente)
-        d.text((antes.width + 24, 10), f"DESPUÉS  look {look}", fill=(255, 200, 110), font=fuente)
+        d.text((antes.width + 24, 10), f"DESPUÉS  look {look}" + ("  + luz automática" if fl else ""), fill=(255, 200, 110), font=fuente)
         sal = salida / f"color_{look}_{i:02d}.jpg"
         k = 2
         while sal.exists():                       # nunca encima de una hoja anterior

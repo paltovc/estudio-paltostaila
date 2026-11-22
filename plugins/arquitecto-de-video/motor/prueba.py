@@ -128,6 +128,13 @@ assert ri.sospechosas("BILL $$$") == ["BILL"] and ri.sospechosas("FEES") == ["FE
 assert ri.sospechosas("Comisiones que podrían evitarse") == [] and ri.sospechosas("CREENCIAS antes de invertir") == []
 assert ri.sospechosas("Un plan basado únicamente") == [] and ri.sospechosas("Sale caro") == []
 print("OK   revisar_idioma: reconoce inglés y deja pasar el español")
+# 0.15: idioma destino en o pt
+assert ri.sospechosas("Your monthly budget", "en") == [] and ri.sospechosas("Tu presupuesto del mes", "en") == ["del", "mes"], \
+    ri.sospechosas("Tu presupuesto del mes", "en")
+assert "Você" in ri.sospechosas("Você pode poupar", "en") and ri.sospechosas("Poupança do mês", "pt") == []
+assert ri.sospechosas("BILLS do mês", "pt") == ["BILLS"] and "dinero" in ri.sospechosas("Ahorra dinero", "pt")
+assert ri.sospechosas("Educação financeira", "es") == ["Educação"], ri.sospechosas("Educação financeira", "es")
+print("OK   revisar_idioma 0.15: destino inglés o portugués, y portugués claro dentro de un video en español")
 import vivo
 class _PR:
     cfg = {"subtitulos": {"preset": "finanzas"}, "elementos": [
@@ -375,6 +382,38 @@ import re as _re13
 if not _re13.search(r"\| 13 \|.*\| ✓ \| máximo -?\d+(\.\d+)? dBTP en \d+ videos \|", _fin):
     sys.exit("terminado.py debía medir el pico real (punto 13):\n" + _fin[-600:])
 print("OK   terminado.py mide el pico real (punto 13, recomendado)")
+# corrección B1 (juicio 0.15): --solo-audio sobre finales sin sello (anteriores al 0.15) no deja un sello sin origen,
+# y un sello sin origen ya escrito cuenta como «sin sello» (punto 14 recomendado, no bloquea)
+_og = carpeta / "07_RENDER" / "VideoPrueba_v1_origen.json"
+if _og.exists():
+    _og.unlink()
+paso("terminar.py", str(carpeta), "--solo-audio")
+if _og.exists():
+    sys.exit(f"terminar.py --solo-audio sin sello previo no debía escribir un sello sin origen. Carpeta conservada: {carpeta}")
+_og.write_text(json.dumps({"base": "VideoPrueba_v1", "modo": "solo-audio", "solo_video": None, "narracion": None,
+                           "finales": {}}), encoding="utf-8")
+_f14 = paso("terminado.py", str(carpeta))          # paso() se detiene si terminado.py no firma
+if "| 14 | Los dos finales salen del mismo armado (sello de terminar.py) (recomendado) |" not in _f14:
+    sys.exit("terminado.py debía tratar un sello sin origen como recomendado (punto 14):\n" + _f14[-600:])
+_og.unlink()
+paso("terminado.py", str(carpeta))
+print("OK   terminar.py --solo-audio sin sello previo no bloquea el punto 14 de terminado.py")
+# corrección M3 (juicio 0.15): el tipo de video no baja el peso de «riesgos» bajo el de siempre (se lee de evaluar.py sin
+# correrlo: evaluar.py arma el proyecto al importarlo)
+import ast as _ast
+_src_ev = (AQUI / "evaluar.py").read_text(encoding="utf-8")
+_ns = {}
+for _nodo in _ast.parse(_src_ev).body:
+    if (isinstance(_nodo, _ast.Assign) and any(getattr(t, "id", "") in ("PESOS_POR_TIPO", "PISO_RIESGOS") for t in _nodo.targets)) \
+            or (isinstance(_nodo, _ast.FunctionDef) and _nodo.name == "pesos_de_tipo"):
+        exec(compile(_ast.Module([_nodo], []), "evaluar.py", "exec"), _ns)
+for _tv in _ns["PESOS_POR_TIPO"]:
+    _t, _pw, _decl, _piso, _ = _ns["pesos_de_tipo"](_tv)
+    if _pw["riesgos"] < _ns["PISO_RIESGOS"] or abs(sum(_pw.values()) - 1) > 0.01:
+        sys.exit(f"evaluar.py: con tipo_video «{_tv}» el peso de riesgos quedó bajo el piso o los pesos no suman 1: {_pw}")
+if _ns["pesos_de_tipo"](None)[1] != _ns["PESOS_POR_TIPO"]["narrado"] or _ns["pesos_de_tipo"](None)[2]:
+    sys.exit("evaluar.py: sin tipo_video los pesos tenían que ser exactamente los de siempre")
+print("OK   evaluar.py: el tipo de video no baja el peso de riesgos (piso) y sin tipo_video nada cambia")
 _f1 = paso("ficha.py", str(carpeta))
 _fj = json.loads((carpeta / "ficha.json").read_text(encoding="utf-8"))
 if (_fj["estado"] != "armado, con pendientes" or "la evaluación" not in _fj["falta"] or not _fj["terminado"]["si"]
@@ -424,6 +463,41 @@ _r4 = subprocess.run([py, "ficha.py", "tabla"], cwd=AQUI, capture_output=True, t
 assert _r4.returncode == 0 and "VideoPrueba" in _r4.stdout and list((carpeta.parent / "base_fichas" / "trabajo" / "fichas").glob("tabla_*.md")), \
     "ficha.py tabla debía funcionar con salida cp1252 y dejar la tabla:\n" + _r4.stdout[-300:] + _r4.stderr[-500:]
 print("OK   ficha.py: «listo para aprobar» solo con todo comprobado; no pisa un ficha.json ajeno; la tabla sale en cp1252")
+# 0.16: equipo.py (qué video local puede correr este computador), regla de resolución y mensaje de bienvenida
+import os
+_eb = Path(tempfile.mkdtemp(prefix="prueba_equipo_"))
+def _equipo(sim, *args):
+    e = dict(os.environ, ESTUDIO_BASE=str(_eb), ESTUDIO_SIN_VENTANA="1", PYTHONIOENCODING="utf-8",
+             ESTUDIO_EQUIPO_SIMULADO=json.dumps(sim))
+    r = subprocess.run([py, "equipo.py", *args], cwd=AQUI, capture_output=True, text=True, env=e, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, "equipo.py falló:\n" + r.stdout[-400:] + r.stderr[-800:]
+    return r.stdout
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce RTX 3060", 12288]], "graficas": ["NVIDIA GeForce RTX 3060"]}, "--json"))
+assert _j["ruta"] == "nvidia_wangp" and _j["resolucion_local"] == "720p" and _j["imagen_a_video"], _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce GTX 1660", 6144]], "graficas": ["NVIDIA GeForce GTX 1660"]}, "--json"))
+assert _j["ruta"] == "nvidia_wangp" and _j["resolucion_local"] == "480p", _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce GT 1030", 2048]], "graficas": ["NVIDIA GeForce GT 1030"]}, "--json"))
+assert _j["ruta"] == "ninguna" and "no alcanza" in _j["mensaje"] and "puerta" in _j["mensaje"], _j
+_j = json.loads(_equipo({"nvidia": [], "graficas": ["Intel(R) Iris(R) Xe Graphics"]}, "--json"))
+assert _j["ruta"] == "ninguna" and "no tiene tarjeta NVIDIA" in _j["mensaje"], _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce RTX 4060 Laptop GPU", 8188, 8.9]], "graficas": ["NVIDIA GeForce RTX 4060 Laptop GPU"]}, "--json"))
+assert _j["ruta"] == "nvidia_wangp" and _j["resolucion_local"] == "720p" and "(8 GB)" in _j["mensaje"], _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce GTX 1070", 8192, 6.1]], "graficas": ["NVIDIA GeForce GTX 1070"]}, "--json"))
+assert _j["ruta"] == "ninguna" and "antigua" in _j["mensaje"], _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce GT 710", None]], "graficas": ["NVIDIA GeForce GT 710"]}, "--json"))
+assert _j["ruta"] == "ninguna" and "no se pudo leer" in _j["mensaje"], _j
+_j = json.loads(_equipo({"nvidia": [["NVIDIA GeForce GT 1030", 2048], ["NVIDIA RTX A6000", 49152]], "graficas": []}, "--json"))
+assert _j["ruta"] == "ninguna", _j   # WanGP usa la GPU 0
+(_eb / "video_local").mkdir()
+(_eb / "video_local" / "s4_resultado.json").write_text(json.dumps({"usable": True, "resolucion": "512x288"}), encoding="utf-8-sig")   # con BOM, como PowerShell
+_j = json.loads(_equipo({"nvidia": [], "graficas": ["Intel(R) Iris(R) Xe Graphics"]}, "--json"))
+assert _j["ruta"] == "intel_experimental" and not _j["imagen_a_video"], _j
+assert _equipo({}, "resolucion", "1080p", "720p").strip() == "720p" and _equipo({}, "resolucion", "1080p", "1080p").strip() == "1080p"
+assert _equipo({"nvidia": [], "graficas": ["Intel(R) Iris(R) Xe Graphics"]}, "ruta").strip() == "intel_experimental"
+_b1 = _equipo({}, "bienvenida"); _b2 = _equipo({}, "bienvenida")
+assert "dejó la puerta abierta" in _b1 and "dejó la puerta abierta" not in _b2 and (_eb / "video_local" / ".bienvenida_vista").exists(), (_b1, _b2)
+shutil.rmtree(_eb, ignore_errors=True)
+print("OK   equipo.py: NVIDIA 12 GB y 8188 MiB → WanGP 720p, 6 GB → 480p; 2 GB, GTX 10xx, memoria ilegible, GPU 0 chica o Intel → puerta abierta; BOM; resolución única por video; bienvenida una sola vez")
 _rc = subprocess.run([py, "prueba_camara.py", str(AQUI)], cwd=AQUI, capture_output=True, text=True, encoding="utf-8", errors="replace")
 if _rc.returncode:
     sys.exit("prueba_camara.py (grabado, montaje y doblaje con tomas con GPS) falló:\n" + _rc.stdout[-1500:] + _rc.stderr[-800:])

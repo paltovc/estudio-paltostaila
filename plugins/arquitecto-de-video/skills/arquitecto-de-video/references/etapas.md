@@ -100,10 +100,10 @@ Transiciones por defecto: fundido 0,4 s entre escenas, deslizamiento 0,6 s al ab
 `python revisar.py "<video>"` + mirar las hojas de contacto y fotogramas en `07_RENDER/revision`. Revisar: imagen acorde a la frase, sin saltos ni negros en las transiciones, planos que no corten personajes, subtítulo que no tape lo importante, rótulos legibles, sin texto duplicado, clips en su escena, estilo del personaje igual en todas las imágenes, textos de imágenes en el idioma del canal, duración = voz, volumen ≈ -14 LUFS. Decir con claridad qué se miró y qué falta escuchar.
 
 ## 10. Publicación (`publicador`)
-Ver `plataformas.md`. Cortos verticales: `python cortos.py "<video>"` (propuesta; `--n 3 --min 40 --max 80 --modo marco|recorte`), `--aplicar` y `python vertical.py`; `render.cmd` ya los saca solos si `vertical` está vacío. Títulos: escribir 10 y elegir 3 (si está la skill yt-package, pasarlos por su `title.py`). Miniatura de máximo 3 palabras que no repitan el título (`miniaturas` en `proyecto.json` + `python miniatura.py`). Cortes verticales autocontenidos de 45-90 s que partan en una frase con gancho (`vertical` en `proyecto.json` + `python vertical.py`).
+Ver `plataformas.md`. Cortos verticales: `python cortos.py "<video>"` (propuesta; `--n 3 --min 40 --max 80 --modo marco|recorte`), `--aplicar` y `python vertical.py`; `render.cmd` ya los saca solos si `vertical` está vacío. Títulos: escribir 10 y elegir 3 con las reglas del publicador y la prueba de las 3 búsquedas en el idioma del canal. Miniatura de máximo 3 palabras que no repitan el título (`miniaturas` en `proyecto.json` + `python miniatura.py`). Cortes verticales autocontenidos de 45-90 s que partan en una frase con gancho (`vertical` en `proyecto.json` + `python vertical.py`).
 
-## 11. Después de publicar (`analista`)
-Con los datos que la persona comparta (capturas de YouTube Studio, TikTok Analytics) o las skills yt-retention / yt-audit si están: dónde se va la gente, qué gancho funcionó, qué repetir. Guardar en `08_PUBLICAR/aprendizajes.md` y proponer cambios a la biblia del canal (no cambiarla sin un sí).
+## 11. Después de publicar (`analista-de-canal` del gerente mide; `analista` saca los aprendizajes)
+Con las métricas del gerente (`yt_api.py metricas`) o los datos que la persona comparta (capturas de YouTube Studio, TikTok Analytics): retención en tres problemas (fuga del gancho, caídas, pendiente), qué gancho funcionó, el arreglo más grande y qué repetir. Guardar en `08_PUBLICAR/aprendizajes.md` y proponer cambios a la biblia del canal (no cambiarla sin un sí).
 
 ## Capa viva, sala de edición y material grabado (motor 0.6)
 

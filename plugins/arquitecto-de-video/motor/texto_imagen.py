@@ -9,9 +9,11 @@
 #   python texto_imagen.py reemplazar "<imagen o carpeta>" [--sufijo _es] [--salida carpeta] [--metodo lama|simple]
 #        [--canal finanzas] [--fuente titulo]
 #   python texto_imagen.py instalar-modelo     baja LaMa (lama_fp32.onnx, ~200 MB, Apache-2.0) desde Hugging Face
+#   0.15: --destino es|en|pt (en detectar y reemplazar): queda en el json ("destino") y el sufijo por defecto es _<destino>
+#        (_es si no se dice nada, como siempre). El lector reconoce letras latinas; revisar tildes y ç a ojo.
 #
 # Uso responsable: solo en imágenes propias o con derechos. No sirve para quitar marcas de agua ni firmas de otros.
-import json, sys, urllib.request
+import json, re, sys, urllib.request
 from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -26,7 +28,8 @@ _ocr = _lama = None
 def imagenes(ruta):
     p = Path(ruta)
     if p.is_dir():
-        return sorted(q for q in p.iterdir() if q.suffix.lower() in EXT and not q.stem.endswith(("_es", "_cajas")))
+        return sorted(q for q in p.iterdir() if q.suffix.lower() in EXT
+                      and not re.search(r"_(es|en|pt|cajas)(_\d+)?$", q.stem))      # 0.15: también _en y _pt (y _es_2...)
     return [p]
 
 
@@ -41,7 +44,10 @@ def ocr():
     return _ocr
 
 
-def detectar(img_path):
+IDIOMAS = ("es", "en", "pt")
+
+
+def detectar(img_path, destino=None):
     im = Image.open(img_path).convert("RGB")
     res, _ = ocr()(np.array(im))
     trozos = []
@@ -64,8 +70,10 @@ def detectar(img_path):
               for i, u in enumerate(unidos, 1)]
     d = img_path.parent / "_textos"
     d.mkdir(exist_ok=True)
-    (d / f"{img_path.stem}.json").write_text(json.dumps({"imagen": img_path.name, "lineas": lineas}, ensure_ascii=False, indent=1),
-                                             encoding="utf-8")
+    datos = {"imagen": img_path.name, "lineas": lineas}
+    if destino:                                    # 0.15: idioma al que hay que traducir "nuevo"
+        datos["destino"] = destino
+    (d / f"{img_path.stem}.json").write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
     vista = im.copy()
     dr = ImageDraw.Draw(vista)
     for l in lineas:
@@ -157,14 +165,18 @@ def fuente_para(texto, ancho, alto, nombre_fuente, mk):
     return fuente(nombre_fuente, 8, mk)
 
 
-def reemplazar(img_path, sufijo="_es", salida=None, metodo="lama", canal=None, nombre_fuente="titulo"):
+def reemplazar(img_path, sufijo=None, salida=None, metodo="lama", canal=None, nombre_fuente="titulo", destino=None):
     from diseno import marca
     js = img_path.parent / "_textos" / f"{img_path.stem}.json"
     if not js.exists():
-        detectar(img_path)
+        detectar(img_path, destino)
         print(f"  {img_path.name}: no había textos detectados; los detecté en {js}. Llena \"nuevo\" y vuelve a correr.")
         return None
     datos = json.loads(js.read_text(encoding="utf-8"))
+    destino = destino or datos.get("destino") or "es"
+    if datos.get("destino") and datos["destino"] != destino:
+        print(f"  AVISO {img_path.name}: el json dice destino {datos['destino']} y se pidió {destino}; se usa {destino}")
+    sufijo = sufijo or f"_{destino}"               # _es como siempre; _en o _pt para los otros destinos
     im = Image.open(img_path).convert("RGB")
     cambiar = [l for l in datos["lineas"] if l.get("nuevo")]
     if not cambiar:
@@ -224,14 +236,19 @@ def main():
     op = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     if a[0] == "instalar-modelo":
         return instalar_modelo()
+    destino = op("--destino")
+    if destino and destino.lower()[:2] not in IDIOMAS:
+        sys.exit("--destino tiene que ser es, en o pt")
+    destino = destino.lower()[:2] if destino else None
     for img in imagenes(a[1]):
         if a[0] == "detectar":
-            ls = detectar(img)
+            ls = detectar(img, destino)
             print(f"{img.name}: {len(ls)} líneas de texto")
             for l in ls:
                 print(f"   {l['id']:>2}. {l['texto']}  ({l['confianza']})")
         elif a[0] == "reemplazar":
-            s = reemplazar(img, op("--sufijo", "_es"), op("--salida"), op("--metodo", "lama"), op("--canal"), op("--fuente", "titulo"))
+            s = reemplazar(img, op("--sufijo"), op("--salida"), op("--metodo", "lama"), op("--canal"), op("--fuente", "titulo"),
+                           destino)
             if s:
                 print(f"{img.name} -> {s}  (borrado con {'LaMa' if lama() and op('--metodo', 'lama') == 'lama' else 'relleno simple'})")
     print("LISTO", flush=True)

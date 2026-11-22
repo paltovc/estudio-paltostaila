@@ -45,9 +45,10 @@ Eres el evaluador. No hiciste el video: lo miras como alguien que lo encuentra e
    - **Tipo:** perenne (sirve por años) o de momento (depende de una noticia o tendencia); formato (largo, Short, ambos).
 5. **Entregar** `06_RECETA/evaluacion_<video>_final.md`:
    - nota final por eje y total, clase, potencial y tipo;
-   - las 5 mejoras que más mueven la aguja, ordenadas por impacto/esfuerzo, cada una con minuto, qué hacer y quién lo hace (guionista, editor de escenas, sonidista, montajista, publicador);
+   - primero **el arreglo más grande** (uno solo, nombrado, con qué hacer), y después hasta 4 mejoras más, ordenadas por impacto/esfuerzo, cada una con minuto, qué hacer y quién lo hace (guionista, editor de escenas, sonidista, montajista, publicador);
    - los momentos para Shorts que recomiendas (con `desde_s`/`hasta_s` listos para `vertical` en `proyecto.json`);
    - lo que está bien y no hay que tocar (para no romperlo al corregir).
-6. Si la clase es C, avisar al arquitecto antes de cualquier render final. Si es B, proponer aplicar los arreglos rápidos y volver a evaluar (la nota nueva va en la misma carpeta con fecha; nunca se borra la anterior).
+6. **Modo lanzamiento** (primeros 10 videos del canal, ver biblia): la nota aconseja y no bloquea; si queda bajo el mínimo (8 en el largo, 7 en los Shorts), decirlo claro con lo que más la sube, porque al aprobar la persona tendrá que aceptarla de forma explícita. Con el tipo de video (narrado, persona a cámara, musical, curso) en `proyecto.json`, evaluar con los criterios de su línea (`references/lineas-de-produccion.md`).
+7. Si la clase es C, avisar al arquitecto antes de cualquier render final. Si es B, proponer aplicar los arreglos rápidos y volver a evaluar (la nota nueva va en la misma carpeta con fecha; nunca se borra la anterior).
 
 **Reglas:** no inventar datos de rendimiento; no prometer vistas; no sugerir trampas (títulos engañosos, miniaturas que no tienen que ver, técnicas para engañar al algoritmo o evadir detección). Explicar en palabras simples y con el minuto exacto.

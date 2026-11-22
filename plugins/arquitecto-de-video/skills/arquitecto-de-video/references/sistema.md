@@ -37,3 +37,13 @@ YouTube, TikTok e Instagram piden lo mismo: MP4, H.264 High 4:2:0 (yuv420p), AAC
 ## Estados de terminado (0.12)
 
 ✓ aprobado · ✗ falla · ? no comprobado (falta el registro, el registro es de otra versión o ffmpeg falló: **cuenta como no terminado**) · – recomendado que falta. El registro de la capa viva (`tmp/capa_viva_lugares.txt`) se escribe siempre y lleva en la primera línea la versión a la que pertenece.
+
+
+## Señales de que el chat se está degradando (0.15, guías «No es el modelo» y «el canario»)
+- **El canario:** cada informe del director termina con la línea `— Estudio Palto Style · <canal> · <ID del video o "sistema">`. Si una respuesta larga deja de traerla, o empieza a contradecir reglas escritas, el chat ya está perdiendo las instrucciones del principio: dejar el estado en `00_ESTADO.md` (o el traspaso del Proyecto) y proponer abrir un chat nuevo. La persona puede poner su propio canario en las instrucciones del Proyecto.
+- **Dos correcciones que no funcionan:** después de corregir dos veces lo mismo en un chat sin éxito, no intentar una tercera: escribir qué falló, qué regla faltó y proponer seguir en un chat nuevo con un mensaje mejor (el traspaso).
+- **Reglas cortas:** el `SKILL.md` principal se mantiene bajo ~150 líneas; lo detallado va a `references/`. Si dos reglas se contradicen, se arregla el texto, no se agrega énfasis.
+- **Diagnóstico de una tarea que salió mal** (sin rehacerla todavía): qué información faltó, qué se decidió por cuenta propia, qué parte del pedido se podía entender de dos formas, cómo se podía haber sabido que no era lo pedido, y máximo 5 reglas que lo habrían evitado. Se proponen; se agregan con el sí de la persona.
+
+## Integrar una herramienta, skill o plugin nuevo
+Ver `integrar-herramientas.md`: se lee la fuente original, se revisa qué ejecuta y qué datos envía, se compara con lo que el estudio ya tiene, se propone qué tomar y cómo adaptarlo, y solo con el sí se incorpora al estudio (con su licencia en `creditos-terceros.md` y en `licencias\registro.md`). Una skill guardada aparte no se integra sola: si sirve, sus ideas se escriben dentro del estudio.

@@ -8,10 +8,11 @@
 #   python ficha.py tabla               recorre EstudioPaltostaila\proyectos y proyectos_externos.txt, actualiza cada
 #                                       ficha y deja la tabla (markdown) en trabajo\fichas\tabla_<fecha>.md
 #   python ficha.py tabla --sin-escribir   solo muestra la tabla
+#   python ficha.py tabla --canal <nombre>   (0.15) solo los videos de ese canal (la tabla general muestra todos)
 import json, os, re, sys
 from datetime import datetime
 from pathlib import Path
-from estudio import DEFAULTS, _mezclar, es_resto, huella, nombre_libre
+from estudio import DEFAULTS, _mezclar, es_resto, huella, idioma_de, nombre_libre
 
 MARCA = "ficha.py"
 try:      # un log de Windows en cp1252 no puede botar la tabla por un carácter
@@ -49,7 +50,7 @@ def ficha(carpeta):
     yt = salida / f"{base}_youtube.mp4"
     cs = salida / f"{base}_con-subtitulos.mp4"
     f = {"id": ident, "nombre": cfg["nombre"], "canal": cfg.get("canal") or d.parent.name, "version": ver, "carpeta": str(d),
-         "titulo": cfg.get("titulo"),
+         "titulo": cfg.get("titulo"), "idioma": idioma_de(cfg), "tipo_video": cfg.get("tipo_video") or "narrado",   # 0.15
          "material": {"guion": _ruta(d, c["guion"]).is_dir() and any(_ruta(d, c["guion"]).iterdir()),
                       "audios_de_voz": len(audios),
                       "imagenes": cuenta(imagenes, {".png", ".jpg", ".jpeg", ".webp"}),
@@ -223,15 +224,19 @@ def main():
     A = sys.argv[1:]
     if A and A[0] == "tabla":
         fichas, errores = [], []
+        solo = A[A.index("--canal") + 1] if "--canal" in A and A.index("--canal") + 1 < len(A) else None   # 0.15
         for c in proyectos():
             try:
                 f = ficha(c) if (c / "proyecto.json").exists() else ficha_montaje(c)
+                if solo and str(f.get("canal")).lower() != solo.lower():
+                    continue
                 if "--sin-escribir" not in A:
                     guardar(f)
                 fichas.append(f)
             except Exception as e:          # un proyecto.json roto no bota la tabla de los demás
                 errores.append(f"{c}: {e}")
-        txt = f"# Estado de los videos ({datetime.now():%Y-%m-%d %H:%M})\n\n" + tabla(fichas) + "\n"
+        txt = (f"# Estado de los videos{' del canal ' + solo if solo else ''} ({datetime.now():%Y-%m-%d %H:%M})\n\n"
+               + tabla(fichas) + "\n")
         if errores:
             txt += "\nNo se pudieron leer:\n" + "\n".join(f"- {e}" for e in errores) + "\n"
         if "--sin-escribir" not in A:      # primero se guarda la tabla; después se muestra

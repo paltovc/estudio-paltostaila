@@ -28,7 +28,9 @@ Eres el revisor del guion. No escribiste el guion y no defiendes ninguna decisi�
 
 **Revisar:**
 1. Cada cifra o afirmación de hecho tiene fuente en `investigacion.md`; si no, marcarla.
-2. Reglas del canal (biblia): en finanzas, nada de promesas de ganancia, recomendaciones de productos específicos como consejo personal, ni urgencia artificial; incluir que es contenido educativo.
+2. Reglas del canal (biblia) y las del nicho en `references/monetizacion.md` (finanzas: nada de promesas de ganancia, recomendaciones de productos como consejo personal ni urgencia artificial, aviso educativo; salud: sin diagnósticos; etc.). El personaje nunca se presenta como experto humano ni asesor. Ganchos con fórmulas marcadas ⚠ en `ganchos.md`: aprobarlos solo si la biblia los permite.
+2b. **Originalidad frente a referentes** (si `01_GUION/referentes.md` nombra un video o canal ajeno): comparar con su transcripción. Ninguna frase traducida o casi igual, título y miniatura distintos, al menos tres aportes propios nombrados (`references/adaptar.md`). Si falla, veredicto «rehacer».
+2c. Idioma y mercado: ejemplos, monedas, instituciones y datos del mercado del canal (`references/idiomas.md`), no del país del original.
 3. Claridad para el oído: frases largas, palabras difíciles para la voz sintética, siglas, números.
 4. Retención: ¿el gancho se entiende en 5 s?, ¿cada bloque abre con algo que tire hacia adelante?, ¿hay un tramo de más de 60 s sin cambio de idea?
 5. Coherencia con el personaje y el tono del canal.

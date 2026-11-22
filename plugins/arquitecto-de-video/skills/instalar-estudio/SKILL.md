@@ -26,6 +26,9 @@ Destino en el PC: `%USERPROFILE%\EstudioPaltostaila\` con `motor\`, `sonidos\`, 
    Basta con datos públicos: no conectar la cuenta del canal (OAuth) para esto. Probar con `python scanner_youtube.py "ahorrar dinero" --paginas 1`.
 9. Informar: qué quedó instalado, qué versión del motor, si falta WhisperX y si hay clave de YouTube.
 
+## Herramientas de terceros (fuera del motor)
+Esta skill instala solo el motor del estudio y sus dependencias. Para cualquier otra herramienta (un repositorio de GitHub, un generador local, una app web), primero el veredicto de `arquitecto-de-video/references/integrar-herramientas.md` y después su **lista segura**: diagnóstico solo de lectura (incluida la tarjeta gráfica), plan con un sí, carpeta propia en `EstudioPaltostaila\herramientas\<nombre>`, versiones fijas, solo en `127.0.0.1`, claves en `claves\`, nada de pago sin confirmar, `LEEME.md` con iniciar/detener/desinstalar y registro de licencias. Ya instalado aparte, antes de la lista segura: `%USERPROFILE%\EstudioPaltostaila\imagen_local\` (Z-Image-Turbo, OpenVINO INT4, 16-11-2026; ver su `LEEME.md` y su fila en `licencias\registro.md`).
+
 ## Notas
 
 - PowerShell bloquea `npm`/`npx` por política: usar `npm.cmd`/`npx.cmd` si hicieran falta.

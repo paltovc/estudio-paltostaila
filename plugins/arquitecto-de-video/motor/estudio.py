@@ -62,6 +62,15 @@ CALIDADES = {"720p": (1280, 720), "1080p": (1920, 1080), "1440p": (2560, 1440), 
              "4k": (3840, 2160), "2160p": (3840, 2160)}
 
 
+IDIOMAS = ("es", "en", "pt")
+
+
+def idioma_de(cfg):
+    """Idioma del video: "idioma" de proyecto.json o, si no está, el de la transcripción (whisperx.idioma). Por defecto es."""
+    i = str(cfg.get("idioma") or (cfg.get("whisperx") or {}).get("idioma") or "es").lower()[:2]
+    return i if i in IDIOMAS else "es"
+
+
 def _mezclar(base, extra):
     out = dict(base)
     for k, v in (extra or {}).items():
@@ -93,7 +102,9 @@ class Proyecto:
             lado = CALIDADES[str(v["calidad"]).lower()]
             self.ancho, self.alto = (lado[1], lado[0]) if v["alto"] > v["ancho"] else lado
         ver = self.cfg["version"]
-        self.id = self.cfg.get("id") or self.cfg["nombre"]     # por ejemplo FIN-003
+        self.id = self.cfg.get("id") or self.cfg["nombre"]     # por ejemplo FIN-003 (el prefijo es el código del canal)
+        self.canal = self.cfg.get("canal") or ""                # 0.15: el canal sale de proyecto.json (no hay uno fijo)
+        self.idioma = idioma_de(self.cfg)                       # 0.15: "es", "en" o "pt"
         self.version = ver or "v1"
         self.base_nombre = f"{self.id}_{self.version}"         # todo lo que sale del estudio empieza asi
 
@@ -148,6 +159,11 @@ FFPROBE = _buscar_ffmpeg("ffprobe")
 # Perfil bajo (T1, 08-11-2026): un video que sale del PC no lleva los metadatos del original (GPS, marca y modelo del
 # celular, fecha de grabación, capítulos). Se pone justo antes del archivo de salida en cada comando que escribe una entrega.
 SIN_METADATOS = ["-map_metadata", "-1", "-map_chapters", "-1"]
+# 0.15: las entregas MP4 salen sin listas de edición (edts/elst). Algunas apps y editores (CapCut, el celular, TikTok)
+# las leen mal: primer cuadro repetido o audio corrido. Con -use_editlist 0 ffmpeg corre audio y video juntos hasta cero
+# (la sincronía entre ellos no cambia; el video puede quedar ~2 cuadros más largo y se oyen los ~21 ms de arranque del
+# AAC, que son silencio). Va antes del archivo de salida, junto a SIN_METADATOS.
+SIN_LISTAS = ["-use_editlist", "0"]
 # Lo único que puede quedar: etiquetas técnicas con los valores que pone el propio ffmpeg. Cualquier otra cosa, o un valor
 # distinto (por ejemplo handler_name="Core Media Video" de un iPhone), se informa para revisar.
 _TECNICAS = {"major_brand": {"isom", "mp42", "mp41", "iso5", "iso6", "M4A ", "M4A", "M4V ", "M4V", "qt  ", "qt"},
@@ -534,6 +550,66 @@ def formato_plataformas(p):
     except OSError:
         return None
     return dif
+
+
+def listas_de_edicion(p):
+    """Pistas de un MP4 que traen lista de edición (moov/trak/edts/elst) que no es la trivial (una sola entrada que empieza
+    en 0). [] = ninguna; None = no se pudo leer. Solo lee el archivo."""
+    def cajas(b, ini, fin):
+        while ini + 8 <= fin:
+            tam = int.from_bytes(b[ini:ini + 4], "big"); tipo = b[ini + 4:ini + 8].decode("latin-1")
+            cab = 8
+            if tam == 1:
+                tam, cab = int.from_bytes(b[ini + 8:ini + 16], "big"), 16
+            elif tam == 0:
+                tam = fin - ini
+            if tam < cab or ini + tam > fin:
+                return
+            yield tipo, ini + cab, ini + tam
+            ini += tam
+    try:
+        with open(p, "rb") as f:
+            pos, moov = 0, None
+            while True:                         # cajas de primer nivel hasta encontrar moov (puede ir al final)
+                f.seek(pos); h = f.read(16)
+                if len(h) < 8:
+                    break
+                tam = int.from_bytes(h[:4], "big"); tipo = h[4:8].decode("latin-1")
+                cab = 8
+                if tam == 1:
+                    tam, cab = int.from_bytes(h[8:16], "big"), 16
+                elif tam == 0:
+                    f.seek(0, 2); tam = f.tell() - pos
+                if tam < 8:
+                    return None
+                if tipo == "moov":
+                    f.seek(pos); moov = f.read(tam)
+                    break
+                pos += tam
+        if moov is None:
+            return None
+        out = []
+        for n, (tipo, a, b) in enumerate((x for x in cajas(moov, 8, len(moov)) if x[0] == "trak"), 1):
+            for t2, a2, b2 in cajas(moov, a, b):
+                if t2 != "edts":
+                    continue
+                for t3, a3, b3 in cajas(moov, a2, b2):
+                    if t3 != "elst":
+                        continue
+                    ver = moov[a3]
+                    cuenta = int.from_bytes(moov[a3 + 4:a3 + 8], "big")
+                    paso = 20 if ver == 1 else 12
+                    tiempos = []
+                    for k in range(min(cuenta, 50)):
+                        e = a3 + 8 + k * paso
+                        mt = moov[e + (8 if ver == 1 else 4):e + (16 if ver == 1 else 8)]
+                        v = int.from_bytes(mt, "big", signed=True)
+                        tiempos.append(v)
+                    if cuenta > 1 or any(tiempos):
+                        out.append(f"pista {n}: {cuenta} entradas (inicio {tiempos[:3]})")
+        return out
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 if __name__ == "__main__":

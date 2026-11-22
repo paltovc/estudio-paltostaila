@@ -2,13 +2,16 @@
 # Nunca mueve, renombra ni borra lo que ya existe: si la carpeta ya tiene imagenes o audios, se apunta a ellos.
 #   python nuevo_proyecto.py "C:\...\FIN-003_fondo-de-emergencia" --id FIN-003 --nombre "Fondo de emergencia" --canal finanzas
 #     --id: codigo del video (prefijo del canal + numero). Todo lo que sale del estudio se llama <ID>_<version>_...
-#     --codigo FIN --numero 3   arma el ID solo (FIN-003) si no se da --id
+#     --codigo FIN --numero 3   arma el ID solo (FIN-003) si no se da --id; sin --codigo, el código sale de la biblia del
+#                               canal («Código de los videos: `FIN`» en canales\<canal>\canal.md) (0.15)
+#     --idioma es|en|pt         idioma del video (0.15): queda en "idioma" y en la transcripción (whisperx.idioma)
+#     --tipo-video narrado|animado|persona|musical|curso   (0.15) lo lee evaluar.py para pesar los ejes
 #   opciones:
 #     --formato vertical            video principal 9:16 (TikTok, Reels, Shorts); por defecto horizontal 16:9
 #     --imagenes "C:\ruta\imagenes"  usar una carpeta de imagenes que ya existe (no se copia)
 #     --voz "C:\ruta\audios"         usar una carpeta de audios que ya existe (no se copia)
 #     --personaje "C:\a.png;C:\b.png" o "C:\carpeta"   copia las imagenes del personaje a la carpeta del canal
-import json, shutil, sys
+import json, re, shutil, sys
 from datetime import date
 from pathlib import Path
 
@@ -23,7 +26,31 @@ carpeta = Path(args[0]).resolve()
 opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
 nombre = opt("--nombre", carpeta.name)
 canal = opt("--canal", "")
-vid = opt("--id") or (f"{opt('--codigo', canal[:3]).upper()}-{int(opt('--numero')):03d}" if opt("--numero") else None)
+
+
+def codigo_del_canal(c):
+    """Código de los videos del canal (FIN, …): el de su biblia (canales\\<canal>\\canal.md, línea «Código de los videos:
+    `XXX`») y, si no lo dice, las tres primeras letras del canal (como antes del 0.15)."""
+    for base in (ESTUDIO / "canales" / c, Path(__file__).resolve().parent.parent / "canales" / c):
+        try:
+            m = re.search(r"C[oó]digo de los videos:\s*`([A-Za-z0-9]{2,8})`", (base / "canal.md").read_text(encoding="utf-8-sig"))
+            if m:
+                return m.group(1).upper()
+        except OSError:
+            continue
+    return c[:3].upper()
+
+
+vid = opt("--id") or (f"{(opt('--codigo') or codigo_del_canal(canal)).upper()}-{int(opt('--numero')):03d}" if opt("--numero") else None)
+if not canal:
+    print("AVISO sin --canal: el proyecto queda sin canal (la biblia, la marca y el gerente lo necesitan); se puede anotar "
+          "después en proyecto.json → \"canal\"")
+idioma = (opt("--idioma") or "").lower()[:2]                 # 0.15: es, en o pt (también el de la transcripción)
+if idioma and idioma not in ("es", "en", "pt"):
+    sys.exit("--idioma tiene que ser es, en o pt")
+tipo_video = (opt("--tipo-video") or "").lower()             # 0.15: narrado, animado, persona, musical o curso (evaluar.py)
+if tipo_video and tipo_video not in ("narrado", "animado", "persona", "musical", "curso"):
+    sys.exit("--tipo-video tiene que ser narrado, animado, persona, musical o curso")
 vertical = (opt("--formato", "horizontal") or "").lower().startswith("vert")
 imagenes_ext, voz_ext = opt("--imagenes"), opt("--voz")
 
@@ -90,7 +117,13 @@ else:
         "sonidos": {"efectos": [], "lapiz": [], "clips_con_sonido": [], "recorte_clip": {},
                     "alinear": "ataque", "baja_sobre_voz": -3},      # 0.14: solo los proyectos nuevos
         "vertical": [], "miniaturas": [],
+        "vertical_esquivar_caras": True,     # 0.15: en los Shorts los elementos esquivan caras (solo proyectos nuevos; lo lee vertical.py)
     }
+    if idioma:
+        cfg["idioma"] = idioma
+        cfg["whisperx"] = {"idioma": idioma}       # la transcripción en el idioma del video (el resto, por defecto)
+    if tipo_video:
+        cfg["tipo_video"] = tipo_video
     if vertical:
         cfg["video"] = {"fps": 30, "ancho": 1080, "alto": 1920, "crf": 20}
         cfg["subtitulos"] = {"max_caracteres": 42, "fuente": "Arial", "tamano": 38}

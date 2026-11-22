@@ -21,13 +21,30 @@ S = pr["sonidos"]
 BANCOS = [pr.sonidos, Path(__file__).resolve().parent.parent / "sonidos", Path.home() / "EstudioPaltostaila" / "sonidos"]
 
 
-def wav(nombre):
+def buscar_wav(nombre):
+    """Ruta del sonido en 05_SONIDOS del proyecto o en el banco del estudio; None si no está."""
     for banco in BANCOS:
         if banco.exists():
             hallado = next(banco.rglob(nombre), None)
             if hallado:
                 return hallado
+    return None
+
+
+def wav(nombre):
+    hallado = buscar_wav(nombre)
+    if hallado:
+        return hallado
     sys.exit(f"No encuentro el sonido {nombre} en {', '.join(str(b) for b in BANCOS)}")
+
+
+def pico_db(f):
+    """Nivel máximo de un sonido en dB (0 = tope digital); None si no se pudo medir."""
+    import re, subprocess
+    r = subprocess.run([str(FFMPEG), "-hide_banner", "-i", str(f), "-af", "volumedetect", "-f", "null", "-"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    m = re.findall(r"max_volume:\s*(-?[\d.]+) dB", r.stderr)
+    return float(m[-1]) if m else None
 
 
 def origen(f):
@@ -64,7 +81,7 @@ def main():
         retirar_hoja()
         return
     dur = pr.duracion()
-    escenas = pr.escenas()
+    escenas = pr.escenas() if pr.receta.exists() else []     # 0.15: material grabado no tiene receta de escenas
     _, pals = palabras(pr)
     ini_escena = {r["n"]: r["t0"] for r in escenas}
     fin_escena = {r["n"]: r["t1"] for r in escenas}
@@ -137,6 +154,32 @@ def main():
         agregar(["-f", "lavfi", "-i", "anoisesrc=color=white:duration=2.6:amplitude=0.5"],
                 f"bandpass=f=4200:width_type=h:w=2600,tremolo=f=6:d=0.85,afade=t=in:d=0.2,afade=t=out:st=2.2:d=0.4,volume={S['whoosh_db'] - 2}dB",
                 momento(pr, pals, escenas, e), "lapiz", S["whoosh_db"] - 2)
+    # 0.15: sonidos sincronizados con los subtítulos dinámicos y con los elementos de la capa viva (apagado si no se pide).
+    # "sonido_volumen" es cuánto queda bajo la voz (-14 = unos 14 dB bajo la voz): el sonido se mide y se lleva a ese nivel.
+    import vivo
+    por_archivo = {}
+    for t, nombre, vol, etiqueta in vivo.cues_sonido(pr, pals):
+        f = buscar_wav(vivo.SONIDOS.get(str(nombre).lower(), str(nombre)))
+        if f is None:
+            print(f"AVISO: no encuentro el sonido «{nombre}» para {etiqueta}; se salta", flush=True)
+            continue
+        por_archivo.setdefault(f, []).append((max(0.0, t), vol, etiqueta))
+    for f, lista in por_archivo.items():          # el archivo entra una sola vez y se reparte (pueden ser muchos pops)
+        ataque, pico = ataque_y_pico(f)[0], pico_db(f)
+        fuente, licencia = origen(f)
+        ins.extend(["-ss", f"{ataque:.3f}", "-i", f] if ataque else ["-i", f])      # el primer sonido audible cae en la palabra
+        idx = sum(1 for x in ins if x == "-i") - 1
+        filtros.append(f"[{idx}:a]atrim=0:1.2,afade=t=out:st=0.9:d=0.3,aformat=sample_rates=48000:channel_layouts=stereo,"
+                       f"asplit={len(lista)}" + "".join(f"[v{idx}_{k}]" for k in range(len(lista))))
+        for k, (t, vol, etiqueta) in enumerate(lista):
+            bajo_voz = -abs(float(vol if vol is not None else -14))
+            # un sonido corto cuyo máximo queda ~9 dB sobre el volumen de la voz suena más o menos igual de fuerte que ella
+            g = S["vol_efectos"] if pico is None else pr["volumen_lufs"] + bajo_voz + 9 - pico
+            ms = int(t * 1000)
+            filtros.append(f"[v{idx}_{k}]volume={g:.1f}dB,adelay={ms}|{ms}[e{idx}_{k}]")
+            etiquetas.append(f"[e{idx}_{k}]")
+            resumen.append((t, f"{f.name} ({etiqueta})"))
+            hoja.append((t, f"{f.name} ({etiqueta})", round(g, 1), f"ataque, {bajo_voz:g} dB bajo la voz", fuente, licencia))
     if not etiquetas:
         print("no hay efectos definidos; no se crea la capa")
         (pr.tmp / "efectos.wav").unlink(missing_ok=True)

@@ -79,3 +79,11 @@ Si la posición pedida tapa algo de eso, el elemento se corre a la zona libre m�
 - **Revisar a mano un cuadro:** `python caras.py "<video>" 12.5` deja una imagen con lo que encontró marcado.
 
 Por ahora se aplica en el video 16:9. En los Shorts, los elementos van en la columna central de la zona segura; revisar los cuadros igual.
+
+
+## Novedades 0.15 (pendiente de prueba; detalle en `motor-0150-camara.md`)
+- **Preset `reel`**: 1-2 palabras, grande, centro-bajo, entrada pop, palabra clave en el color de acento. Para la receta 1 (reel de persona hablando).
+- **Sonidos**: `"subtitulos": {"sonido": "pop", "sonido_volumen": -14}` (14 dB bajo la voz; solo en palabras clave o grupos, con frecuencia máxima) y `"sonido"` por elemento. Apagados por defecto; nombres y archivos del banco en el documento del motor. Calibrar a oído.
+- **Shorts que esquivan caras** (opción B del 15-11): `"vertical_esquivar_caras": true` en la raíz de `proyecto.json` (o `"esquivar_caras"` por corte). Los proyectos nuevos lo traen; los existentes no cambian. Lo que no tiene lugar libre se oculta y queda en `tmp/capa_viva_lugares_<short>.txt`.
+- **Correcciones activas por defecto**: margen de 8 % alrededor de caras y cabezas al medir, caja girada real de las tarjetas, y el guante blanco ya no cuenta como cabeza. `"subtitulos": {"margen_caras": 0}` vuelve al margen anterior.
+- Para varios canales: cada biblia nombra su preset; el preset por defecto sigue siendo `finanzas` si la biblia no dice otro.
