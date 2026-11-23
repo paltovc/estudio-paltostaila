@@ -28,6 +28,22 @@ def validar(pdir, pub=None):
     for k in ("id", "version", "canal"):
         if not pub.get(k):
             errores.append(f"falta «{k}»")
+    # 0.2.0 varios canales: solo AVISOS (no cambian lo que ya era válido)
+    try:
+        pj = leer_json(pdir / "proyecto.json")
+        cpj = pj.get("canal") if isinstance(pj, dict) else None
+    except Exception:
+        cpj = None
+    if cpj and pub.get("canal") and str(cpj).strip().lower() != str(pub["canal"]).strip().lower():
+        avisos.append(f"el canal de publicacion.json («{pub['canal']}») no es el de proyecto.json («{cpj}»): revisar antes de aprobar")
+    try:
+        from comun import config, canal_cfg
+        cfg = config()
+        if (cfg.get("canales") or {}) and pub.get("canal") and not canal_cfg(cfg, pub["canal"]):
+            avisos.append(f"el canal «{pub['canal']}» no tiene configuración propia en config.json → canales: usa la general "
+                          "(YouTube, zonas, Metricool) y no tiene modo lanzamiento")
+    except Exception:
+        pass
     piezas = pub.get("piezas") or []
     if not piezas:
         errores.append("no hay piezas")

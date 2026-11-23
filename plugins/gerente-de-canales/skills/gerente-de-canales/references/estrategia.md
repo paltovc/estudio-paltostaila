@@ -1,6 +1,6 @@
 # Ronda 0: estrategia al empezar un canal, una serie o un proyecto
 
-Va **antes** de la entrevista por video del estudio (`entrevista.md` del arquitecto). Se pregunta con la herramienta de preguntas con opciones, máximo 4 por vez y 2 rondas. Se salta lo que ya está en `canales\<canal>\ESTRATEGIA.md` o en la biblia del canal. Si la persona dice «decide tú», se toma el valor por defecto y se anota como supuesto.
+Es la **fase 1 (concepto)** de «abrir un canal» (skill **nuevo-canal** del estudio) y va antes de la entrevista por video (`entrevista.md` del arquitecto): se reciben las respuestas que ya se dieron ahí y no se vuelven a preguntar. Cada canal tiene su propia estrategia; con varios canales en paralelo, el ritmo de cada uno se suma en el cupo del calendario y se avisa si la suma no es sostenible para las horas reales de Patricio y su pareja. Preguntar también las horas reales por semana y qué está a medio hacer antes de proponer un ritmo. Se pregunta con la herramienta de preguntas con opciones, máximo 4 por vez y 2 rondas. Se salta lo que ya está en `canales\<canal>\ESTRATEGIA.md` o en la biblia del canal. Si la persona dice «decide tú», se toma el valor por defecto y se anota como supuesto.
 
 ## Ronda A: qué y para quién
 

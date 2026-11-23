@@ -24,3 +24,9 @@ Se crean con las herramientas de programación de Claude. Cada una parte en una 
 - **Vigía mensual de políticas:** en la nube, no necesita el PC. Ver `vigilancia.md`.
 - **Revisión semanal del calendario y de las métricas:** necesita el PC encendido con la app de Claude abierta, porque los permisos de YouTube viven en el PC. Se crea cuando `yt_api.py autorizar` ya funcione.
 - **La publicación en sí no depende de una tarea programada.** Se sube con días de anticipación y la plataforma publica a la hora (YouTube con `publishAt`, TikTok e Instagram en Metricool). Si el PC está dormido ese día, igual sale.
+
+
+## Varios canales (gerente 0.2.0)
+- `calendario.py canales [--mes AAAA-MM]`: una fila por canal con lo que espera aprobación, lo aprobado, lo programado o publicado del mes, los próximos 7 días, el estado del modo lanzamiento y el cupo de Metricool. Es la vista para empezar cada sesión cuando hay más de un canal.
+- `ver --canal X`, `pendientes --canal X`, `cupo --mes --canal X`; `ver` ya trae la columna «canal».
+- Cada canal puede tener sus zonas del público, su YouTube y su cuenta de Metricool en `config.json` → `"canales"`; sin eso, comparten el cupo general.

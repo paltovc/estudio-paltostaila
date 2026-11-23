@@ -18,7 +18,7 @@
       "name": "gerente-de-canales",
       "source": "./plugins/gerente-de-canales",
       "description": "Gerente de canales: estrategia, calendario por mercados, publicacion aprobada (YouTube con API propia, TikTok e Instagram por Metricool o a mano), metricas, monetizacion y vigilancia de politicas. Trabaja con arquitecto-de-video.",
-      "version": "0.1.8",
+      "version": "0.2.2",
       "license": "MIT"
     }
   ]

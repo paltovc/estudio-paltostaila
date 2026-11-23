@@ -248,8 +248,12 @@ check("aprobar el Short", c == 0, out)
 _pp = TMPD / "proyecto_publicar"; _pp.mkdir()
 check("sin proyecto.json la carpeta de publicación es 08_PUBLICAR", comun.carpeta_publicar(_pp).name == "08_PUBLICAR")
 (_pp / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "08_PUBLICAR_ESTUDIO"}}), encoding="utf-8")
-check("con \"publicar\" en proyecto.json se usa esa carpeta (FIN-002: 08_PUBLICAR_ESTUDIO)",
+check("con carpetas.publicar en proyecto.json se usa esa carpeta (FIN-002: 08_PUBLICAR_ESTUDIO)",
       comun.carpeta_publicar(_pp) == _pp / "08_PUBLICAR_ESTUDIO")
+_malo = TMPD / "proyecto_carpeta_mal"; _malo.mkdir()
+(_malo / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "../otra"}}), encoding="utf-8")
+check("un proyecto con carpetas.publicar mal escrito no detiene el conteo del modo lanzamiento (canal desconocido)",
+      comun._canal_de_proyecto(_malo) is None)
 # 0.1.8: un valor presente pero inválido detiene al gerente (no vuelve en silencio a 08_PUBLICAR)
 def _se_detiene(pj):
     (_pp / "proyecto.json").write_text(json.dumps(pj), encoding="utf-8")
@@ -550,6 +554,236 @@ check("progreso: horas de largos y directos, Shorts, y solo subidas PÚBLICAS de
       res["horas_largos_365d"] == 3100.0 and res["vistas_shorts_90d"] == 3_200_000 and res["subidas_publicas_90d"] == 3, str(res))
 check("progreso: alcanzaría fan funding (estimado) y no anuncios",
       res["metas"]["fan_funding"]["alcanzaria_estimado"] and not res["metas"]["anuncios"]["alcanzaria_estimado"])
+
+# --- 0.2.0: modo lanzamiento por canal y varios canales
+cfg = comun.leer_json(comun.CONFIG)
+ctx_antes = comun.contexto(PUB, cfg)
+cfg["canales"] = {"lanzamiento": {"modo_lanzamiento": {"activo": True, "hasta_videos": 2}}}
+comun.escribir_estado(comun.CONFIG, cfg)
+check("un canal sin configuración propia da el mismo contexto (las huellas aprobadas no cambian)",
+      comun.contexto(PUB, comun.config()) == ctx_antes)
+c, out = correr("puertas.py", P, "--pieza", "short1", "--red", "instagram")
+check("el canal de finanzas (sin modo lanzamiento) no muestra la fila del modo", "modo lanzamiento del canal" not in out, out)
+P2 = TMPD / "Canal nuevo" / "LAN-001"
+for d in ("07_RENDER", "06_RECETA", "08_PUBLICAR"):
+    (P2 / d).mkdir(parents=True)
+V2 = P2 / "07_RENDER" / "LAN-001_v3_youtube.mp4"
+V2.write_bytes(b"video del canal nuevo" * 90)
+(P2 / "07_RENDER" / "terminado_LAN-001_v3.md").write_text(TERM_OK.replace("FIN-900_v1", "LAN-001_v3"), encoding="utf-8")
+(P2 / "07_RENDER" / "terminado_LAN-001_v3.json").write_text(json.dumps({"base": "LAN-001_v3", "ok": True,
+                                                                         "videos": {V2.name: _h(V2)}}), encoding="utf-8")
+(P2 / "08_PUBLICAR" / "checklist_publicacion_monetizacion_v3.md").write_text("MONETIZACIÓN: OK\n", encoding="utf-8")
+EV2 = P2 / "06_RECETA" / "evaluacion_LAN-001_v3_youtube.json"
+
+
+def evaluar2(nota=6.5, clase="B", sha=True):
+    EV2.write_text(json.dumps({"video": V2.name, "nota_medida": nota, "clase_medida": clase,
+                               **({"sha256": _h(V2)} if sha else {})}), encoding="utf-8")
+
+
+evaluar2()
+PUB2 = {"id": "LAN-001", "version": "v3", "canal": "lanzamiento", "piezas": [
+    {"clave": "largo", "archivo": "07_RENDER/LAN-001_v3_youtube.mp4", "tipo": "largo", "titulo": "Canal nuevo",
+     "descripcion": "Prueba", "para_ninos": False, "ia_realista": False,
+     "destinos": [{"red": "youtube", "ruta": "manual", "fecha": manana, "zona": "America/Santiago"}]}]}
+(P2 / "08_PUBLICAR" / "publicacion.json").write_text(json.dumps(PUB2, ensure_ascii=False), encoding="utf-8")
+JU2 = P2 / "08_PUBLICAR" / "juicio_v3.md"
+
+
+def huella2():
+    c, out = correr("aprobar.py", P2, "--tabla")
+    return dict(re.findall(r"## (\w+) \(\w+\) · huella \*\*(\w{8})\*\*", out)).get("largo"), out
+
+
+h2, out = huella2()
+check("la tabla avisa el modo lanzamiento, la nota bajo el mínimo y la versión 3 (máximo 2)",
+      h2 and "modo lanzamiento: video 1 de 2" in out and "--acepto-nota" in out and "versión 3" in out, out)
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("modo lanzamiento: sin aprobación con la nota aceptada, la puerta de evaluación sigue cerrada",
+      c == 1 and "--acepto-nota" in out and "se exige nota 8" in out, out)
+c, out = correr("aprobar.py", P2, "--por", "Patricio (prueba)", "--huellas", f"largo:{h2}")
+check("modo lanzamiento: sin --acepto-nota no se aprueba una nota bajo el mínimo", c != 0 and "NO SE APRUEBA" in out, out)
+c, out = correr("aprobar.py", P2, "--por", "Patricio (prueba)", "--huellas", f"largo:{h2}", "--acepto-nota", "corto")
+check("--acepto-nota exige un motivo con palabras", c != 0 and "motivo" in out, out)
+c, out = correr("aprobar.py", P2, "--por", "Patricio (prueba)", "--huellas", f"largo:{h2}",
+                "--acepto-nota", "primer video del canal, aprender del público")
+ap2 = [x for x in comun.leer_json(comun.APROBACIONES)["aprobaciones"] if x["clave"] == "LAN-001|v3|largo"]
+check("con --acepto-nota se aprueba y la aceptación queda junto a la huella, quién y la nota",
+      c == 0 and ap2 and ap2[-1].get("aceptacion_nota", {}).get("nota") == 6.5
+      and ap2[-1]["aceptacion_nota"].get("por") == "Patricio (prueba)" and ap2[-1]["aceptacion_nota"].get("sha256_evaluado") == _h(V2)
+      and len(list((comun.GER / "diario").glob("*_LAN-001_largo__nota_aceptada.json"))) == 1, out)
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("modo lanzamiento: sin juicio del juez la puerta se cierra", c == 1 and "juicio del juez (obligatorio" in out
+      and "| ✗ | falta 08_PUBLICAR/juicio_v3.md" in out, out)
+# correcciones tras el juicio del juez (0.2.0)
+c, out = correr("calendario.py", "hoja", P2)
+check("M1: calendario.py hoja corre las puertas: sin juicio no escribe la hoja y dice qué falta",
+      c == 1 and "NO SE ESCRIBE LA HOJA" in out and "juicio del juez" in out
+      and not list((P2 / "08_PUBLICAR").glob("hoja_de_publicacion_*.md")), out)
+time.sleep(0.05)
+JU2.write_text(f"OBSERVADO\nsha256: {_h(V2)}\n\n# Juicio\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("modo lanzamiento: nota aceptada + juicio OBSERVADO = puertas abiertas, con la evaluación como AVISO (⚠) y el aviso de versión",
+      c == 0 and "PUERTAS ABIERTAS" in out and "| ⚠ | AVISO (modo lanzamiento" in out and "máximo de 2 versiones" in out
+      and f"sha256 {_h(V2)[:8]} = {V2.name}" in out, out)
+c, out = correr("calendario.py", "hoja", P2)
+_hj = list((P2 / "08_PUBLICAR").glob("hoja_de_publicacion_v3*.md"))
+_hjt = _hj[0].read_text(encoding="utf-8") if _hj else ""
+check("M1: con las puertas abiertas la hoja se escribe y lleva el sha256 del archivo aprobado y el AVISO de la nota",
+      c == 0 and _h(V2) in _hjt and "Get-FileHash" in _hjt and "⚠" in _hjt, out)
+for _txt, _que in (("NO APROBADO\n", "«NO APROBADO»"), ("OBSERVADO: se puede seguir\n", "texto después de la palabra"),
+                   ("# Juicio\nAPROBADO\n", "un título antes del veredicto")):
+    JU2.write_text(_txt, encoding="utf-8")
+    c, out = correr("puertas.py", P2, "--pieza", "largo")
+    check(f"B3: {_que} no es un veredicto válido: cierra", c == 1 and "juicio_v3.md: ?" in out, out)
+JU2.write_text("APROBADO\nsha256: " + "0" * 64 + "\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("B3: un juicio que cita el sha256 de otro video cierra", c == 1 and "revisó otro video" in out, out)
+JU2.write_text("APROBADO\nsha256: (pendiente)\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("B3: un sha256 ilegible en la segunda línea cierra", c == 1 and "sha256 legible" in out, out)
+# N1 (verificación 0.2.0, estricto): el sha del juicio vale solo para el archivo que se sube o su par _youtube/_con-subtitulos
+_TJ = P2 / "07_RENDER" / "terminado_LAN-001_v3.json"
+_tj_antes = _TJ.read_text(encoding="utf-8")
+_BOR = P2 / "07_RENDER" / "LAN-001_v3_borrador-30s.mp4"; _BOR.write_bytes(b"borrador de 30 s" * 70)
+_SH = P2 / "07_RENDER" / "LAN-001_v3_9x16.mp4"; _SH.write_bytes(b"short vertical" * 80)
+_CS = P2 / "07_RENDER" / "LAN-001_v3_con-subtitulos.mp4"; _CS.write_bytes(b"largo con subtitulos" * 90)
+_sell = {V2.name: _h(V2), _BOR.name: _h(_BOR), _SH.name: _h(_SH), _CS.name: _h(_CS)}
+_TJ.write_text(json.dumps({"base": "LAN-001_v3", "ok": True, "videos": _sell}), encoding="utf-8")
+for _q, _que in ((_BOR, "un borrador sellado"), (_SH, "un Short sellado")):
+    JU2.write_text(f"APROBADO\nsha256: {_h(_q)}\n", encoding="utf-8")
+    c, out = correr("puertas.py", P2, "--pieza", "largo")
+    check(f"N1: un juicio con el sha256 de {_que} no abre el largo", c == 1 and "revisó otro video" in out, out)
+JU2.write_text(f"APROBADO\nsha256: {_h(_CS)}\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("N1: el sha256 del par _con-subtitulos del mismo largo (misma corrida) abre el _youtube",
+      c == 0 and f"{_CS.name}, el mismo largo" in out, out)
+JU2.write_text(f"APROBADO\nsha256: {_h(V2)}\n", encoding="utf-8")
+check("N1: un juicio con solo el sha256 del largo no abre su Short (el Short necesita su propio sha256)",
+      puertas.revisar_juicio(P2, "v3", _SH, _sell)[2] is False)
+JU2.write_text(f"APROBADO\nsha256: {_h(V2)}\nsha256: {_h(_SH)}\n\n# Juicio\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("N1: un juicio con dos sha256 abre el largo", c == 0 and f"= {V2.name}" in out, out)
+check("N1: el mismo juicio con dos sha256 abre también el Short", puertas.revisar_juicio(P2, "v3", _SH, _sell)[2] is True)
+_TJ.write_text(_tj_antes, encoding="utf-8")
+for _q in (_BOR, _SH, _CS):
+    _q.unlink()
+# N6: el juicio se lee en UTF-8 con o sin BOM y en UTF-16 con BOM; si no se puede decodificar, cierra diciendo por qué
+JU2.write_text(f"APROBADO\nsha256: {_h(V2)}\n", encoding="utf-16")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("N6: un juicio en UTF-16 con BOM (Out-File de PowerShell 5) se lee", c == 0 and f"= {V2.name}" in out, out)
+JU2.write_text(f"APROBADO\nsha256: {_h(V2)}\n", encoding="utf-8-sig")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("N6: un juicio en UTF-8 con BOM se lee", c == 0, out)
+JU2.write_bytes(b"APROBADO\nsha256: \xff\xfa\xfb\n")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("N6: un juicio que no se puede decodificar cierra con «no se pudo leer el juicio (codificación)»",
+      c == 1 and "no se pudo leer el juicio (codificación)" in out, out)
+JU2.write_text("APROBADO\n", encoding="utf-8")
+os.utime(JU2, (V2.stat().st_mtime - 60, V2.stat().st_mtime - 60))
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("B3: sin sha256, un juicio anterior al video no vale en modo lanzamiento (criterio de fecha)",
+      c == 1 and "es anterior a" in out, out)
+JU2.write_text("RECHAZADO\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("un juicio RECHAZADO cierra las puertas", c == 1 and "juicio_v3.md: RECHAZADO" in out, out)
+(P2 / "08_PUBLICAR" / "juicio_v3_2.md").write_text("APROBADO\n", encoding="utf-8")
+os.utime(JU2, (time.time() - 60, time.time() - 60))
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("manda el juicio más reciente (juicio_v3_2.md APROBADO)", c == 0, out)
+# M2: el proyecto usa 08_PUBLICAR_ESTUDIO (como FIN-002) y el juicio puede estar ahí o en 08_PUBLICAR
+_pe = P2 / "08_PUBLICAR_ESTUDIO"; _pe.mkdir()
+for _n in ("publicacion.json", "checklist_publicacion_monetizacion_v3.md"):
+    shutil.copy2(P2 / "08_PUBLICAR" / _n, _pe / _n)
+(P2 / "proyecto.json").write_text(json.dumps({"carpetas": {"publicar": "08_PUBLICAR_ESTUDIO"}}), encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("M2: con carpetas.publicar = 08_PUBLICAR_ESTUDIO, el juicio APROBADO de 08_PUBLICAR abre", c == 0, out)
+time.sleep(0.05)
+(_pe / "juicio_v3.md").write_text("RECHAZADO\n", encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("M2: un RECHAZADO más reciente en 08_PUBLICAR_ESTUDIO cierra", c == 1 and "08_PUBLICAR_ESTUDIO/juicio_v3.md: RECHAZADO" in out, out)
+(P2 / "proyecto.json").unlink(); shutil.rmtree(_pe)
+# M4: en modo lanzamiento la ruta api (y Metricool/vidIQ) queda cerrada: solo a mano
+_api = json.loads(json.dumps(PUB2)); _api["piezas"][0]["destinos"][0]["ruta"] = "api"
+(P2 / "08_PUBLICAR" / "publicacion.json").write_text(json.dumps(_api, ensure_ascii=False), encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("M4: en modo lanzamiento la ruta api queda cerrada con «subida a mano»",
+      c == 1 and "modo lanzamiento: subida a mano (hoja de calendario)" in out, out)
+check("M4: yt_api.py subir se niega en modo lanzamiento (ni simulado)", yt_api.subir(P2, "largo", simular=True) is None)
+(P2 / "08_PUBLICAR" / "publicacion.json").write_text(json.dumps(PUB2, ensure_ascii=False), encoding="utf-8")
+evaluar2(6.6)
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("si se evaluó otra vez (otra nota), la aceptación vieja no sirve", c == 1 and "--acepto-nota" in out, out)
+evaluar2(sha=False)
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("modo lanzamiento: una evaluación sin huella sigue bloqueando", c == 1 and "no trae la huella" in out, out)
+EV2.unlink()
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("modo lanzamiento: sin evaluación sigue bloqueando", c == 1 and "falta 06_RECETA/evaluacion_LAN-001_v3" in out, out)
+EV2.write_text(json.dumps({"video": V2.name, "nota_medida": 6.5, "clase_medida": "B", "sha256": _h(V2), "tipo_video": "musical",
+                           "pesos": {"ritmo": 0.2842, "riesgos": 0.1}}), encoding="utf-8")
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("M3: la fila de la evaluación de puertas muestra el tipo de video y los pesos con que se evaluó",
+      "tipo de video «musical»" in out and "riesgos 10 %" in out, out)
+c, out = correr("aprobar.py", P2, "--tabla")
+check("M3: aprobar.py --tabla muestra el tipo de video con que se evaluó", c == 0 and "tipo de video «musical»" in out, out)
+evaluar2()
+# B2: en modo lanzamiento, una pieza con la fecha pasada y sin anotar se avisa (el contador se quedaría corto)
+cal = comun.leer_json(comun.CALENDARIO)
+_ayer = (dt.datetime.now() - dt.timedelta(days=3)).strftime("%Y-%m-%dT19:00")
+cal["entradas"].append({"id": "LAN-009_v1_largo_youtube", "proyecto": "", "canal": "lanzamiento", "video": "LAN-009",
+                        "version": "v1", "pieza": "largo", "tipo": "largo", "red": "youtube", "ruta": "manual",
+                        "fecha": _ayer, "zona": "America/Santiago", "estado": "aprobado", "enlace": "", "nota": "",
+                        "actualizado": ""})
+comun.escribir_estado(comun.CALENDARIO, cal)
+c, out = correr("calendario.py", "canales")
+check("B2: calendario canales avisa las piezas del modo lanzamiento con fecha pasada y sin anotar",
+      c == 0 and "1 sin anotar" in out and "LAN-009_v1_largo_youtube" in out and "contador" in out, out)
+c, out = correr("anotar.py", P2, "largo", "youtube", "--estado", "publicado", "--enlace", "https://youtu.be/prueba")
+check("M1: lo subido a mano CON aprobación vigente (huella del archivo y de la pieza) se anota sin IRREGULAR",
+      c == 0 and "IRREGULAR" not in out, out)
+# N2 (verificación 0.2.0): la ruta manual respeta la puerta de duplicados: una segunda hoja de lo ya publicado sale cerrada
+c, out = correr("calendario.py", "hoja", P2)
+check("N2: una segunda hoja de algo ya publicado sale cerrada (no se envió antes ✗)",
+      c == 1 and "NO SE ESCRIBE LA HOJA" in out and "no se envió antes" in out and "ya está publicado" in out, out)
+# N3: un RECHAZADO que llegó después de aprobar deja IRREGULAR lo anotado por la ruta manual (sin bloquear)
+time.sleep(0.05)
+_JU3 = P2 / "08_PUBLICAR" / "juicio_v3_3.md"
+_JU3.write_text("RECHAZADO\n", encoding="utf-8")
+c, out = correr("anotar.py", P2, "largo", "youtube", "--estado", "publicado", "--enlace", "https://youtu.be/prueba")
+check("N3: ruta manual con el juicio cerrado al anotar (RECHAZADO después de aprobar) queda IRREGULAR, y se anota igual",
+      c == 0 and "IRREGULAR" in out and "puerta cerrada al anotar: juicio del juez" in out and "(ruta manual)" in out
+      and "LISTO anotado" in out, out)
+_JU3.unlink()
+cal = comun.leer_json(comun.CALENDARIO)
+for i in (2, 3):
+    cal["entradas"].append({"id": f"LAN-00{i}_v1_largo_youtube", "proyecto": "", "canal": "lanzamiento", "video": f"LAN-00{i}",
+                            "version": "v1", "pieza": "largo", "tipo": "largo", "red": "youtube", "ruta": "manual",
+                            "fecha": manana, "zona": "America/Santiago", "estado": "publicado", "enlace": "", "nota": "",
+                            "actualizado": ""})
+comun.escribir_estado(comun.CALENDARIO, cal)
+c, out = correr("puertas.py", P2, "--pieza", "largo")
+check("con 2 videos ya publicados (hasta_videos 2) termina el modo y vuelve la regla normal (nota 8)",
+      c == 1 and "terminó el modo" in out and "se exige nota 8" in out and "AVISO (modo" not in out, out)
+c, out = correr("calendario.py", "canales")
+check("calendario canales: vista conjunta con cada canal y su modo lanzamiento",
+      c == 0 and "| finanzas |" in out and "| lanzamiento |" in out and "terminó el modo" in out, out)
+c, out = correr("calendario.py", "ver", "--canal", "lanzamiento")
+check("calendario ver --canal muestra solo ese canal", c == 0 and "LAN-002" in out and "FIN-900" not in out, out)
+cfg = comun.leer_json(comun.CONFIG)
+cfg["canales"]["lanzamiento"]["modo_lanzamiento"]["hasta_videos"] = "10"
+cfg["canales"]["lanzamiento"]["youtube"] = {"idioma": "en", "canal_id": "UC_OTRO_CANAL"}
+comun.escribir_estado(comun.CONFIG, cfg)
+check("un modo lanzamiento mal escrito queda apagado (rige la regla normal)",
+      not comun.modo_lanzamiento(comun.config(), "lanzamiento", "LAN-001")["activo"])
+check("youtube_de: el canal con configuración propia toma su idioma y su canal; los demás, los generales",
+      comun.youtube_de(comun.config(), "lanzamiento")["idioma"] == "en"
+      and comun.youtube_de(comun.config(), "lanzamiento")["canal_id"] == "UC_OTRO_CANAL"
+      and comun.youtube_de(comun.config(), "finanzas")["canal_id"] == "UC_CANAL_BUENO")
+# M1: el canal cambió su configuración de YouTube (otra huella de la pieza): lo subido a mano ya no tiene aprobación vigente
+c, out = correr("anotar.py", P2, "largo", "youtube", "--estado", "publicado", "--enlace", "https://youtu.be/prueba")
+check("M1: lo anotado como publicado por ruta manual sin aprobación vigente con huella queda IRREGULAR",
+      c == 0 and "IRREGULAR" in out and "(ruta manual)" in out, out)
 
 shutil.rmtree(TMPD, ignore_errors=True)
 check("toda subida y todo cambio de estado en YouTube dijo privacyStatus = private (nunca vacío ni público)",

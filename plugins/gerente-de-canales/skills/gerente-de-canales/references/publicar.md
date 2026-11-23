@@ -113,3 +113,10 @@ Sirve cuando no hay forma de alojar el archivo. `vidiq_instagram_publish_reel` p
 ## 6. Después
 
 `calendario.py pendientes` muestra qué falta medir a las 48 h y a los 7 días (ver `metricas.md`). Se actualiza el documento vivo con los enlaces.
+
+
+## En modo lanzamiento (gerente 0.2.0)
+- `aprobar.py --tabla` muestra «modo lanzamiento: video N de 10 del canal …», la nota de cada pieza con ⚠ si está bajo el mínimo y el aviso de versión mayor que 2. Mostrarle eso a la persona y explicarle qué significa aceptar la nota.
+- Con una nota bajo el mínimo, aprobar solo con su sí explícito a esa nota: `aprobar.py "<P>" --por "<quién>" --huellas … --acepto-nota "<su motivo, en sus palabras>"` (mínimo 8 letras). Queda en `aprobaciones.json`, `aprobacion_<v>.md` y el diario.
+- Las piezas van con `"ruta": "manual"` en `publicacion.json`: la persona sube y avisa, y se anota con `anotar.py --estado publicado --enlace <url>`.
+- Un segundo canal de YouTube va por la ruta manual hasta que exista un permiso por canal (el permiso actual es de un solo canal).

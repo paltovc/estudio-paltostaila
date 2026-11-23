@@ -40,6 +40,12 @@ CONFIG_INICIAL = {
     "vidiq": {"creditos_mes_autorizados": 0},
     "exigir_evaluacion_shorts": True,
     "minutos_minimos_antes": 30,
+    # 0.2.0: configuración propia de cada canal (el canal sale de publicacion.json → "canal"). Lo que no esté aquí se
+    # toma de lo general de arriba. Ejemplo:
+    #   "canales": {"finanzas": {"modo_lanzamiento": {"activo": true, "hasta_videos": 10},
+    #                            "youtube": {"canal_id": "UC...", "idioma": "es"}, "zonas_publico": [...],
+    #                            "metricool": {"limite_mes": 20, "blog_id": ""}}}
+    "canales": {},
 }
 
 
@@ -134,8 +140,91 @@ def config():
         c = json.loads(json.dumps(CONFIG_INICIAL))
         escribir_estado(CONFIG, c)
     for k, v in CONFIG_INICIAL.items():
-        c.setdefault(k, v)
+        c.setdefault(k, json.loads(json.dumps(v)))    # copia: así nadie cambia sin querer los valores iniciales
     return c
+
+
+def canal_cfg(cfg, canal):
+    """Configuración propia de un canal (config.json → "canales" → <canal>), o {} si no tiene."""
+    cs = cfg.get("canales")
+    c = cs.get(canal or "") if isinstance(cs, dict) else None
+    return c if isinstance(c, dict) else {}
+
+
+def youtube_de(cfg, canal):
+    """Valores de YouTube de un canal: los generales de "youtube" más los propios del canal (si los tiene). Un canal sin
+    configuración propia da exactamente los generales: las huellas de las aprobaciones de siempre no cambian."""
+    yc = dict(cfg.get("youtube") or {})
+    propio = canal_cfg(cfg, canal).get("youtube")
+    if isinstance(propio, dict):
+        yc.update(propio)
+    return yc
+
+
+def zonas_de(cfg, canal):
+    z = canal_cfg(cfg, canal).get("zonas_publico")
+    return z if isinstance(z, list) and z else cfg.get("zonas_publico", [])
+
+
+def _canal_de_proyecto(proyecto):
+    try:
+        d = leer_json(carpeta_publicar(proyecto) / "publicacion.json")
+        return d.get("canal") if isinstance(d, dict) else None
+    except (Exception, SystemExit):   # carpetas.publicar mal escrito en OTRO proyecto: no se cuenta, no detiene este
+        return None
+
+
+PUBLICADO = ("programado", "publicado", "medido_48h", "medido_7d")
+
+
+def videos_publicados(canal, filas=None):
+    """IDs de video (FIN-002, …) del canal que ya están programados o publicados en alguna red. Sale del calendario y del
+    registro: el registro no guarda el canal, así que se cruza con el calendario o con el publicacion.json del proyecto."""
+    cal = leer_json(CALENDARIO, {"entradas": []}) or {"entradas": []}
+    canal_de, ids = {}, set()
+    for e in cal.get("entradas", []):
+        if e.get("video") and e.get("canal"):
+            canal_de.setdefault(e["video"], e["canal"])
+        if e.get("canal") == canal and e.get("estado") in PUBLICADO and e.get("video"):
+            ids.add(e["video"])
+    for r in ultimo_estado(lambda r: (r["id"], r["version"], r["pieza"], r["red"]), filas).values():
+        if r["estado"] in ("programado", "publicado"):
+            c = canal_de.get(r["id"])
+            if c is None:
+                c = canal_de[r["id"]] = _canal_de_proyecto(r.get("proyecto") or "")
+            if c == canal:
+                ids.add(r["id"])
+    return ids
+
+
+def modo_lanzamiento(cfg, canal, id_actual=None, filas=None):
+    """Modo lanzamiento del canal (decisión de Patricio, 15-11-2026): en los primeros `hasta_videos` videos del canal el
+    evaluador aconseja y no bloquea (la nota baja se acepta de forma explícita al aprobar) y el juez revisa cada video.
+    Se apaga solo cuando el canal ya tiene `hasta_videos` videos programados o publicados sin contar este.
+    Una configuración mal escrita deja el modo APAGADO (manda la regla normal, la más estricta)."""
+    m = canal_cfg(cfg, canal).get("modo_lanzamiento")
+    r = {"configurado": isinstance(m, dict), "activo": False, "hasta": None, "publicados": 0, "detalle": "sin modo lanzamiento"}
+    if not isinstance(m, dict):
+        return r
+    hasta, previos = m.get("hasta_videos", 10), m.get("ya_publicados", 0)
+    ok_int = lambda v, lo, hi: isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi
+    if m.get("activo") is not True or not ok_int(hasta, 1, 100) or not ok_int(previos, 0, 10000):
+        r["detalle"] = ("modo lanzamiento apagado" if m.get("activo") is False
+                        else f"modo lanzamiento mal configurado ({json.dumps(m, ensure_ascii=False)[:120]}): rige la regla normal")
+        return r
+    ids = videos_publicados(canal, filas) - {id_actual}
+    n = len(ids) + previos
+    r.update(hasta=hasta, publicados=n, activo=n < hasta, ids=sorted(ids))
+    r["detalle"] = (f"modo lanzamiento: video {n + 1} de {hasta} del canal «{canal}»" if r["activo"] else
+                    f"el canal «{canal}» ya tiene {n} videos publicados o programados (límite {hasta}): terminó el modo "
+                    "lanzamiento, rige la regla normal")
+    return r
+
+
+def numero_version(v):
+    """«v3» → 3; None si no tiene número."""
+    m = re.search(r"\d+", str(v or ""))
+    return int(m.group()) if m else None
 
 
 def nivel(cfg):
@@ -168,7 +257,7 @@ def ruta_segura(pdir, rel):
 def contexto(pub, cfg):
     """Lo que no está en la pieza pero cambia lo que se envía: canal del proyecto, canal de YouTube conectado y los
     valores de YouTube que se heredan de la configuración. Entra en la huella de la aprobación."""
-    yc = cfg.get("youtube", {})
+    yc = youtube_de(cfg, pub.get("canal"))        # 0.2.0: los propios del canal, si los tiene (si no, los de siempre)
     return {"canal": pub.get("canal"), "youtube_canal_id": yc.get("canal_id", ""), "idioma": yc.get("idioma", "es"),
             "categoria": str(yc.get("categoria", "27")), "notificar": bool(yc.get("notificar", True))}
 

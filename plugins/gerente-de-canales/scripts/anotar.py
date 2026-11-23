@@ -44,8 +44,28 @@ anterior = ultimo_estado(lambda r: (r["id"], r["version"], r["pieza"], r["red"])
 enl = opt(a, "--enlace", "") or (anterior["enlace"] if anterior else "")
 from puertas import aprobacion
 ap = aprobacion(pub, clave)
-if est in ("programado", "publicado", "subido_privado") and d["ruta"] != "manual" and (not ap or ap["sha256"] != sha):
-    nota = ("IRREGULAR: el archivo enviado no tiene una aprobación vigente con esta huella. " + nota).strip()
+# corrección M1 (juicio 0.15): la ruta manual ya no queda exenta. Lo subido a mano tiene que tener una aprobación vigente
+# con la huella del archivo Y la de la pieza (título, textos, fechas, contexto), igual que en las puertas.
+if d["ruta"] == "manual":
+    from comun import config, contexto, huella_pieza
+    sin_aprobar = not ap or ap["sha256"] != sha or ap.get("huella_pieza") != huella_pieza(pdir, x, ctx=contexto(pub, config()))
+else:
+    sin_aprobar = not ap or ap["sha256"] != sha
+enviado = est in ("programado", "publicado", "subido_privado")
+# corrección N3 (verificación 0.2.0): en la ruta manual también se miran las puertas del juicio y de la evaluación al
+# anotar (p. ej. un RECHAZADO que llegó después de aprobar). Se reusa puertas.revisar; no bloquea, solo deja constancia.
+cerradas = []
+if enviado and d["ruta"] == "manual":
+    from puertas import cerradas_juicio_evaluacion, revisar
+    try:
+        cerradas = cerradas_juicio_evaluacion(revisar(pdir, clave, red))
+    except Exception as e:
+        cerradas = [f"no se pudieron revisar las puertas del juicio y de la evaluación ({e})"]
+if enviado and (sin_aprobar or cerradas):
+    motivos = (["el archivo enviado no tiene una aprobación vigente con esta huella"] if sin_aprobar else []) + \
+              [f"puerta cerrada al anotar: {c}" for c in cerradas]
+    nota = ("IRREGULAR: " + "; ".join(motivos)
+            + (" (ruta manual)" if d["ruta"] == "manual" else "") + ". " + nota).strip()
     p("AVISO: " + nota + " Revisarlo con Patricio.")
 diario(estado=est, enlace=enl, nota=nota, **base)
 registrar(estado=est, enlace=enl, nota=nota, **base)

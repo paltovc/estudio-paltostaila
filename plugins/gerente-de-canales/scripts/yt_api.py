@@ -1,7 +1,8 @@
 from comun import carpeta_publicar
 # YouTube con la API propia del estudio (OAuth del canal; nada de contraseñas ni cookies).
 #   python yt_api.py autorizar                         abre el navegador UNA vez para dar permiso; guarda el token en claves
-#   python yt_api.py canal [--confirmar]               muestra a qué canal quedó conectado; --confirmar lo fija en config
+#   python yt_api.py canal [--confirmar [--canal <nombre>]]  muestra a qué canal quedó conectado; --confirmar lo fija en
+#                                                      config (con --canal, solo para ese canal del estudio, 0.2.0)
 #                                                      (solo después de que Patricio diga que es el canal correcto)
 #   python yt_api.py subir "<proyecto>" <pieza> [--simular]
 #       pasa las puertas → sube PRIVADO y SIN fecha → guarda el ID → miniatura, subtítulos y lista → revisa que la
@@ -16,7 +17,7 @@ import datetime as dt, json, os, shutil, sys, time, uuid
 from pathlib import Path
 from comun import (CLAVES, CONFIG, GER, TMP, a_utc, ahora_utc, bloqueo, config, contexto, diario, escribir_estado,
                    escribir_nuevo, huella, huella_pieza, nivel, opt, p, pieza, proyecto_dir, publicacion, registrar,
-                   ruta_segura, ultimo_estado, ya_enviado)
+                   ruta_segura, ultimo_estado, ya_enviado, youtube_de)
 
 ALCANCES = ["https://www.googleapis.com/auth/youtube.upload",
             "https://www.googleapis.com/auth/youtube.force-ssl",
@@ -90,7 +91,10 @@ def autorizar():
     p("LISTO: permiso guardado en", TOKEN.name, "(no se muestra su contenido). Ahora: python yt_api.py canal")
 
 
-def canal(yt=None, confirmar=False):
+def canal(yt=None, confirmar=False, nombre=None):
+    """--confirmar fija el canal de YouTube en la configuración general; con --canal <nombre> lo fija solo para ese canal
+    del estudio (config.json → canales → <nombre> → youtube → canal_id). El permiso (token) sigue siendo uno solo: para
+    subir a otro canal de YouTube hay que autorizar esa cuenta (ver cambios-0200.md); mientras tanto, ruta manual."""
     yt = yt or servicio()
     r = yt.channels().list(part="snippet,statistics", mine=True).execute()
     it = r.get("items", [])
@@ -101,15 +105,18 @@ def canal(yt=None, confirmar=False):
     if confirmar:
         with bloqueo("config"):
             cfg = config()
-            cfg["youtube"]["canal_id"] = c["id"]
+            if nombre:
+                cfg.setdefault("canales", {}).setdefault(nombre, {}).setdefault("youtube", {})["canal_id"] = c["id"]
+            else:
+                cfg["youtube"]["canal_id"] = c["id"]
             escribir_estado(CONFIG, cfg)
-        p("LISTO: canal confirmado. Las aprobaciones nuevas quedan atadas a este canal.")
+        p(f"LISTO: canal confirmado{' para ' + nombre if nombre else ''}. Las aprobaciones nuevas quedan atadas a este canal.")
     return c
 
 
 def cuerpo(pub, x, d, cfg):
     """Cuerpo del video para insertar: siempre privado y sin fecha (la fecha se pone al final, en programar())."""
-    yc = cfg["youtube"]
+    yc = youtube_de(cfg, pub.get("canal"))       # 0.2.0: valores del canal del proyecto (sin config propia = los generales)
     st = {"privacyStatus": "private", "selfDeclaredMadeForKids": bool(x["para_ninos"]),
           "containsSyntheticMedia": bool(x["ia_realista"]), "embeddable": True, "license": "youtube"}
     sn = {"title": x["titulo"], "description": x.get("descripcion", ""), "categoryId": str(x.get("categoria", yc.get("categoria", "27"))),
@@ -121,6 +128,7 @@ def cuerpo(pub, x, d, cfg):
     return {"snippet": sn, "status": st}, fecha
 
 
+NOMBRE_PISTA = {"es": "Español", "en": "English", "pt": "Português"}
 MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".srt": "application/octet-stream"}
 
 
@@ -184,9 +192,11 @@ def subir(pdir, clave, simular=False, yt=None, media=_media, ahora=None):
         p(json.dumps(body, ensure_ascii=False, indent=1))
         p(f"y al final, si todo salió bien: publishAt {fecha}" if fecha else "y queda privado (nivel 1)")
         return {"simulado": True, "body": body, "publishAt": fecha}
-    canal_id = cfg["youtube"].get("canal_id")
+    yc = youtube_de(cfg, pub.get("canal"))       # 0.2.0: canal confirmado y avisos del canal del proyecto
+    canal_id = yc.get("canal_id")
     if not canal_id:
-        p("Falta confirmar el canal: python yt_api.py canal y, si Patricio dice que es el correcto, --confirmar.")
+        p("Falta confirmar el canal: python yt_api.py canal y, si Patricio dice que es el correcto, --confirmar"
+          f" (para un canal con configuración propia: --confirmar --canal {pub.get('canal')}).")
         return None
     arch = ruta_segura(pdir, x["archivo"])
     sha = huella(arch)
@@ -230,7 +240,7 @@ def subir(pdir, clave, simular=False, yt=None, media=_media, ahora=None):
         try:
             m = media(copias["archivo"], chunksize=8 * 1024 * 1024, resumable=True, mimetype="video/*")
             medios.append(m)
-            req = yt.videos().insert(part="snippet,status", body=body, notifySubscribers=cfg["youtube"].get("notificar", True),
+            req = yt.videos().insert(part="snippet,status", body=body, notifySubscribers=yc.get("notificar", True),
                                      media_body=m)
             resp, t0 = None, time.time()
             while resp is None:
@@ -261,8 +271,10 @@ def subir(pdir, clave, simular=False, yt=None, media=_media, ahora=None):
             try:
                 m = media(copias["subtitulos"], mimetype="application/octet-stream")
                 medios.append(m)
-                yt.captions().insert(part="snippet", body={"snippet": {"videoId": vid, "language": x.get("idioma", "es"),
-                                                                       "name": "Español", "isDraft": False}},
+                leng = x.get("idioma", yc.get("idioma", "es"))     # 0.2.0: el idioma de la pista sale de la pieza o del canal
+                yt.captions().insert(part="snippet", body={"snippet": {"videoId": vid, "language": leng,
+                                                                       "name": NOMBRE_PISTA.get(str(leng)[:2], "Español"),
+                                                                       "isDraft": False}},
                                      media_body=m).execute()
             except Exception as e:
                 fallos.append(f"subtítulos: {str(e)[:120]}")
@@ -465,7 +477,7 @@ if __name__ == "__main__":
     if a[0] == "autorizar":
         autorizar()
     elif a[0] == "canal":
-        canal(confirmar="--confirmar" in a)
+        canal(confirmar="--confirmar" in a, nombre=opt(a, "--canal"))
     elif a[0] == "subir":
         r = subir(proyecto_dir(a[1]), a[2], simular="--simular" in a)
         sys.exit(0 if r else 1)

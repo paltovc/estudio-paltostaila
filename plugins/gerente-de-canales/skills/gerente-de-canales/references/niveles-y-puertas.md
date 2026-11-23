@@ -53,3 +53,13 @@ Para Metricool y vidIQ (que se llaman desde el chat, no desde un script), primer
 - Pedir contraseñas.
 
 `desprogramar` se niega a tocar un video que ya es público o cuya hora de publicación está a menos de 10 minutos (o ya pasó): en ese caso se hace en YouTube Studio. Conserva los demás campos del video, y anota la cancelación en el registro, el diario y el calendario.
+
+
+## Modo lanzamiento por canal y puerta del juez (gerente 0.2.0; prueba superada el 21-11-2026 en la 0.2.1)
+- Se activa por canal en `gerente\config.json` → `"canales": {"<canal>": {"modo_lanzamiento": {"activo": true, "hasta_videos": 10}}}` (cambiarlo necesita el sí de Patricio). No se activa solo; mal escrito queda apagado.
+- Con el modo activo: una evaluación bajo 8 (largo) / 7 (Short) o clase C pasa como **AVISO** solo si la aprobación guarda la aceptación explícita de esa misma evaluación (`aprobar.py … --acepto-nota "<motivo>"`); el juicio del juez (`juicio_<v>.md` APROBADO u OBSERVADO, posterior al video) es **obligatorio**; versión mayor que v2 = aviso. Evaluación ausente, ilegible o sin huella sigue bloqueando.
+- **En los dos modos:** un juicio RECHAZADO del juez cierra las puertas (antes estaba escrito en las reglas pero ninguna puerta lo revisaba).
+- El modo termina solo al llegar a `hasta_videos` videos programados o publicados del canal.
+- Detalle completo, registro de la aceptación y pruebas sugeridas: `cambios-0200.md`.
+- **Solo a mano en el lanzamiento (M4):** con el modo activo, los destinos `api`, `metricool` y `vidiq` quedan cerrados («modo lanzamiento: subida a mano (hoja de calendario)»). `calendario.py hoja` corre las mismas puertas, no se escribe si alguna está cerrada y lleva el sha256 del archivo aprobado.
+- **Formato del juicio:** primera línea solo APROBADO, OBSERVADO o RECHAZADO; después una línea `sha256: <hex>` por cada archivo revisado. Un veredicto que no se reconoce, un sha de otro video o un archivo que no se puede leer cierran la puerta en los dos modos. El gerente busca el juicio en la carpeta de publicación del proyecto y en `08_PUBLICAR`, y toma el más reciente.

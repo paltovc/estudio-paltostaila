@@ -1,24 +1,33 @@
 # Estudio Paltostaila
 
-Herramientas para crear videos narrados con Claude.
+Herramientas para crear, revisar y publicar videos con Claude.
 
-## Arquitecto de video
+- **arquitecto-de-video**: el estudio que hace los videos (investigación, guion, imágenes, clips, voz, subtítulos, sala de edición, evaluador, juez y paquete para YouTube, TikTok e Instagram). Detalle en [plugins/arquitecto-de-video/README.md](plugins/arquitecto-de-video/README.md).
+- **gerente-de-canales**: el que publica y sigue los canales (calendario, aprobación, subida a YouTube, TikTok e Instagram, métricas). Detalle en [plugins/gerente-de-canales/README.md](plugins/gerente-de-canales/README.md).
 
-Un equipo de 14 agentes que lleva un video desde la idea hasta el paquete listo para YouTube, Shorts, TikTok e Instagram: tendencias y análisis de videos exitosos, guion, imágenes con el personaje siempre igual, clips de Flow, voz sin pausas muertas, subtítulos, efectos, render y publicación preparada. Detalle en [plugins/arquitecto-de-video/README.md](plugins/arquitecto-de-video/README.md).
+## Instalar en la app de Claude (escritorio)
 
-### Instalar
+1. Abre **Customize → Plugins**.
+2. En **Personal plugins**, aprieta **+** → **Add marketplace** → **Add from a repository**.
+3. Escribe `paltovc/estudio-paltostaila` y confirma.
+4. Instala **arquitecto-de-video** y **gerente-de-canales**.
+5. En una conversación con tu computador vinculado escribe: **instala el estudio**.
 
-**Claude Code:**
+## Actualizar
+
+1. **Customize → Plugins** → en la tienda `estudio-paltostaila`, aprieta **Update**.
+2. En una conversación con tu computador vinculado escribe: **actualiza el motor**.
+3. Para comprobar, pregunta: **¿qué versión del arquitecto y del gerente tengo?**
+
+## Claude Code (terminal)
+
 ```
-/plugin marketplace add <usuario>/estudio-paltostaila
+/plugin marketplace add paltovc/estudio-paltostaila
 /plugin install arquitecto-de-video@estudio-paltostaila
+/plugin install gerente-de-canales@estudio-paltostaila
 ```
+Actualizar: `/plugin marketplace update estudio-paltostaila`.
 
-**App de Claude (escritorio):** descarga `arquitecto-de-video.plugin` desde la sección Releases de este repositorio e instálalo en la app de Claude.
-
-Después, en una conversación con el computador vinculado: "instala el estudio".
-
-### Actualizar
-Claude Code: `/plugin marketplace update estudio-paltostaila`. App: descargar el `.plugin` de la versión nueva.
+Las claves (YouTube, Metricool) no vienen en este repositorio: cada persona guarda las suyas en `EstudioPaltostaila\claves\` de su propio computador.
 
 Licencia MIT.
